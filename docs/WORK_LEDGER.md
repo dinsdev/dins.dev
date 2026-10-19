@@ -4,6 +4,21 @@ Decisions and why, work done, verification results, approvals, blockers, handoff
 
 ## 2026-10-19
 
+### Site brainstorm: direction and home page skeleton (Din and Claude)
+
+The site PRD and plan are still being written; these are the decisions locked so far.
+
+- **Purpose:** a portfolio for a US master's in data science or ML/data engineering (primary) and data engineer, then AI/LLM engineer roles. The ML and AI skill shows through the work itself, not through claims.
+- **Home page (approach A, chosen over a chat-only site and a classic portfolio with a widget):** Ask Ottie is the hero (name, role line, suggested questions written for recruiters and admissions, Resume/Email/GitHub/LinkedIn visible on first paint), with real crawlable pages underneath. A chat-only page would be invisible to search, to `llms.txt` and to screen readers, and would lose readers who don't type.
+- **Ask Ottie:** a RAG pipeline over Din's approved library, answered by Claude Haiku. One answer-provider interface with three backends: a fake (tests and CI), Claude Code on Din's membership (local development, terms to be checked first), the Anthropic API (staging and production). Budget: a $100 spend cap, rate limits and Turnstile. Answers in English, and in French when asked in French; the site itself stays English for v1.
+- **Library:** sources are GitHub repos, resume, LinkedIn, the undergrad thesis, and an in-depth interview by a Claude agent. Nothing reaches Ottie without Din's sign-off; raw transcripts stay in `handbook`; a deny-list (visa status, finances, personal life) gets a polite decline. The interview question bank plus Din's approved answers doubles as the eval set.
+- **Pushbacks Din accepted:** a brand-native "Look closer" lens intro instead of the React Bits Hyperspeed effect (heavy WebGL, delays the first 30 seconds, and its neon glow breaks the calm brand); React Bits is inspiration only, we write our own versions; one quiet motion budget (letter field, small teal click sparks, scroll reveals, Ottie); Ottie is a 2D cut-out puppet in the canonical style, not pixel art, and stays quiet while someone types or reads; writing lives at `dins.dev/writing`, not a `blog.` subdomain, so everything ranks for Din's name on one domain.
+- **Content timing:** real projects (ML, pipelines, data science, each with a visual demo) and the interview come later. `passfx`, `claude-runner` and `claudehome` are placeholders until then. A content freeze around December 1 is proposed.
+- **Routes and content model (section 1, locked):** `/`, `/work`, `/work/<project>` (with an "Ask Ottie about this project" bar that only searches that project), `/writing` and posts with RSS, `/about`, `/contact`, `/privacy`, a 404 with Ottie, plus the agreed SEO files. Typed content collections for projects, writing and the Ottie-only library; Ottie's corpus is the library plus the pages. Not in v1: a French site, comments, a newsletter, `/uses`.
+- **Home page skeleton (Accepted by Din):** one visual family. Lens: the intro pulls the page into focus through Ottie's right lens, and a faint mono letter field resolves into real library words near the cursor (and sweeps while Ottie retrieves). Windows: projects on a scroll-pinned center stage, each tilting in and landing in focus with its demo inside a browser window. Paper: writing as floating cards that drift in and settle. Studio: About as a dark studio where a laptop unfolds, a terminal types `whoami`, and the camera dollies into the screen (CSS 3D first; a Blender-rendered frame sequence is an optional upgrade). Letter: contact as a sheet of paper that folds into an envelope, gets an Ottie wax seal and is carried off by Ottie.
+- **Sketch:** `docs/design/sketches/home-sketch.html` (built by `build.py` from `home.template.html`, the real tokens and logo). A rough reference for layout and motion, not final design or copy.
+- **Verification:** rendered with headless Chrome in light and dark at 1440 px, including forced scroll states for the stage, studio and letter. Limits: headless Chrome will not go below about 500 px wide, so phone layouts are unchecked, and it stops its clock mid-animation, so the full letter fold was only checked by Din live.
+
 ### Going public (Din)
 
 - **Decision:** `dins.dev` is public from today instead of at launch, so progress is visible as it happens.

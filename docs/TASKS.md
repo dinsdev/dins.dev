@@ -48,7 +48,8 @@ Status vocabulary: Proposed, Planned, In progress, Implemented, Verified, Accept
 
 | ID | Task | Status |
 |---|---|---|
-| 2.1 | Write the site PRD (earlier concepts in `~/Develop/dins.dev-concepts` are reference only) | Planned |
+| 2.1 | Write the site PRD and build plan (earlier concepts in `~/Develop/dins.dev-concepts` are reference only) | In progress |
+| 2.1a | Lock routes, content model and the home page skeleton (sketch in `docs/design/sketches/`) | Accepted (Din, 2026-10-19) |
 
 ## Phase 3: Games pipeline
 
