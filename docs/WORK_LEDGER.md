@@ -4,6 +4,13 @@ Decisions and why, work done, verification results, approvals, blockers, handoff
 
 ## 2026-10-19
 
+### Ottie puppet route (Din)
+
+- **Locked:** Ottie is built in Blender: layered painted parts (complete underneath, so nothing reveals a seam), mesh deformation with an armature so the fur bends instead of hinging, animation authored as curves with anticipation, overlap, follow-through and secondary motion, rendered to WebP sprite sheets, with live pupils and glint drawn in the browser from a per-frame eye manifest. Spec: `docs/design/ottie/BRIEF.md`.
+- **Why:** the earlier cut-out spike looked cheap (rigid pasted-on arms, a metronome wave). Din ruled out third parties (Rive animators) and AI video (not reliable enough on a live site). Blender keeps the painted canonical look, is free, and its sprite-sheet output plays the same in every browser. A redrawn vector rig was the lighter alternative, but its quality ceiling is lower and it drifts from the brand art.
+- **Gate:** no Ottie state ships until Din approves it side by side in the preview page. Idle and wave come first. If Ottie is not approved by launch, the site uses a still Ottie.
+- **Next:** a separate session builds it from a `/goal` prompt, on branch `feat/ottie-puppet` in its own worktree. This session continues the site PRD and plan.
+
 ### Site brainstorm: direction and home page skeleton (Din and Claude)
 
 The site PRD and plan are still being written; these are the decisions locked so far.
