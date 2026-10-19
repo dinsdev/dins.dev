@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dins logo sheet</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { background: #1b1d1f; padding: 16px; font: 12px/1.4 ui-monospace, monospace; color: #a29e95; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 600px), 1fr)); gap: 14px; }
+  .p { border-radius: 14px; padding: 26px 30px; display: flex; flex-direction: column; gap: 26px; }
+  .light { background: #f4f1ea; color: #4a555c; }
+  .dark { background: #1f1e1c; color: #a29e95; }
+  .label { letter-spacing: .08em; text-transform: uppercase; font-size: 11px; }
+  .hero { display: flex; justify-content: center; padding: 18px 0 6px; }
+  .hero img { height: 120px; }
+  .row { display: flex; align-items: center; gap: 36px; flex-wrap: wrap; }
+  .nav { display: flex; align-items: center; justify-content: space-between; border: 1px solid rgb(128 128 128 / .25); border-radius: 10px; padding: 12px 16px; }
+  .nav span { font: 14px system-ui, sans-serif; opacity: .8; margin-left: 18px; }
+  .icons { display: flex; align-items: end; gap: 22px; }
+  .icons figure { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+</style>
+</head>
+<body>
+<main class="grid">
+  <section class="p light">
+    <div class="label">Lockup · light</div>
+    <div class="hero"><img src="lockup-light.svg" alt="dins lockup"></div>
+    <div class="row"><img src="wordmark-light.svg" alt="" style="height:64px"><img src="lens-light.svg" alt="" style="height:56px"><img src="wordmark-mono.svg" alt="" style="height:40px;opacity:.85"></div>
+    <div class="label">Nav size (small master, 22 px)</div>
+    <div class="nav"><img src="wordmark-small-light.svg" alt="" style="height:22px"><div><span>Work</span><span>Writing</span><span>Resume</span></div></div>
+  </section>
+  <section class="p dark">
+    <div class="label">Lockup · dark</div>
+    <div class="hero"><img src="lockup-dark.svg" alt="dins lockup"></div>
+    <div class="row"><img src="wordmark-dark.svg" alt="" style="height:64px"><img src="lens-dark.svg" alt="" style="height:56px"></div>
+    <div class="label">Nav size (small master, 22 px)</div>
+    <div class="nav"><img src="wordmark-small-dark.svg" alt="" style="height:22px"><div><span>Work</span><span>Writing</span><span>Resume</span></div></div>
+  </section>
+  <section class="p light">
+    <div class="label">App icon · 180 / 60 / 29 px</div>
+    <div class="icons">
+      <figure><img src="app-icon.svg" alt="" width="180"><span>180</span></figure>
+      <figure><img src="app-icon.svg" alt="" width="60"><span>60</span></figure>
+      <figure><img src="app-icon.svg" alt="" width="29"><span>29</span></figure>
+    </div>
+  </section>
+  <section class="p dark">
+    <div class="label">Favicon · 64 / 32 / 16 px</div>
+    <div class="icons">
+      <figure><img src="favicon.svg" alt="" width="64"><span>64</span></figure>
+      <figure><img src="favicon.svg" alt="" width="32"><span>32</span></figure>
+      <figure><img src="favicon.svg" alt="" width="16"><span>16</span></figure>
+    </div>
+  </section>
+  <section class="p light">
+    <div class="label">Ottie seal · light · 200 / 64 / 32 px, avatar 96 / 48 px</div>
+    <div class="icons">
+      <figure><img src="seal-light.svg" alt="" width="200"><span>200</span></figure>
+      <figure><img src="seal-light.svg" alt="" width="64"><span>64</span></figure>
+      <figure><img src="seal-light.svg" alt="" width="32"><span>32</span></figure>
+      <figure><img src="avatar.svg" alt="" width="96" style="border-radius:50%"><span>avatar 96</span></figure>
+      <figure><img src="avatar.svg" alt="" width="48" style="border-radius:50%"><span>48</span></figure>
+    </div>
+  </section>
+  <section class="p dark">
+    <div class="label">Ottie seal · dark</div>
+    <div class="icons">
+      <figure><img src="seal-dark.svg" alt="" width="200"><span>200</span></figure>
+      <figure><img src="seal-dark.svg" alt="" width="64"><span>64</span></figure>
+      <figure><img src="seal-dark.svg" alt="" width="32"><span>32</span></figure>
+    </div>
+  </section>
+</main>
+</body>
+</html>

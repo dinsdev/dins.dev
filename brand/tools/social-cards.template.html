@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dins social cards</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,400..700,50&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { background: #1b1d1f; color: #ECE9E2; font: 13px/1.5 ui-monospace, monospace; padding: 20px 16px 48px; }
+  h1 { font-size: 14px; font-weight: 500; margin: 0 0 6px; }
+  p.note { color: #A29E95; margin: 0 0 22px; max-width: 90ch; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 600px), 1fr)); gap: 28px 20px; }
+  figure { display: flex; flex-direction: column; gap: 10px; }
+  figcaption { color: #A29E95; letter-spacing: .06em; text-transform: uppercase; font-size: 11.5px; }
+  .frame { width: 600px; max-width: 100%; aspect-ratio: 1200 / 630; overflow: hidden; border-radius: 10px; position: relative; }
+  .card { width: 1200px; height: 630px; transform: scale(.5); transform-origin: top left; position: absolute; inset: 0 auto auto 0; overflow: hidden; }
+
+  /* Shared card parts */
+  .serif { font-family: "Fraunces", Georgia, serif; font-optical-sizing: auto; font-variation-settings: "SOFT" 50; }
+  .label { font: 500 22px/1 "JetBrains Mono", monospace; letter-spacing: .08em; text-transform: uppercase; }
+  .url { font: 400 24px/1 "JetBrains Mono", monospace; }
+  .title { font-weight: 500; letter-spacing: -0.02em; line-height: 1.04; text-wrap: balance; }
+
+  /* A: paper */
+  .a { background: #F4F1EA; color: #12181C; padding: 72px 80px; display: flex; flex-direction: column; justify-content: space-between; }
+  .a .top { display: flex; justify-content: space-between; align-items: center; }
+  .a .top img { height: 46px; }
+  .a .label { color: #0F6B6B; }
+  .a .title { font-size: 78px; max-width: 980px; }
+  .a .url { color: #4A555C; }
+
+  /* B: charcoal */
+  .b { background: #1F1E1C; color: #ECE9E2; padding: 72px 80px; display: flex; flex-direction: column; justify-content: space-between; }
+  .b .top { display: flex; justify-content: space-between; align-items: center; position: relative; z-index: 1; }
+  .b .top img { height: 46px; }
+  .b .label { color: #5CBFB8; }
+  .b .title { font-size: 78px; max-width: 900px; position: relative; z-index: 1; }
+  .b .url { color: #A29E95; position: relative; z-index: 1; }
+  .b .ghost { position: absolute; right: -170px; bottom: -40px; width: 760px; opacity: .09; }
+
+  /* C: paper with an Ottie panel */
+  .c { background: #F4F1EA; color: #12181C; display: grid; grid-template-columns: 1fr 420px; }
+  .c .text { padding: 72px 64px 72px 80px; display: flex; flex-direction: column; justify-content: space-between; }
+  .c .text img { height: 46px; align-self: flex-start; }
+  .c .label { color: #0F6B6B; margin-bottom: 22px; display: block; }
+  .c .title { font-size: 64px; }
+  .c .url { color: #4A555C; }
+  .c .panel { background: #12181C; display: grid; place-items: center; }
+  .c .panel img { width: 300px; }
+</style>
+</head>
+<body>
+<h1>dins social preview cards: 1200 x 630, shown at half size</h1>
+<p class="note">Same example page in each. The site generates one card per page at build time from the chosen template; the home page uses "Hi, I’m Din." and the role line as its title.</p>
+<div class="grid">
+  <figure>
+    <figcaption>A · Paper</figcaption>
+    <div class="frame"><div class="card a">
+      <div class="top"><img src="lockup-light.svg" alt=""><span class="label">Case study</span></div>
+      <div class="title serif">A pipeline that tells you when it is wrong</div>
+      <span class="url">dins.dev/work/self-checking-pipeline</span>
+    </div></div>
+  </figure>
+  <figure>
+    <figcaption>B · Charcoal</figcaption>
+    <div class="frame"><div class="card b">
+      <img class="ghost" src="lens-dark.svg" alt="">
+      <div class="top"><img src="lockup-dark.svg" alt=""><span class="label">Case study</span></div>
+      <div class="title serif">A pipeline that tells you when it is wrong</div>
+      <span class="url">dins.dev/work/self-checking-pipeline</span>
+    </div></div>
+  </figure>
+  <figure>
+    <figcaption>C · Paper with Ottie</figcaption>
+    <div class="frame"><div class="card c">
+      <div class="text">
+        <img src="lockup-light.svg" alt="">
+        <div><span class="label">Case study</span><div class="title serif">A pipeline that tells you when it is wrong</div></div>
+        <span class="url">dins.dev/work/self-checking-pipeline</span>
+      </div>
+      <div class="panel"><img src="seal-dark.svg" alt=""></div>
+    </div></div>
+  </figure>
+  <figure>
+    <figcaption>A · Paper, home page</figcaption>
+    <div class="frame"><div class="card a">
+      <div class="top"><img src="lockup-light.svg" alt=""><span class="label">Portfolio</span></div>
+      <div><div class="title serif" style="font-size:104px">Hi, I’m Din.</div><div style="font: 400 34px/1.4 'Instrument Sans', sans-serif; color:#4A555C; margin-top:18px">Data engineer building pipelines and AI systems.</div></div>
+      <span class="url">dins.dev</span>
+    </div></div>
+  </figure>
+</div>
+</body>
+</html>

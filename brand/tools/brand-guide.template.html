@@ -1,0 +1,397 @@
+<meta charset="utf-8">
+<title>dins Brand Guide</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,400..700,0..100,0..1&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* The page runs on the dins tokens themselves (brand/tokens/tokens.css, inlined below). */
+{{TOKENS_CSS}}
+/* Layout: a sticky index on wide screens, one reading column of sections; exhibits sit on fixed paper or charcoal tiles. */
+:root { --warn: #A63D2B; --tile-paper: #F4F1EA; --tile-dark: #1F1E1C; --tile-ink: #12181C; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --warn: #E58A76; } }
+:root[data-theme="dark"] { --warn: #E58A76; }
+* { box-sizing: border-box; }
+body { background: var(--color-paper); color: var(--color-ink); font: 400 var(--text-body)/var(--text-body-lh) var(--font-text); }
+.shell { max-width: var(--page-max); margin: 0 auto; padding-block: var(--space-8) var(--space-9);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: var(--space-8); }
+@media (max-width: 900px) { .shell { grid-template-columns: minmax(0, 1fr); gap: var(--space-6); } nav.index { display: none; } }
+nav.index { position: sticky; top: calc(env(safe-area-inset-top, 0px) + var(--space-6)); align-self: start; display: flex; flex-direction: column; gap: var(--space-2); }
+nav.index a { font: 500 var(--text-label)/1.4 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--color-muted); text-decoration: none; padding: 4px 0; }
+nav.index a:hover, nav.index a:focus-visible { color: var(--color-accent); }
+main { display: flex; flex-direction: column; gap: var(--space-9); min-width: 0; }
+a { color: var(--color-accent); text-underline-offset: 3px; }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; border-radius: 4px; }
+
+header.hero { display: flex; flex-direction: column; gap: var(--space-5); padding-bottom: var(--space-7); border-bottom: 1px solid var(--color-hairline); }
+.lockup { display: flex; align-items: center; gap: 0.38em; color: var(--color-ink); }
+.lockup .lens { height: 0.62em; width: auto; }
+.lockup .wm { height: 1em; width: auto; }
+.hero .lockup { font-size: clamp(56px, 9vw, 104px); }
+.hero .lede { max-width: 58ch; color: var(--color-muted); margin: 0; font-size: var(--text-lead); line-height: var(--text-lead-lh); }
+.meta-row { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); font: 400 var(--text-data)/1.5 var(--font-mono); color: var(--color-muted); }
+.meta-row b { color: var(--color-ink); font-weight: 500; }
+.tagline { font-family: var(--font-display); font-variation-settings: "SOFT" 50; font-style: italic; font-size: var(--text-h3); color: var(--color-accent); }
+
+section.block { display: flex; flex-direction: column; gap: var(--space-6); scroll-margin-top: var(--space-6); }
+.block-head { display: flex; flex-direction: column; gap: var(--space-2); }
+.block-head h2 { margin: 0; }
+.block-head p { margin: 0; color: var(--color-muted); max-width: 62ch; }
+h3.sub { margin: 0; }
+.sub-block { display: flex; flex-direction: column; gap: var(--space-4); }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: var(--space-4); }
+.tile { border-radius: var(--radius-lg); padding: var(--space-6) var(--space-5) var(--space-4); display: flex; flex-direction: column; gap: var(--space-4); min-height: 190px; border: 1px solid var(--color-hairline); }
+.tile .art { flex: 1; display: grid; place-items: center; min-height: 96px; }
+.tile .art img { max-height: 72px; width: auto; max-width: 100%; }
+.tile .art img.tall { max-height: 120px; }
+.tile .cap { font: 400 12px/1.5 var(--font-mono); display: flex; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.tile.paper { background: var(--tile-paper); color: #4A555C; }
+.tile.dark { background: var(--tile-dark); color: #A29E95; }
+.tile.ink { background: var(--tile-ink); color: #A29E95; }
+.tile.surface { background: var(--color-surface); color: var(--color-muted); }
+
+.specs { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: var(--space-4) var(--space-6); margin: 0; }
+.specs div { display: flex; flex-direction: column; gap: 2px; border-top: 1px solid var(--color-hairline); padding-top: var(--space-3); }
+.specs dt { font: 500 var(--text-label)/1.4 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--color-muted); }
+.specs dd { margin: 0; }
+
+.clear { display: flex; flex-wrap: wrap; gap: var(--space-6); align-items: center; }
+.clearbox { position: relative; padding: 35px; outline: 1.5px dashed var(--color-accent); outline-offset: 0; border-radius: 2px; }
+.clearbox .lockup { font-size: 64px; }
+.clearbox .x { position: absolute; font: 500 11px var(--font-mono); color: var(--color-accent); }
+.clearbox .x.t { top: 10px; left: 50%; transform: translateX(-50%); }
+.clearbox .x.l { left: 12px; top: 50%; transform: translateY(-50%); }
+.mins { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; flex: 1; }
+.mins li { display: flex; align-items: center; gap: var(--space-4); }
+.mins .sample { width: 140px; display: flex; align-items: center; flex: none; color: var(--color-ink); }
+
+.donts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: var(--space-4); }
+.dont { border: 1px solid var(--color-hairline); border-radius: var(--radius-md); padding: var(--space-5) var(--space-4) var(--space-3); display: flex; flex-direction: column; gap: var(--space-4); background: var(--color-surface); }
+.dont .art { height: 64px; display: grid; place-items: center; color: var(--color-ink); overflow: hidden; }
+.dont .art .wm { height: 40px; width: auto; }
+.dont p { margin: 0; font-size: var(--text-small); color: var(--color-muted); }
+.dont p b { color: var(--warn); font-weight: 600; }
+.d-stretch .wm { transform: scaleX(1.45); }
+.d-color .wm path { fill: #B3412F; }
+.d-effect .wm { filter: drop-shadow(3px 3px 0 var(--color-accent)) drop-shadow(-2px -2px 6px var(--color-amber)); }
+.d-live { font: 700 34px Arial, Helvetica, sans-serif; letter-spacing: .02em; }
+
+.tabbar { display: flex; flex-direction: column; gap: var(--space-3); }
+.tab { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-radius: 10px 10px 0 0; width: min(100%, 300px); font: 400 13px system-ui, sans-serif; }
+.tab.light { background: #E8E6E1; color: #12181C; }
+.tab.dark { background: #2B2B2B; color: #ECE9E2; }
+.tab img { width: 16px; height: 16px; image-rendering: auto; }
+.icon-row { display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-6); }
+.icon-row figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: var(--space-2); font: 400 12px/1.4 var(--font-mono); color: var(--color-muted); text-align: center; }
+.maskwrap { position: relative; width: 120px; height: 120px; }
+.maskwrap img { width: 120px; height: 120px; border-radius: 4px; }
+.maskwrap::after { content: ""; position: absolute; inset: 12px; border-radius: 50%; border: 1.5px dashed var(--color-amber); }
+.round { border-radius: 50%; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: var(--space-5); }
+.cards figure { margin: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.cards figcaption { font: 400 12px/1.5 var(--font-mono); color: var(--color-muted); }
+.og { container-type: inline-size; aspect-ratio: 1200 / 630; width: 100%; border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--color-hairline); }
+.og-in { width: 100%; height: 100%; background: #F4F1EA; color: #12181C; }
+.og-a { padding: 6cqw 6.67cqw; display: flex; flex-direction: column; justify-content: space-between; }
+.og-top { display: flex; justify-content: space-between; align-items: center; }
+.og-top img { height: 3.83cqw; }
+.og-label { font: 500 1.83cqw/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: #0F6B6B; }
+.og-title { font-family: var(--font-display); font-variation-settings: "SOFT" 50; font-weight: 500; letter-spacing: -0.02em; line-height: 1.04; font-size: 6.5cqw; max-width: 82cqw; text-wrap: balance; }
+.og-url { font: 400 2cqw/1 var(--font-mono); color: #4A555C; }
+.og-c { display: grid; grid-template-columns: 1fr 35cqw; }
+.og-c .text { padding: 6cqw 5.33cqw 6cqw 6.67cqw; display: flex; flex-direction: column; justify-content: space-between; }
+.og-c .text > img { height: 3.83cqw; align-self: flex-start; }
+.og-c .og-label { display: block; margin-bottom: 1.8cqw; }
+.og-c .og-title { font-size: 5.33cqw; }
+.og-c .panel { background: #12181C; display: grid; place-items: center; }
+.og-c .panel img { width: 25cqw; }
+
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: var(--space-4); }
+.sw { border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--color-hairline); background: var(--color-surface); display: flex; flex-direction: column; }
+.sw .chip { height: 84px; border-bottom: 1px solid var(--color-hairline); display: flex; align-items: flex-end; padding: 10px 12px; font: 500 12px var(--font-mono); }
+.sw .info { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 4px; }
+.sw .name { font-weight: 600; }
+.sw .role { font-size: var(--text-small); color: var(--color-muted); line-height: 1.4; }
+.sw button.hex { all: unset; cursor: pointer; font: 400 12.5px var(--font-mono); color: var(--color-ink); align-self: flex-start; border-bottom: 1px dotted var(--color-muted); }
+.sw button.hex:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.ratio { font: 400 12px var(--font-mono); color: var(--color-muted); font-variant-numeric: tabular-nums; }
+.ratio.fail { color: var(--warn); }
+.rules { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: var(--space-2); max-width: 70ch; }
+.rules li::marker { color: var(--color-accent); font-family: var(--font-mono); }
+
+.faces { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: var(--space-4); }
+.face { border: 1px solid var(--color-hairline); border-radius: var(--radius-lg); padding: var(--space-5); background: var(--color-surface); display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.face .aa { font-size: 88px; line-height: 1; }
+.face .chars { color: var(--color-muted); font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; }
+.face .role { font: 400 12px/1.5 var(--font-mono); color: var(--color-muted); }
+.f-display { font-family: var(--font-display); font-variation-settings: "SOFT" 50; font-weight: 500; }
+.f-text { font-family: var(--font-text); }
+.f-mono { font-family: var(--font-mono); }
+
+.scale-wrap { overflow-x: auto; border: 1px solid var(--color-hairline); border-radius: var(--radius-lg); background: var(--color-surface); }
+table.scale { border-collapse: collapse; width: 100%; min-width: 640px; }
+table.scale th { text-align: left; font: 500 var(--text-label)/1.4 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--color-muted); padding: 14px 18px; border-bottom: 1px solid var(--color-hairline); }
+table.scale td { padding: 16px 18px; border-bottom: 1px solid var(--color-hairline); vertical-align: baseline; }
+table.scale tr:last-child td { border-bottom: 0; }
+table.scale td.m { font: 400 12px/1.5 var(--font-mono); color: var(--color-muted); white-space: nowrap; width: 1%; font-variant-numeric: tabular-nums; }
+table.scale td.m b { color: var(--color-ink); font-weight: 500; display: block; }
+
+.ottie-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--space-4); }
+@media (max-width: 720px) { .ottie-grid { grid-template-columns: minmax(0, 1fr); } }
+.ottie-grid figure { margin: 0; border: 1px solid var(--color-hairline); border-radius: var(--radius-lg); overflow: hidden; background: #FFFFFF; display: flex; flex-direction: column; }
+.ottie-grid figure img { width: 100%; height: auto; display: block; }
+.ottie-grid figcaption { padding: 10px 14px; font: 400 12px/1.5 var(--font-mono); color: #4A555C; background: #F4F1EA; border-top: 1px solid rgb(18 24 28 / .12); }
+.ottie-side { display: flex; flex-direction: column; gap: var(--space-4); }
+.ottie-side figure { flex: 1; }
+.ottie-side .art { flex: 1; display: grid; place-items: center; padding: var(--space-5); background: #F4F1EA; }
+.ottie-side .art img { width: auto; max-width: 70%; max-height: 150px; }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: var(--space-4) var(--space-6); }
+.two h3 { margin: 0 0 var(--space-3); }
+.two ul { margin: 0; padding-left: 1.1em; display: flex; flex-direction: column; gap: var(--space-2); }
+.yes::marker { color: var(--color-accent); }
+.no::marker { color: var(--warn); }
+
+.pairs { display: flex; flex-direction: column; gap: var(--space-3); }
+.pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-3); }
+@media (max-width: 640px) { .pair { grid-template-columns: minmax(0, 1fr); } }
+.say { border-radius: var(--radius-md); padding: var(--space-4); border: 1px solid var(--color-hairline); background: var(--color-surface); display: flex; flex-direction: column; gap: 6px; }
+.say .k { font: 500 var(--text-label)/1.4 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
+.say.good .k { color: var(--color-accent); }
+.say.bad .k { color: var(--warn); }
+.say.bad q { color: var(--color-muted); }
+q { quotes: "“" "”"; }
+
+.space-scale { display: flex; flex-direction: column; gap: 8px; }
+.space-scale div { display: grid; grid-template-columns: 70px 1fr; align-items: center; gap: var(--space-3); font: 400 12px var(--font-mono); color: var(--color-muted); font-variant-numeric: tabular-nums; }
+.space-scale span.bar { height: 10px; background: var(--color-accent); border-radius: 2px; opacity: .85; }
+.radii { display: flex; flex-wrap: wrap; gap: var(--space-4); }
+.radii div { width: 96px; height: 72px; border: 1.5px solid var(--color-ink); display: grid; place-items: center; font: 400 12px var(--font-mono); color: var(--color-muted); }
+
+.files-wrap { overflow-x: auto; }
+table.files { border-collapse: collapse; width: 100%; min-width: 560px; font-size: var(--text-small); }
+table.files td { padding: 10px 12px 10px 0; border-bottom: 1px solid var(--color-hairline); vertical-align: top; }
+table.files td:first-child { font: 400 12.5px var(--font-mono); white-space: nowrap; color: var(--color-ink); }
+pre.code { margin: 0; padding: var(--space-4); border-radius: var(--radius-md); background: var(--color-surface); border: 1px solid var(--color-hairline); overflow-x: auto; font: 400 12.5px/1.6 var(--font-mono); }
+footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-3); padding-top: var(--space-6); border-top: 1px solid var(--color-hairline); color: var(--color-muted); font-size: var(--text-small); }
+.toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 20px); transform: translateX(-50%); background: var(--color-ink); color: var(--color-paper); font: 500 13px var(--font-mono); padding: 8px 14px; border-radius: 99px; }
+@media (prefers-reduced-motion: no-preference) { nav.index a, .sw button.hex { transition: color var(--motion-fast) var(--motion-ease); } }
+</style>
+
+<div class="shell">
+<nav class="index" aria-label="Sections">
+  <a href="#logo">Logo</a><a href="#icons">Icons</a><a href="#cards">Social cards</a><a href="#color">Color</a><a href="#type">Typography</a><a href="#ottie">Ottie</a><a href="#voice">Voice</a><a href="#system">Space and motion</a><a href="#files">Files</a>
+</nav>
+<main>
+  <header class="hero">
+    <div class="lockup" role="img" aria-label="dins">{{LENS}}{{WORDMARK}}</div>
+    <p class="lede">Everything needed to make something look and sound like dins: the logo and icons, color, type, Ottie and the voice. Use it before you design anything, and change it only on purpose.</p>
+    <div class="tagline">Look closer.</div>
+    <div class="meta-row"><span>Locked <b>Oct 19, 2026</b></span><span>Source <b>docs/BRAND.md</b></span><span>Tokens <b>brand/tokens/tokens.json</b></span></div>
+  </header>
+
+  <section class="block" id="logo" aria-labelledby="h-logo">
+    <div class="block-head"><h2 class="t-h2" id="h-logo">Logo</h2><p>Three marks, each with one job. The wordmark is the logo. The lens is the symbol for small places. The Ottie seal is the playful badge. All three are vector files drawn from real font outlines and code, never typed or traced by hand.</p></div>
+    <div class="tiles">
+      <div class="tile paper"><div class="art"><img src="lockup-light.svg" alt="dins lockup on paper"></div><div class="cap"><span>Lockup · light</span><span>lockup-light.svg</span></div></div>
+      <div class="tile dark"><div class="art"><img src="lockup-dark.svg" alt="dins lockup on charcoal"></div><div class="cap"><span>Lockup · dark</span><span>lockup-dark.svg</span></div></div>
+      <div class="tile paper"><div class="art"><img src="wordmark-light.svg" alt="dins wordmark"></div><div class="cap"><span>Wordmark</span><span>wordmark-light.svg</span></div></div>
+      <div class="tile dark"><div class="art"><img src="wordmark-dark.svg" alt="dins wordmark on charcoal"></div><div class="cap"><span>Wordmark · dark</span><span>wordmark-dark.svg</span></div></div>
+      <div class="tile paper"><div class="art"><img src="lens-light.svg" alt="dins lens symbol"></div><div class="cap"><span>Lens</span><span>lens-light.svg</span></div></div>
+      <div class="tile surface"><div class="art"><img class="tall" src="seal-light.svg" alt="Ottie seal"></div><div class="cap"><span>Ottie seal</span><span>seal-light.svg</span></div></div>
+    </div>
+    <dl class="specs">
+      <div><dt>Wordmark</dt><dd>"dins." in Fraunces 600, SOFT 50, display optical size. The period is a solid teal dot that echoes .dev.</dd></div>
+      <div><dt>Small master</dt><dd>Below 120 px wide, use <code>wordmark-small-*</code>: optical size 36 with thicker hairlines.</dd></div>
+      <div><dt>Lens</dt><dd>Ottie's glasses as geometry: two circles, a curved bridge, temple stubs, rims at 0.14 of the lens diameter, a teal glint in the right lens.</dd></div>
+      <div><dt>Variants</dt><dd>Light, dark and mono (one color, for print, embossing and single-color uses).</dd></div>
+    </dl>
+    <div class="sub-block">
+      <h3 class="t-h3 sub">Clear space and minimum size</h3>
+      <div class="clear">
+        <div class="clearbox"><span class="x t">x</span><span class="x l">x</span><div class="lockup">{{LENS}}{{WORDMARK}}</div></div>
+        <ul class="mins">
+          <li><span class="sample"><span class="lockup" style="font-size:22px">{{WORDMARK_SMALL}}</span></span><span>Wordmark: at least 56 px wide on screen, 15 mm in print.</span></li>
+          <li><span class="sample"><span class="lockup" style="font-size:22px">{{LENS}}</span></span><span>Lens: at least 16 px wide. Below 32 px, use it on its solid tile.</span></li>
+          <li><span class="sample"><img src="seal-light.svg" alt="" width="48" height="48"></span><span>Seal: at least 48 px. Smaller than that, use the lens.</span></li>
+        </ul>
+      </div>
+      <p class="t-small" style="margin:0">Clear space on every side is at least the wordmark's x-height (the height of the "n").</p>
+    </div>
+    <div class="sub-block">
+      <h3 class="t-h3 sub">Never do this</h3>
+      <div class="donts">
+        <div class="dont d-stretch"><div class="art">{{WORDMARK}}</div><p><b>Don't</b> stretch, squash or rotate the marks.</p></div>
+        <div class="dont d-color"><div class="art">{{WORDMARK}}</div><p><b>Don't</b> recolor them. Light, dark and mono only.</p></div>
+        <div class="dont d-effect"><div class="art">{{WORDMARK}}</div><p><b>Don't</b> add shadows, glows, gradients or outlines.</p></div>
+        <div class="dont"><div class="art"><span class="d-live">dins.</span></div><p><b>Don't</b> type the wordmark in a font. Always use the SVG.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="icons" aria-labelledby="h-icons">
+    <div class="block-head"><h2 class="t-h2" id="h-icons">Icons</h2><p>Every icon is the lens on a solid ink tile, so it reads on light and dark backgrounds alike. At 16 px the glint disappears and the two rings still read as glasses.</p></div>
+    <div class="tabbar" aria-label="Favicon in browser tabs">
+      <div class="tab light"><img src="logo/icons/favicon-32.png" alt="">dins · Look closer.</div>
+      <div class="tab dark"><img src="logo/icons/favicon-32.png" alt="">dins · Look closer.</div>
+    </div>
+    <div class="icon-row">
+      <figure><img src="logo/icons/app-icon-1024.png" alt="App icon" width="120" height="120" style="border-radius:27px"><span>App icon<br>1024, square</span></figure>
+      <figure><div class="maskwrap"><img src="logo/icons/icon-maskable-512.png" alt="Maskable icon with its safe zone"></div><span>Maskable 512<br>dashes: safe zone</span></figure>
+      <figure><img src="logo/icons/favicon-48.png" alt="" width="48" height="48"><span>48</span></figure>
+      <figure><img src="logo/icons/favicon-32.png" alt="" width="32" height="32"><span>32</span></figure>
+      <figure><img src="logo/icons/favicon-16.png" alt="" width="16" height="16"><span>16</span></figure>
+      <figure><img class="round" src="logo/icons/avatar-800.png" alt="Social avatar" width="96" height="96"><span>Social avatar<br>avatar-800.png</span></figure>
+    </div>
+  </section>
+
+  <section class="block" id="cards" aria-labelledby="h-cards">
+    <div class="block-head"><h2 class="t-h2" id="h-cards">Social cards</h2><p>The image that appears when a dins.dev link is shared. 1200 by 630. The site generates one per page from these templates.</p></div>
+    <div class="cards">
+      <figure><div class="og"><div class="og-in og-a"><div class="og-top"><img src="lockup-light.svg" alt=""><span class="og-label">Case study</span></div><div class="og-title">A pipeline that tells you when it is wrong</div><span class="og-url">dins.dev/work/self-checking-pipeline</span></div></div><figcaption>Paper · the default for every page</figcaption></figure>
+      <figure><div class="og"><div class="og-in og-c"><div class="text"><img src="lockup-light.svg" alt=""><div><span class="og-label">Devlog</span><div class="og-title">Teaching Ottie to jump</div></div><span class="og-url">dins.dev/devlog/ottie-jump</span></div><div class="panel"><img src="seal-dark.svg" alt=""></div></div></div><figcaption>Paper with Ottie · devlogs and game posts only</figcaption></figure>
+      <figure><div class="og"><div class="og-in og-a"><div class="og-top"><img src="lockup-light.svg" alt=""><span class="og-label">Portfolio</span></div><div><div class="og-title" style="font-size:8.67cqw">Hi, I’m Din.</div><div style="font: 400 2.83cqw/1.4 var(--font-text); color:#4A555C; margin-top:1.5cqw">Data engineer building pipelines and AI systems.</div></div><span class="og-url">dins.dev</span></div></div><figcaption>Paper · home page</figcaption></figure>
+    </div>
+    <p class="t-small" style="margin:0">Example titles only. Real cards use each page's own title.</p>
+  </section>
+
+  <section class="block" id="color" aria-labelledby="h-color">
+    <div class="block-head"><h2 class="t-h2" id="h-color">Color</h2><p>One accent, warm neutrals, and a calm charcoal dark mode. Contrast ratios are WCAG, measured against each theme's paper background. Click a hex value to copy it.</p></div>
+    <div class="sub-block"><h3 class="t-h3 sub">Light</h3><div class="swatches" id="sw-light"></div></div>
+    <div class="sub-block"><h3 class="t-h3 sub">Dark</h3><div class="swatches" id="sw-dark"></div></div>
+    <div class="sub-block"><h3 class="t-h3 sub">Ottie only</h3><p class="t-small" style="margin:0">These live inside the mascot and never become UI colors.</p><div class="swatches" id="sw-ottie"></div></div>
+    <ol class="rules">
+      <li>Teal is the brand: the wordmark's period, the lens glint, links and buttons. Nothing competes with it.</li>
+      <li>Amber is decoration only, never text on the light background.</li>
+      <li>Ottie's browns and creams stay in Ottie.</li>
+      <li>Each game may add one accent of its own. Paper, ink and the dins logo stay fixed.</li>
+    </ol>
+  </section>
+
+  <section class="block" id="type" aria-labelledby="h-type">
+    <div class="block-head"><h2 class="t-h2" id="h-type">Typography</h2><p>Three families and nothing else. Fraunces carries personality in headings, Instrument Sans does the reading, JetBrains Mono adds the engineer's detail in small places.</p></div>
+    <div class="faces">
+      <div class="face"><div class="aa f-display">Aa</div><div class="t-h4">Fraunces</div><div class="role">Display · wordmark, headings, pull quotes · weight 500 (600 for the wordmark) · SOFT 50</div><div class="chars f-display">ABCDEFGHIJKLM abcdefghijklm 0123456789 “quotes” &amp; ’s</div></div>
+      <div class="face"><div class="aa f-text">Aa</div><div class="t-h4">Instrument Sans</div><div class="role">Text · body, UI, buttons, navigation · 400, 500, 600</div><div class="chars f-text">ABCDEFGHIJKLM abcdefghijklm 0123456789 (→) ?!</div></div>
+      <div class="face"><div class="aa f-mono">Aa</div><div class="t-h4">JetBrains Mono</div><div class="role">Mono · labels, stats, code, captions · 400, 500</div><div class="chars f-mono">ABCDEFGHIJKLM abcdefghijklm 0123456789 {} =&gt;</div></div>
+    </div>
+    <div class="sub-block">
+      <h3 class="t-h3 sub">Scale</h3>
+      <p class="t-small" style="margin:0">Each step scales smoothly from a 375 px phone to a 1280 px desktop. Resize the window to watch it move.</p>
+      <div class="scale-wrap"><table class="scale">
+        <thead><tr><th>Step</th><th>Sample at this window size</th></tr></thead>
+        <tbody>
+          <tr><td class="m"><b>Display</b>48 to 76 px · 500</td><td class="t-display">Hi, I’m Din.</td></tr>
+          <tr><td class="m"><b>H1</b>38 to 52 px · 500</td><td class="t-h1">Data in. Answers out.</td></tr>
+          <tr><td class="m"><b>H2</b>29 to 38 px · 500</td><td class="t-h2">Selected work</td></tr>
+          <tr><td class="m"><b>H3</b>22 to 27 px · 500</td><td class="t-h3">What I would change</td></tr>
+          <tr><td class="m"><b>H4</b>18 to 20 px · 600</td><td class="t-h4">Stack and tools</td></tr>
+          <tr><td class="m"><b>Lead</b>18 to 20 px · 400</td><td class="t-lead">I build data pipelines and the small tools around them.</td></tr>
+          <tr><td class="m"><b>Body</b>16 to 17 px · 400</td><td class="t-body">The new version validates each table against a contract before anything downstream reads it, so a bad load stops at the door.</td></tr>
+          <tr><td class="m"><b>Small</b>14 to 14.5 px · 400</td><td class="t-small">Updated October 2026 · 6 min read</td></tr>
+          <tr><td class="m"><b>Label</b>12 to 12.5 px · 500</td><td class="t-label">Case study · 2026</td></tr>
+          <tr><td class="m"><b>Data</b>12.5 to 13 px · 400</td><td class="t-data">412 chunks · p95 180 ms</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <ol class="rules">
+      <li>Headings use weight 500, one step lighter than the wordmark, so the logo is always the boldest serif on the page.</li>
+      <li>Fraunces sets headings down to H3. H4 switches to the sans on purpose.</li>
+      <li>Body text stops at 66 characters per line.</li>
+      <li>Curly apostrophes and quotes in display text and headings.</li>
+      <li>Numbers in tables and stats use tabular digits.</li>
+      <li>A game's title lettering may be its own. The dins chrome around it uses these three families.</li>
+    </ol>
+  </section>
+
+  <section class="block" id="ottie" aria-labelledby="h-ottie">
+    <div class="block-head"><h2 class="t-h2" id="h-ottie">Ottie</h2><p>The mascot and co-host. A cheerful brown otter with big round black glasses who greets, explains, reacts and admits not knowing. Ottie talks about Din and never speaks as Din.</p></div>
+    <div class="ottie-grid">
+      <figure><img src="concepts/ottie-poses-web.webp" alt="Ottie in five poses: wave, thinking, celebrating, shrug, sleeping"><figcaption>Full Ottie · the approved poses: wave, thinking, celebrating, shrug (I don’t know), sleeping (404)</figcaption></figure>
+      <div class="ottie-side">
+        <figure><div class="art"><img src="seal-light.svg" alt="Ottie seal"></div><figcaption>Seal · avatars, stickers, game page footers</figcaption></figure>
+        <figure><div class="art"><img src="lens-light.svg" alt="Lens"></div><figcaption>Lens · anything tiny</figcaption></figure>
+      </div>
+    </div>
+    <div class="two">
+      <div><h3 class="t-h4">Always</h3><ul><li class="yes">The round black glasses.</li><li class="yes">The same face and proportions. Games may add costumes or props.</li><li class="yes">About 25 to 30 percent of the hero height on dins.dev. A co-host, never the headline.</li><li class="yes">New appearances start from the pose sheet.</li></ul></div>
+      <div><h3 class="t-h4">Never</h3><ul><li class="no">On formal documents: resume, applications, statements of purpose, email signature, invoices, contracts.</li><li class="no">Sketchy or watercolor variants, or unreviewed off-model redraws.</li><li class="no">Inside other people's logos or diagrams.</li><li class="no">Speaking as Din.</li></ul></div>
+    </div>
+  </section>
+
+  <section class="block" id="voice" aria-labelledby="h-voice">
+    <div class="block-head"><h2 class="t-h2" id="h-voice">Voice</h2><p>Plain, specific, calm. Din writes as "I", because dins is one person. Ottie carries most of the playfulness.</p></div>
+    <div class="pairs">
+      <div class="pair"><div class="say good"><span class="k">Say</span><q>I cut the nightly load from 40 minutes to 6 and made it check its own output.</q></div><div class="say bad"><span class="k">Not</span><q>Passionate engineer building scalable, cutting-edge solutions!</q></div></div>
+      <div class="pair"><div class="say good"><span class="k">Say</span><q>I built this site and the tools behind it.</q></div><div class="say bad"><span class="k">Not</span><q>We craft seamless digital experiences.</q></div></div>
+      <div class="pair"><div class="say good"><span class="k">Ottie says</span><q>I’m not sure about that one. Din would know, here’s how to reach Din.</q></div><div class="say bad"><span class="k">Not</span><q>OMG great question!!! 🎉 Let me dive in!</q></div></div>
+    </div>
+    <dl class="specs">
+      <div><dt>Name</dt><dd>Always lowercase <b>dins</b>, even at the start of a sentence.</dd></div>
+      <div><dt>Domain</dt><dd><b>dins.dev</b>, no www, no capitals.</dd></div>
+      <div><dt>Handle</dt><dd><b>dinsdev</b> everywhere. Display name <b>dins</b>.</dd></div>
+      <div><dt>Writing</dt><dd>No em dashes, no buzzwords, real numbers only, no exclamation points in Din's voice.</dd></div>
+    </dl>
+  </section>
+
+  <section class="block" id="system" aria-labelledby="h-system">
+    <div class="block-head"><h2 class="t-h2" id="h-system">Space and motion</h2><p>Defaults set with the tokens. Change them in tokens.json, never by hand in the site.</p></div>
+    <div class="two">
+      <div class="sub-block"><h3 class="t-h4">Spacing · 4 px base</h3><div class="space-scale" id="space"></div></div>
+      <div class="sub-block"><h3 class="t-h4">Radius</h3><div class="radii"><div style="border-radius:6px">6 · small</div><div style="border-radius:10px">10 · medium</div><div style="border-radius:14px">14 · large</div><div style="border-radius:999px">pill</div></div>
+        <h3 class="t-h4">Motion</h3><p style="margin:0" class="t-small">150 ms for hovers, 250 ms for most transitions, 400 ms for larger moves, one ease curve. Everything respects reduced motion. Page max width 1200 px, side gutter at least 16 px.</p></div>
+    </div>
+  </section>
+
+  <section class="block" id="files" aria-labelledby="h-files">
+    <div class="block-head"><h2 class="t-h2" id="h-files">Files</h2><p>Everything lives in the dins.dev repo and regenerates from scripts, so a change is one command, not a redraw.</p></div>
+    <div class="files-wrap"><table class="files"><tbody>
+      <tr><td>docs/BRAND.md</td><td>The written rules. This page shows them; that file is the source of truth.</td></tr>
+      <tr><td>brand/logo/</td><td>Wordmark, lens, lockup, seal and favicon SVGs in light, dark and mono.</td></tr>
+      <tr><td>brand/logo/icons/</td><td>favicon.ico and PNGs, Apple touch icon, PWA and maskable icons, App Store icon, social avatars, web manifest.</td></tr>
+      <tr><td>brand/tokens/</td><td>tokens.json (source) and the generated tokens.css with a class per type step.</td></tr>
+      <tr><td>brand/fonts/</td><td>Fraunces, under the SIL Open Font License.</td></tr>
+      <tr><td>brand/concepts/</td><td>The Ottie pose sheet and seal draft with their prompts.</td></tr>
+      <tr><td>brand/tools/</td><td>wordmark.py, seal.py, icons.py, tokens.py and the page builders.</td></tr>
+    </tbody></table></div>
+    <pre class="code">&lt;link rel="stylesheet" href="/brand/tokens.css"&gt;
+&lt;h1 class="t-h1"&gt;Selected work&lt;/h1&gt;
+&lt;p class="t-body"&gt;…&lt;/p&gt;
+a { color: var(--color-accent); }</pre>
+  </section>
+
+  <footer><span class="tagline" style="font-size:var(--text-h4)">Look closer.</span><span>dins brand guide · October 2026</span></footer>
+</main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+(function () {
+  var L = "#F4F1EA", D = "#1F1E1C";
+  function lum(h) { h = h.replace("#", ""); var c = [0, 2, 4].map(function (i) { var v = parseInt(h.substr(i, 2), 16) / 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; }
+  function ratio(a, b) { var x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
+  var sets = {
+    "sw-light": [["Paper", "#F4F1EA", "Page background", null, "#12181C"], ["Surface", "#FFFFFF", "Cards, inputs, the prompt bar", null, "#12181C"], ["Ink", "#12181C", "Text and the logo", L, "#F4F1EA"], ["Muted", "#4A555C", "Secondary text", L, "#F4F1EA"], ["Accent", "#0F6B6B", "The one brand color", L, "#F4F1EA"], ["Amber", "#E0A04A", "Decoration only", L, "#12181C"]],
+    "sw-dark": [["Paper", "#1F1E1C", "Warm charcoal background", null, "#ECE9E2"], ["Surface", "#2A2926", "Cards, inputs, the prompt bar", null, "#ECE9E2"], ["Ink", "#ECE9E2", "Text and the logo", D, "#1F1E1C"], ["Muted", "#A29E95", "Secondary text", D, "#1F1E1C"], ["Accent", "#5CBFB8", "Calm teal, no glow", D, "#1F1E1C"], ["Amber", "#E0A04A", "Decoration, fine as text here", D, "#1F1E1C"]],
+    "sw-ottie": [["Fur", "#8A5A3B", "Head and body", null, "#F4F1EA"], ["Dark brown", "#5E3B25", "Ears, nose, whiskers", null, "#F4F1EA"], ["Cream", "#F1DCC0", "Muzzle and cheeks", null, "#12181C"]]
+  };
+  Object.keys(sets).forEach(function (id) {
+    document.getElementById(id).innerHTML = sets[id].map(function (s) {
+      var r = s[3] ? ratio(s[1], s[3]) : null;
+      var rt = r === null ? "" : '<span class="ratio' + (r < 4.5 ? " fail" : "") + '">' + r.toFixed(1) + ":1 on paper" + (r < 4.5 ? " · not for text" : "") + "</span>";
+      return '<div class="sw"><div class="chip" style="background:' + s[1] + ";color:" + s[4] + '">Aa</div><div class="info"><span class="name">' + s[0] + '</span><button type="button" class="hex" data-hex="' + s[1] + '" aria-label="Copy ' + s[1] + '">' + s[1] + '</button><span class="role">' + s[2] + "</span>" + rt + "</div></div>";
+    }).join("");
+  });
+  document.getElementById("space").innerHTML = [4, 8, 12, 16, 24, 32, 48, 64, 96, 128].map(function (v, i) { return '<div><span>' + (i + 1) + " · " + v + '</span><span class="bar" style="width:' + Math.min(100, v / 128 * 100) + '%"></span></div>'; }).join("");
+  var toast = document.getElementById("toast"), tt;
+  function show(msg) { toast.textContent = msg; toast.hidden = false; clearTimeout(tt); tt = setTimeout(function () { toast.hidden = true; }, 1600); }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("button.hex"); if (!b) return;
+    var hex = b.getAttribute("data-hex");
+    function fallback() { var r = document.createRange(); r.selectNodeContents(b); var s = getSelection(); s.removeAllRanges(); s.addRange(r); show("Selected " + hex + ". Press Cmd+C to copy."); }
+    try { navigator.clipboard.writeText(hex).then(function () { show("Copied " + hex); }, fallback); } catch (err) { fallback(); }
+  });
+})();
+</script>

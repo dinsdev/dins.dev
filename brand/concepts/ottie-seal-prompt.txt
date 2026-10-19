@@ -1,0 +1,14 @@
+Flat vector-style mascot logo of Ottie, the otter from the first attached reference image, reduced to a clean badge face for tracing into SVG. Square image, 1024 x 1024.
+
+Subject: only Ottie's head and the top of the shoulders, facing the viewer, centered, filling about 70 percent of the canvas. Big round black glasses are the focal point, exactly like the reference: two round rims with a short bridge. Friendly closed-mouth smile with the two small front teeth just showing, small dark nose, rounded ears, a few short whisker lines. Big round eyes behind the glasses with one small white highlight each. Cheerful and warm, never scary.
+
+Style: flat vector logo, like the "03 OTTIE SEAL" panel in the second reference image but cleaner. Solid flat color shapes with crisp edges, no gradients, no fur texture, no shading, no outlines thinner than the glasses rims, no tiny details. It must still read clearly when shrunk to 48 pixels.
+
+Colors, exactly these and nothing else:
+- warm otter brown #8A5A3B for the head
+- darker brown #5E3B25 for ears inner shapes, nose and whiskers
+- cream #F1DCC0 for the muzzle and cheeks
+- ink #12181C for the glasses rims and pupils
+- white #FFFFFF for the eye whites, teeth and eye highlights
+
+Background: plain flat white #FFFFFF, nothing else on the canvas. No ring, no circle frame, no text, no shadow, no ground, no border.

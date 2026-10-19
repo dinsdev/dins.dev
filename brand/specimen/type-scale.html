@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dins type scale</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,400..700,50&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --paper: #F4F1EA; --surface: #FFFFFF; --ink: #12181C; --muted: #4A555C; --line: rgb(18 24 28 / .12); --accent: #0F6B6B;
+    --serif: "Fraunces", Georgia, serif; --sans: "Instrument Sans", system-ui, sans-serif; --mono: "JetBrains Mono", ui-monospace, monospace; }
+  body.dark { --paper: #1F1E1C; --surface: #2A2926; --ink: #ECE9E2; --muted: #A29E95; --line: rgb(236 233 226 / .12); --accent: #5CBFB8; }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--paper); color: var(--ink); font-family: var(--sans); padding: 24px 16px 64px; }
+  .top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; max-width: 1200px; margin: 0 auto 24px; }
+  .top h1 { font: 500 15px var(--mono); letter-spacing: .02em; color: var(--muted); }
+  button { font: 500 13px var(--sans); padding: 8px 14px; border-radius: 99px; border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; }
+  .scroller { max-width: 1200px; margin: 0 auto; overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; min-width: 980px; }
+  th { text-align: left; font: 500 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 0 16px 12px 0; border-bottom: 1px solid var(--line); }
+  td { vertical-align: baseline; padding: 18px 16px 18px 0; border-bottom: 1px solid var(--line); }
+  td.meta { width: 230px; font: 400 12px/1.6 var(--mono); color: var(--muted); }
+  td.meta b { display: block; color: var(--ink); font-weight: 500; letter-spacing: .06em; }
+  td.phone { width: 360px; }
+  .serif { font-family: var(--serif); font-optical-sizing: auto; font-variation-settings: "SOFT" 50; }
+  .sans { font-family: var(--sans); }
+  .mono { font-family: var(--mono); }
+  .cap { text-transform: uppercase; letter-spacing: .08em; }
+  .muted { color: var(--muted); }
+  code { font: 500 .9em var(--mono); background: var(--surface); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+  a { color: var(--accent); text-underline-offset: 3px; }
+  h2.section { font: 500 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); max-width: 1200px; margin: 48px auto 16px; }
+  .article { max-width: 1200px; margin: 0 auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 56px max(24px, 6vw); }
+  .article .col { max-width: 66ch; display: flex; flex-direction: column; }
+  .article .eyebrow { font: 500 12.5px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin-bottom: 16px; }
+  .article .t-h1 { font: 500 52px/1.05 var(--serif); font-variation-settings: "SOFT" 50; letter-spacing: -.02em; margin-bottom: 20px; text-wrap: balance; }
+  .article .t-lead { font: 400 20px/1.5 var(--sans); color: var(--muted); margin-bottom: 40px; }
+  .article .t-h2 { font: 500 38px/1.1 var(--serif); font-variation-settings: "SOFT" 50; letter-spacing: -.015em; margin: 48px 0 16px; }
+  .article .t-h3 { font: 500 27px/1.2 var(--serif); font-variation-settings: "SOFT" 50; letter-spacing: -.01em; margin: 32px 0 12px; }
+  .article p.t-body { font: 400 17px/1.65 var(--sans); margin-bottom: 1em; }
+  .article .t-small { font: 400 14.5px/1.5 var(--sans); color: var(--muted); }
+  .article .stat { font: 400 13px/1.5 var(--mono); color: var(--muted); margin: 8px 0 24px; }
+  .article .stat em { font-style: normal; color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="top"><h1>dins type scale: each step at phone (375 px) and desktop (1280 px) size. Sizes in between scale smoothly.</h1><button id="t" type="button">Switch to dark</button></div>
+<div class="scroller">
+<table>
+  <thead><tr><th>Step</th><th>Phone</th><th>Desktop</th></tr></thead>
+  <tbody>
+<tr><td class="meta"><b>DISPLAY · 48 / 76 px</b>Fraunces 500 · lh 1.0 · -0.025em</td><td class="phone"><div class="serif " style="font-size:48px;font-weight:500;line-height:1.0;letter-spacing:-0.025em">Hi, I’m Din.</div></td><td><div class="serif " style="font-size:76px;font-weight:500;line-height:1.0;letter-spacing:-0.025em">Hi, I'm Din.</div></td></tr>
+<tr><td class="meta"><b>H1 · 38 / 52 px</b>Fraunces 500 · lh 1.05 · -0.02em</td><td class="phone"><div class="serif " style="font-size:38px;font-weight:500;line-height:1.05;letter-spacing:-0.02em">Data in. Answers out.</div></td><td><div class="serif " style="font-size:52px;font-weight:500;line-height:1.05;letter-spacing:-0.02em">Data in. Answers out.</div></td></tr>
+<tr><td class="meta"><b>H2 · 29 / 38 px</b>Fraunces 500 · lh 1.1 · -0.015em</td><td class="phone"><div class="serif " style="font-size:29px;font-weight:500;line-height:1.1;letter-spacing:-0.015em">Selected work</div></td><td><div class="serif " style="font-size:38px;font-weight:500;line-height:1.1;letter-spacing:-0.015em">Selected work</div></td></tr>
+<tr><td class="meta"><b>H3 · 22 / 27 px</b>Fraunces 500 · lh 1.2 · -0.01em</td><td class="phone"><div class="serif " style="font-size:22px;font-weight:500;line-height:1.2;letter-spacing:-0.01em">What I would change</div></td><td><div class="serif " style="font-size:27px;font-weight:500;line-height:1.2;letter-spacing:-0.01em">What I would change</div></td></tr>
+<tr><td class="meta"><b>H4 · 18 / 20 px</b>Instrument Sans 600 · lh 1.3</td><td class="phone"><div class="sans " style="font-size:18px;font-weight:600;line-height:1.3;letter-spacing:0">Stack and tools</div></td><td><div class="sans " style="font-size:20px;font-weight:600;line-height:1.3;letter-spacing:0">Stack and tools</div></td></tr>
+<tr><td class="meta"><b>LEAD · 18 / 20 px</b>Instrument Sans 400 · lh 1.5 · muted</td><td class="phone"><div class="sans muted" style="font-size:18px;font-weight:400;line-height:1.5;letter-spacing:0">I build data pipelines and the small tools around them.</div></td><td><div class="sans muted" style="font-size:20px;font-weight:400;line-height:1.5;letter-spacing:0">I build data pipelines and the small tools around them.</div></td></tr>
+<tr><td class="meta"><b>BODY · 16 / 17 px</b>Instrument Sans 400 · lh 1.65 · max 66ch</td><td class="phone"><div class="sans " style="font-size:16px;font-weight:400;line-height:1.65;letter-spacing:0">The new version validates each table against a contract before anything downstream reads it, so a bad load stops at the door.</div></td><td><div class="sans " style="font-size:17px;font-weight:400;line-height:1.65;letter-spacing:0">The new version validates each table against a contract before anything downstream reads it, so a bad load stops at the door.</div></td></tr>
+<tr><td class="meta"><b>SMALL · 14 / 14.5 px</b>Instrument Sans 400 · lh 1.5 · muted</td><td class="phone"><div class="sans muted" style="font-size:14px;font-weight:400;line-height:1.5;letter-spacing:0">Updated October 2026 · 6 min read</div></td><td><div class="sans muted" style="font-size:14.5px;font-weight:400;line-height:1.5;letter-spacing:0">Updated October 2026 · 6 min read</div></td></tr>
+<tr><td class="meta"><b>LABEL · 12 / 12.5 px</b>JetBrains Mono 500 · caps · +0.08em</td><td class="phone"><div class="mono cap muted" style="font-size:12px;font-weight:500;line-height:1.4;letter-spacing:0.08em">Case study · 2026</div></td><td><div class="mono cap muted" style="font-size:12.5px;font-weight:500;line-height:1.4;letter-spacing:0.08em">Case study · 2026</div></td></tr>
+<tr><td class="meta"><b>DATA · 12.5 / 13 px</b>JetBrains Mono 400 · tabular</td><td class="phone"><div class="mono muted" style="font-size:12.5px;font-weight:400;line-height:1.5;letter-spacing:0">412 chunks · p95 180 ms</div></td><td><div class="mono muted" style="font-size:13px;font-weight:400;line-height:1.5;letter-spacing:0">412 chunks · p95 180 ms</div></td></tr>
+</tbody>
+</table>
+</div>
+<h2 class="section">In use: an article page at desktop size</h2>
+<div class="article"><div class="col">
+  <span class="eyebrow">Case study · 2026</span>
+  <div class="t-h1">A pipeline that tells you when it is wrong</div>
+  <div class="t-lead">I rebuilt a nightly data load so it checks its own output, and wrote down every decision along the way.</div>
+  <p class="t-body">The old job ran for forty minutes and failed quietly about once a week. Nobody noticed until a dashboard looked strange. The new version validates each table against a contract before anything downstream reads it, so a bad load stops at the door instead of spreading.</p>
+  <div class="stat">Runtime <em>40 → 6 min</em> · failures caught before publish <em>100%</em> · example figures</div>
+  <div class="t-h2">How it works</div>
+  <p class="t-body">Each source gets a small contract file: column names, types, allowed ranges. The loader runs <code>check_contract()</code> on every batch and writes the result to a log table that the alerting reads.</p>
+  <div class="t-h3">What I would change</div>
+  <p class="t-body">The contracts live next to the code today. If more teams used them, they would belong in a shared registry with their own reviews. <a href="#">Read the contract format</a>.</p>
+  <span class="t-small">Updated October 2026 · 6 min read</span>
+</div></div>
+<script>
+  document.getElementById("t").onclick = function () { var d = document.body.classList.toggle("dark"); this.textContent = d ? "Switch to light" : "Switch to dark"; };
+</script>
+</body>
+</html>

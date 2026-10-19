@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dins type specimen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Schibsted+Grotesk:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --serif: "Newsreader", serif; --sans: "Schibsted Grotesk", sans-serif; --mono: "IBM Plex Mono", monospace; }
+  * { box-sizing: border-box; margin: 0; }
+  body { font-family: var(--sans); background: #1b1d1f; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px; min-height: 100vh; }
+  .p { border-radius: 14px; padding: 40px 44px; display: flex; flex-direction: column; gap: 22px; }
+  .light { --surface: #ffffff; --border: #ddd8cc; background: #f4f1ea; color: #12181c; --muted: #4a555c; --accent: #0f6b6b; --btn-bg: #12181c; --btn-fg: #f4f1ea; }
+  .dark { background: #1f1e1c; color: #ece9e2; --muted: #a29e95; --accent: #5cbfb8; --btn-bg: #ece9e2; --btn-fg: #1f1e1c; --surface: #2a2926; --border: #3a3834; }
+  .label { font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .wordmark { font-family: var(--serif); font-optical-sizing: auto; font-weight: 500; font-size: 64px; letter-spacing: -0.02em; line-height: 1; }
+  .wordmark b { color: var(--accent); font-weight: 500; }
+  h1 { font-family: var(--serif); font-optical-sizing: auto; font-weight: 500; font-size: 76px; letter-spacing: -0.025em; line-height: 1; }
+  .role { font-size: 21px; font-weight: 400; }
+  .body { font-size: 16px; line-height: 1.6; color: var(--muted); max-width: 52ch; }
+  .body a { color: var(--accent); text-underline-offset: 3px; }
+  .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .btn { font-family: var(--sans); font-weight: 500; font-size: 15px; padding: 11px 20px; border-radius: 999px; background: var(--btn-bg); color: var(--btn-fg); }
+  .chip { font-size: 14px; padding: 8px 14px; border-radius: 999px; border: 1px solid color-mix(in srgb, currentColor 25%, transparent); }
+  .stat { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+  .stat em { font-style: normal; color: var(--accent); }
+  .prompt { display: flex; justify-content: space-between; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 12px 12px 12px 18px; font-size: 15px; color: var(--muted); }
+  .prompt i { font-style: normal; font-family: var(--mono); color: var(--accent); margin-right: 8px; }
+  .prompt span.go { width: 34px; height: 34px; border-radius: 999px; background: var(--btn-bg); color: var(--btn-fg); display: grid; place-items: center; }
+  .roles { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 13px; color: var(--muted); border-top: 1px solid color-mix(in srgb, currentColor 15%, transparent); padding-top: 18px; }
+  .roles span:nth-child(odd) { font-family: var(--mono); font-size: 12px; }
+</style>
+</head>
+<body>
+  <section class="p light">
+    <div class="label">Wordmark / Newsreader 500</div>
+    <div class="wordmark">dins<b>.</b></div>
+    <div class="label">Display</div>
+    <h1>Hi, I'm Din.</h1>
+    <div class="role">Data engineer building pipelines and AI systems.</div>
+    <p class="body">I build data pipelines that turn messy sources into answers people can trust. This site is one of them: <a href="#">Ask Ottie</a> runs on a retrieval index built from my own projects.</p>
+    <div class="prompt"><span><i>&gt;</i>Ask Ottie: what has Din shipped?</span><span class="go">&rarr;</span></div>
+    <div class="row"><span class="btn">Get in touch</span><span class="chip">Best project</span><span class="chip">Data stack</span></div>
+    <div class="stat">INDEX v3 · 412 chunks · built <em>2026-10-19</em></div>
+    <div class="roles"><span>SERIF</span><span>Newsreader: wordmark, headlines, pull quotes</span><span>SANS</span><span>Schibsted Grotesk: body, UI, buttons, nav</span><span>MONO</span><span>IBM Plex Mono: labels, stats, code, captions</span></div>
+  </section>
+  <section class="p dark">
+    <div class="label">Wordmark / Newsreader 500</div>
+    <div class="wordmark">dins<b>.</b></div>
+    <div class="label">Display</div>
+    <h1>Hi, I'm Din.</h1>
+    <div class="role">Data engineer building pipelines and AI systems.</div>
+    <p class="body">I build data pipelines that turn messy sources into answers people can trust. This site is one of them: <a href="#">Ask Ottie</a> runs on a retrieval index built from my own projects.</p>
+    <div class="prompt"><span><i>&gt;</i>Ask Ottie: what has Din shipped?</span><span class="go">&rarr;</span></div>
+    <div class="row"><span class="btn">Get in touch</span><span class="chip">Best project</span><span class="chip">Data stack</span></div>
+    <div class="stat">INDEX v3 · 412 chunks · built <em>2026-10-19</em></div>
+    <div class="roles"><span>SERIF</span><span>Newsreader: wordmark, headlines, pull quotes</span><span>SANS</span><span>Schibsted Grotesk: body, UI, buttons, nav</span><span>MONO</span><span>IBM Plex Mono: labels, stats, code, captions</span></div>
+  </section>
+</body>
+</html>

@@ -1,0 +1,16 @@
+Character pose sheet for Ottie, the cheerful brown otter with big round black glasses from the attached reference image. This sheet becomes the approved library every future appearance is drawn from, so the character must stay exactly on model in every pose.
+
+Canvas: landscape, 1536 x 1024, plain flat white background (#FFFFFF), nothing else on it. No text, no labels, no numbers, no ground line, no shadows, no frames.
+
+Layout: five full-body poses of the same Ottie, evenly spaced, three in the top row and two centered in the bottom row. Every pose fully visible with clear white space around it so each can be cut out on its own. Same size and same proportions in all five.
+
+Style: exactly the reference's clean-outline storybook style. Warm brown fur with a cream muzzle and belly, dark brown outline, soft fur texture, big round black glasses with a short bridge on every pose, big friendly eyes behind the glasses, small dark nose, the two front teeth when smiling. Cute and warm, never scary. Same lighting and line weight in all five.
+
+The five poses:
+1. Wave: standing, one paw raised in a friendly hello, big smile (closest to the reference).
+2. Thinking: one paw on the chin, eyes looking up and to the side, small closed-mouth smile, curious.
+3. Celebrating: both arms up, eyes squeezed happy, open-mouth grin, a little hop.
+4. Shrug: both paws out to the sides, palms up, eyebrows raised, small apologetic smile, the "I'm not sure" pose.
+5. Sleeping: curled up lying down, eyes closed, glasses still on and slightly askew, peaceful, tail wrapped around.
+
+Keep the glasses identical in every pose: round, black, thick rims, the same size relative to the head. Ottie must be instantly recognizable as the same character in all five.

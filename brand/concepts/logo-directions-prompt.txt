@@ -1,0 +1,28 @@
+Create a premium logo concept board for the brand "dins": a compact 2 x 2 grid of four logo directions, presented like a senior identity designer's exploration sheet.
+
+Brand strategy:
+- dins is Din's personal brand: a data engineer's portfolio at dins.dev, client sample websites, and small iOS games on subdomains such as superottie.dins.dev.
+- Personality: crafted and warm. Calm, editorial, precise, with one playful detail. Serious about the craft, friendly in the details.
+- Mascot: Ottie, a cheerful brown otter who wears big round black glasses (see the attached reference). The glasses are the most ownable idea in the brand: they mean "a builder who pays attention to detail".
+- Audience: university admissions committees, hiring managers, clients and players. It must read as credible first and charming second.
+
+Canvas and layout:
+- Landscape. A dark charcoal outer canvas (#1B1D1F) with four equal warm paper panels (#F4F1EA) in a 2 x 2 grid, strong even gutters, generous margins.
+- Each panel has a tiny label in the top-left corner in a small monospace font: "01 LENS", "02 D-LENS", "03 OTTIE SEAL", "04 WORDMARK". Nothing else in small text.
+- Each panel shows: the mark large and centered with lots of negative space; below it, a small application row with the same mark inside a dark rounded-square app icon (ink #14181C background) and at tiny favicon size, plus the lowercase wordmark "dins" set beside the mark as a lockup.
+
+Palette (use only these): warm paper #F4F1EA, ink #14181C, graphite #5A6168, deep teal accent #0F6E73, a small amount of amber #E0A04A. The teal is the one accent; amber appears at most once per panel as a tiny detail.
+
+Typography: the wordmark "dins" is lowercase, set in a refined high-contrast editorial serif (similar in spirit to Newsreader). Spell it exactly d-i-n-s. No other words besides the four panel labels and the wordmark.
+
+The four directions:
+
+01 LENS. Ottie's glasses reduced to pure geometry: two perfect circles of thick even ink stroke joined by a short curved bridge, with two tiny temple stubs. Flat, symmetrical, no face. A single small teal dot sits inside one lens like a glint. Paired with the serif wordmark "dins".
+
+02 D-LENS. A lowercase "d" monogram whose round bowl is a single thick glasses lens and whose tall ascender doubles as the glasses' temple arm. Clean negative space, geometric construction, one teal glint in the lens. Paired with the serif wordmark "dins".
+
+03 OTTIE SEAL. A minimal flat mascot mark: Ottie's face simplified to a few confident shapes (round head, small rounded ears, cream muzzle, the big round black glasses as the focal point), two flat colors plus ink, no fur texture, no gradients, no full body. Placed inside a thin circular seal ring like a maker's stamp. It must still be clearly Ottie from the reference, just reduced to a logo.
+
+04 WORDMARK. A pure typographic logo: "dins." in the editorial serif with tight, considered spacing, where the final period is a solid teal circle (echoing ".dev"). For the icon, the "d." alone. Quiet, confident, no symbol.
+
+Style: premium, sparse, intentional, implementation-friendly vector-style marks with crisp edges, consistent stroke weights, perfectly centered. No gradients on the marks, no 3D, no glow, no sparkles, no clipart, no lightning bolts, no fake tiny UI, no lorem ipsum, no copied real-world logos. Each direction must look clearly different from the others.
