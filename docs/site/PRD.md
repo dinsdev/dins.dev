@@ -149,18 +149,18 @@ Versions checked on npm and nodejs.org on 2026-10-21; pinned to minor versions, 
 | Data | D1 for the daily budget counter and the question log, with a nightly cron deleting entries older than 30 days |
 | Contact | Email Routing's `send_email` binding to `din@dins.dev`, behind Turnstile |
 | RAG build and evals | Python with uv in `rag/`: chunking, bge-m3, keyword index, pytest |
-| Tooling | Node 24 LTS, pnpm, TypeScript 6.0 (`@astrojs/check` does not support 7 yet), Vitest 4.1 (Cloudflare's Workers pool does not support 5 yet), Playwright 1.64 with axe, Prettier, ESLint, Ruff |
+| Tooling | Node 24 LTS, pnpm, TypeScript 6.0 (`@astrojs/check` does not support 7 yet), Vitest 4.1 with `@cloudflare/vitest-plugin` (the renamed Workers pool; Vitest 5 is a later upgrade), Playwright 1.64 with axe, Prettier, ESLint, Ruff |
 
 Free-plan constraints shape two choices: the search index is binary (no JSON parsing inside the 10 ms CPU limit), and a test checks that build-time and Workers AI bge-m3 embeddings agree.
 
 ## 6. Quality bar
 
 - **Accessibility:** WCAG 2.2 AA. Every set piece has a calm version under reduced motion (no lens intro, the stage as a plain list, About opening on the screen, the letter as a plain form). Full keyboard access, a visible teal focus ring, a skip link, no focus traps in pinned sections. Ask Ottie answers are announced once complete. axe at zero violations, plus one manual VoiceOver pass before launch.
-- **Smoothness:** no layout shift (reserved boxes, metric-matched font fallbacks, two preloaded self-hosted WOFF2 fonts subset to Latin and French); animate only transform, opacity and canvas; 60 fps and no main-thread task over 50 ms through the set pieces on a 2020 laptop and a mid-range phone; at most 100 KB gzipped of first-party JavaScript on the home page before interaction; Save-Data or low-memory devices get the still Ottie and no lens intro. Lighthouse performance is reported but not a gate until the post-launch optimization pass (Din, 2026-10-21).
+- **Smoothness:** no layout shift (reserved boxes, metric-matched font fallbacks, two preloaded self-hosted WOFF2 fonts subset to Latin and French); animate only transform, opacity and canvas; 60 fps and no main-thread task over 50 ms through the set pieces on a 2020 laptop and a mid-range phone; at most 100 KB gzipped of first-party JavaScript on the home page before interaction (the initial module graph plus inline scripts; set-piece code loaded on scroll is reported, not gated); Save-Data or low-memory devices get the still Ottie and no lens intro. Lighthouse performance is reported but not a gate until the post-launch optimization pass (Din, 2026-10-21).
 - **SEO:** unique titles and descriptions, canonicals, sitemap, social cards generated at build time (card A by default, C for devlogs), Person structured data with `sameAs`, `llms.txt`; all content in real HTML. Lighthouse SEO 100.
 - **Privacy:** no cookies and no consent banner; the only outside scripts are Turnstile and Cloudflare Web Analytics; the question log as in section 3; contact messages are emailed, not stored; `/privacy` lists all of it in plain words.
 - **Security:** the Anthropic key as a Worker secret per environment, a strict content security policy, HSTS, `security.txt`, input limits, rate limit, Turnstile and budget on every API route.
-- **Failure modes:** readable with JavaScript off (suggested answers are static, the contact form still submits); Ottie resting when the API or budget is out; keyword-only search when Workers AI is down; the still Ottie when a sheet fails; the 404 with Ottie.
+- **Failure modes:** readable with JavaScript off (suggested answers are static, the contact form still submits, and without JavaScript it explains how to email Din directly); Ottie resting when the API or budget is out; keyword-only search when Workers AI is down; the still Ottie when a sheet fails; the 404 with Ottie.
 
 ## 7. Acceptance criteria
 

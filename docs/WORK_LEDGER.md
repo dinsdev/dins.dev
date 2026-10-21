@@ -4,6 +4,41 @@ Decisions and why, work done, verification results, approvals, blockers, handoff
 
 ## 2026-10-21
 
+### Milestone plans written and reconciled (Claude, 2026-10-21)
+
+- **Done:** six implementation plans in `docs/site/plans/`, one per milestone, each written by its own Claude session in its own worktree, planning only (nothing built, nothing pushed). M0 Foundation, 1,901 lines; M1 Pages and content, 4,644; M2 Ottie, 3,548; M3 Ask Ottie, 8,577 (36 tasks); M4 Set pieces, 3,130; M5 Hardening and launch, 2,195. Each plan lists its decisions, its assumptions about the others, Din's open questions and the doc updates it asked for.
+- **Decided (Din, during planning):** M0's seven questions:
+  - `@cloudflare/vitest-plugin` with Vitest 4.1. `@cloudflare/vitest-pool-workers` is deprecated and renamed, so the earlier reason for pinning 4.1 no longer holds; Vitest 5 is a later upgrade.
+  - Keep the `previews` block, not `env.preview`.
+  - Approved the fallback font names in the tokens.
+  - Keep the pinned font axes and the size budgets.
+  - Production deploys to `workers.dev` from M0 on.
+  - Public previews.
+  - pnpm 12.
+
+  M4's ten questions: "Go with your recommendations on the open questions". That means no-JavaScript contact posts land on `/contact/not-sent/` with a mailto link, the recipient comes only from the `CONTACT_TO` secret, the envelope flies off while Ottie jumps, a second Ottie sits by the letter, the 100 KB rule covers the initial module graph plus inline scripts, the next piece's tests may start during a review, no blur, the lens intro plays once per session, the studio stays full on phones unless the trace drops frames, and stage snap is off.
+- **Reconciled (Claude):** the plans were written in parallel, so they disagreed where milestones meet. `docs/site/plans/README.md` is now the shared contract, and it wins over any plan. The fixes:
+  - one base layout name (`BaseLayout.astro`, M0's);
+  - one build-time deploy module (four plans had invented their own);
+  - one contact module (M1's `contact.ts`, message limit 4,000, `/contact/not-sent/`);
+  - M2's cue interface for Ottie, with the second Ottie as M2's `context="contact"`;
+  - M1's `data-setpiece` hooks;
+  - the `previews` block everywhere;
+  - `/sitemap.xml`;
+  - M3's real budget and backend names;
+  - one shared Turnstile client;
+  - M0's Playwright server and `chromium` project kept;
+  - no `style` attributes in server HTML, because M5's CSP blocks them;
+  - the two Python packages (`dins_rag` and `ottie_rag`) kept side by side.
+
+  Each plan's session amends its own file to match.
+- **Docs updated:** `docs/site/PLAN.md` (plans folder, `src/pages/api/`, `rag/` contents, preview environment, secrets, M2 lab page and cues, M4 contact-first and release flags, Din's new dependencies), `docs/site/PRD.md` (the Vitest package, the 100 KB definition and the no-JavaScript letter, all approved above) and `docs/TASKS.md` (plan links, rows for Din's dependencies, M4 split into gates, 1.12 marked Implemented).
+- **Held back until Din answers or the code exists:**
+  - PRD changes that depend on open questions (M1's preview drafts and routes, M2's load order and greeting rules, M3's sample entries and project filter, M5's spend limit wording and go-live dates).
+  - The `AGENTS.md` commands, which land with the milestone that creates them.
+  - The CAA records in `docs/PLAN.md`.
+- **Open questions for Din:** M1 has 8, M2 has 7, M3 has 15 and M5 has 8, 34 in all once M1's question 2 and M5's questions 3 and 4 are counted as already answered through M4's decisions. Each plan's "Open questions for Din" section has them.
+
 ### Domain bought, Wrangler installed, commit rule (Din, Claude, 2026-10-21)
 
 - **Done (Din):** bought `dins.dev` on Cloudflare (task 0.6). Verified: the .dev RDAP record shows Cloudflare as registrar, registered 2026-10-21, expiring 2027-10-21, so the term is 1 year rather than the planned 4; auto-renew is not visible from outside. Nameservers are Cloudflare's (`tom`, `paloma`). `wrangler login` succeeded. This clears the domain risk in the site plan; Email Routing (task 0.8) is next for the contact form.
@@ -16,7 +51,7 @@ Decisions and why, work done, verification results, approvals, blockers, handoff
 - **Section 8 agreed (Din):** milestones M0 Foundation (Oct 22 to 26), M1 Pages and content (Oct 27 to Nov 6), M2 Ottie on the site (Nov 2 to 12), M3 Ask Ottie (Nov 6 to 22), M4 Set pieces (Nov 13 to 29), a content track for Din (Nov 1 to Dec 1, freeze Dec 1), M5 Hardening and launch (Dec 1 to 12, live by Dec 12), then the performance pass. Fallbacks: a set piece not approved by Dec 1 ships as its calm version; unready projects stay drafts. Din's dependencies: Workers Builds authorization (M0), the domain and Email Routing by about Nov 12, Anthropic keys before M3, the interview in early November.
 - **Done:** `docs/site/PRD.md` (sections 1 to 8 with acceptance criteria) and `docs/site/PLAN.md` (layout, environments, milestones with verification, dependencies, fallbacks), kept separate from the setup PRD, which says the site gets its own. TASKS rows 2.10 to 2.17.
 - **Reconciled while writing:** section 1's project `placeholder` or `real` status became section 5's `draft` or `published`; library entry fields merge both sections (question or topic, approved text, audience tags, sources, language, `approved_on`).
-- **Go-ahead (Din):** "Now let's start on the plans. But we'll do each one in their own worktree concurrently." Milestones run as separate Claude sessions, each in its own git worktree and branch, writing its implementation plan to `docs/site/plans/` before building. They start in dependency order: M0 (foundation) and the Python RAG build first, since they touch separate folders; M1, M2 and the Ask Ottie runtime once M0 is merged; M4 after M1 and M2.
+- **Go-ahead (Din):** "Now let's start on the plans. But we'll do each one in their own worktree concurrently." Milestones run as separate Claude sessions, each in its own git worktree and branch, writing its implementation plan to `docs/site/plans/` before building. They start in dependency order: M0 (foundation) and the Python RAG build first, since they touch separate folders; M1, M2 and the Ask Ottie runtime once M0 is merged; M4 after M1 and M2. **Correction (same day):** Din then said "Oh no not building. Writing the plan for each": all six sessions wrote plans at the same time, and nothing was built. Building starts later, in the order above.
 - **Working rule (Din):** "local commits are fine as you go. Only pushing to github requires permission." `AGENTS.md` updated to match (see the entry above).
 
 ### Site brainstorm, section 7: testing and CI (Din and Claude, 2026-10-21)

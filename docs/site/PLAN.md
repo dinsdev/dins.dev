@@ -7,6 +7,8 @@ Deadline: live by **December 12, 2026**, with a few days of buffer before mid-De
 
 Build the plain, accessible site first and layer motion on top, so that at every point there is something shippable. Each milestone ends with a preview link Din can check and green checks in CI. Milestones overlap on purpose: Ottie, Ask Ottie and the set pieces are independent once the pages exist. Logic (player, search, budget, API) is built test first; visual set pieces are judged by Din in the preview.
 
+Each milestone has a detailed, task-by-task implementation plan in `docs/site/plans/` (one file per milestone). `docs/site/plans/README.md` is the shared contract for the names where milestones meet; where a plan and the contract disagree, the contract wins.
+
 ## Repo layout
 
 ```
@@ -14,12 +16,13 @@ dins.dev/
   site/            Astro 7 app (pages, Svelte islands, Ottie player, Worker API routes)
     src/content/   projects, writing, library, suggested
     src/ottie/     canvas player, loader, triggers, lines file
-    src/api/       ask, contact (Astro endpoints on the Worker)
+    src/pages/api/ ask, ask-feedback, contact, health (Astro endpoints on the Worker)
     migrations/    D1 schema
-  rag/             Python (uv): chunking, bge-m3 embedding, binary index, evals
-    evals/         golden.yaml, adversarial.yaml
+  rag/             Python (uv): chunking, bge-m3 embedding, binary index, evals (package ottie_rag, CLI ottie-rag)
+    INDEX_FORMAT.md  byte layout of the committed index
+    evals/         golden.yaml, adversarial.yaml, query-embeddings.bin
   brand/           unchanged; site imports tokens, fonts and Ottie sheets from here
-  docs/
+  docs/site/plans/ one implementation plan per milestone, plus the shared contract
   check.sh         every local check; CI runs the same script
 ```
 
@@ -30,10 +33,10 @@ A pnpm workspace with `site/` as its first package, so game pages can join later
 | Environment | Where | Answer backend | Data |
 |---|---|---|---|
 | Local | `wrangler dev` through Astro | Fake by default, real API with a dev key when asked | Local D1 |
-| Preview | Workers Builds, one link per branch | Fake | Preview D1 |
+| Preview | Workers Builds Preview per branch (the `previews` block in `wrangler.jsonc`), not indexed | Fake | Preview D1 `dins-site-preview` |
 | Production | Workers Builds from `main` on `dins.dev` | Anthropic API, $100 limit | Production D1 |
 
-Secrets: the Anthropic key as a Worker secret per environment; the eval key as a GitHub Actions secret. No Cloudflare token in GitHub.
+Secrets: the Anthropic key, the Turnstile secret and the contact recipient (`CONTACT_TO`) as Worker secrets per environment; the eval key as a GitHub Actions secret. No Cloudflare token in GitHub. Local and preview use Turnstile's test keys; local uses the real API only with `ASK_BACKEND=anthropic` in `.dev.vars`.
 
 ## Milestones
 
@@ -59,6 +62,7 @@ Secrets: the Anthropic key as a Worker secret per environment; the eval key as a
 - The canvas player ported from the approved preview: ticks, exits, crossfades, `shift`, `loop_start`, `exit_via`, `enter_from`; off-thread decoding; pause off screen and in hidden tabs.
 - The loader: inline still, idle when the page is idle, wave preloaded, other states fetched ahead of their triggers.
 - Triggers for run-in and wave, idle, poke, tips, nap and wake; the reviewed lines file; Quiet Ottie; reduced motion; phone layout.
+- A lab page (`/lab/ottie`, never built for production) hosts the end-to-end tests and Din's review. M3 and M4 tell Ottie what happened through `site/src/ottie/events.ts` (cues such as `ask:submit` and `letter:sent`); Ottie decides what to do. Placing Ottie on the pages waits for M1.
 - **Verify:** unit tests for the player's state logic; a performance trace with Ottie playing shows no long tasks and no layout shift; network log shows the loading order; Din approves Ottie's behaviour in the preview.
 
 ### M3. Ask Ottie (November 6 to 22)
@@ -72,7 +76,7 @@ Secrets: the Anthropic key as a Worker secret per environment; the eval key as a
 
 ### M4. Set pieces (November 13 to 29)
 
-In this order, each approved by Din in the preview before the next starts, each with its calm version:
+First, the shared foundation and contact delivery (`/api/contact` on the plain letter form): contact delivery is an acceptance criterion, not a visual gate. Then the set pieces in this order, each approved by Din in the preview before the next one's visual work starts, each with its calm version (while Din reviews a piece, the next one's tests and math may start):
 
 1. Lens intro and the letter field (canvas).
 2. Windows: the scroll-pinned project stage (GSAP ScrollTrigger); flat stack on phones.
@@ -80,6 +84,7 @@ In this order, each approved by Din in the preview before the next starts, each 
 4. Studio: the laptop, terminal and dolly in CSS 3D.
 5. Letter: the folding contact form with the `send_email` binding and Turnstile; Ottie points, then jumps.
 
+- Set pieces ship behind release flags in `site/src/lib/setpieces/flags.ts`: a piece not approved by December 1 stays on `preview`, which is calm in production. Pinning uses CSS sticky with ScrollTrigger driving the timeline (no `pin`).
 - **Verify:** screenshots at key scroll positions attached to each PR; performance traces at 60 fps with no task over 50 ms on a 2020 laptop and a mid-range phone; the home page JavaScript budget (100 KB gzipped) passes in CI; Din's approval recorded in the ledger.
 
 ### Content track (Din, November 1 to December 1)
@@ -98,16 +103,19 @@ In this order, each approved by Din in the preview before the next starts, each 
 ### After launch
 
 - The performance optimization pass (Lighthouse performance as a gate again).
-- Optional: the Blender studio upgrade and Ottie's celebrate state.
+- Optional: the Blender studio upgrade, Ottie's celebrate state and a carry state for the letter.
 
 ## Dependencies on Din
 
 | What | Needed by |
 |---|---|
 | Authorize Workers Builds in the Cloudflare dashboard | M0 |
+| Install the Renovate app on `dinsdev/dins.dev` | M0 |
 | Role line and suggested questions | M1 |
 | Set up Email Routing (task 0.8; the domain is bought) | About November 12 |
-| Anthropic production key ($100 limit) and eval key (about $5) | M3 |
+| Anthropic production key ($100 limit) and eval key (about $5, GitHub secret `ANTHROPIC_EVAL_API_KEY`) | M3 |
+| Approve the bge-m3 model download (about 2.3 GB) and a read-only Workers AI token for one agreement test | M3 |
+| Set the `CONTACT_TO` secret in preview and production, then confirm one real letter arrives | M4, first PR |
 | The interview and library reviews | November |
 | Approval of each set piece in the preview | M4 |
 
