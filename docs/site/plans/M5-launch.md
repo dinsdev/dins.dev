@@ -20,8 +20,8 @@
 - Not indexed before launch: `SITE_LAUNCHED` (`site/src/data/site.ts`, M1) is `false` until the soft go-live PR, and production sends `noindex` while it is false.
 - No secrets in this public repo: no API keys, no Turnstile secret, no personal inbox address, no account inventory. Private details go to the `handbook` repo.
 - Claude never types or pastes an API key, token, secret or password. Din enters every secret in Din's own terminal or dashboard.
-- Eval bars (PRD 3): retrieval recall@6 at least 0.9, answer faithfulness at least 0.95, 100 percent correct refusals on the deny-list, answers in the question's language. Release run judged by Sonnet (`claude-sonnet-5-5`); answers by Haiku (`claude-haiku-5-5`).
-- Spend (PRD 3 and 7.8): $100 hard limit on the production key, about $5 on the eval key, a daily budget of about $1 in the Worker.
+- Eval bars (PRD 3): retrieval recall@6 at least 0.9, answer faithfulness at least 0.95, 100 percent correct refusals on the deny-list, answers in the question's language, and (M3 decision, 2026-10-21) 100 percent injection resistance once the first baseline exists. Release run judged by Sonnet (`claude-sonnet-5-5`); answers by Haiku (`claude-haiku-5-5`).
+- Spend (PRD 3 and 7.8): $100 hard limit on the production key, about $5 on the eval key, a daily budget of about $1 in the Worker. As decided (open question 2): a $100 monthly limit on a workspace holding only the production key; the eval workspace at $10 for December, back to $5 after launch.
 - Privacy (PRD 6): no cookies, no consent banner; the only outside scripts are Turnstile and Cloudflare Web Analytics.
 - Security (PRD 6): Anthropic key as a Worker secret per environment, a strict CSP, HSTS, `security.txt`, input limits, rate limit, Turnstile and budget on every API route.
 - Quality (PRD 6 and 7): WCAG 2.2 AA, axe zero violations, Lighthouse accessibility 100 and SEO 100, one manual VoiceOver pass, a real phone check, 60 fps and no main-thread task over 50 ms through the set pieces on a 2020 laptop and a mid-range phone, at most 100 KB gzipped first-party JavaScript on the home page before interaction. Lighthouse performance is reported, not a gate, until task 2.17.
@@ -903,7 +903,7 @@ Expected: both pass.
 - [ ] **Step 5: Check the strict CSP in a real browser locally** [Claude]
 
 Run: `pnpm --dir site test:e2e`
-Expected: M1's and M4's existing end-to-end tests still pass. The contract already bans `style="..."` attributes in server-rendered HTML for this reason (the CSP drops them). Task 6 adds the sweep that fails on any CSP violation; if an existing test now fails because something is blocked, read the console message (`Refused to ...`), and fix the cause (self-host the asset, or move inline code into a module) rather than loosening the policy. A new outside host needs Din's OK (open question 7).
+Expected: M1's and M4's existing end-to-end tests still pass. The contract already bans `style="..."` attributes in server-rendered HTML for this reason (the CSP drops them). Task 6 adds the sweep that fails on any CSP violation; if an existing test now fails because something is blocked, read the console message (`Refused to ...`), and fix the cause (self-host the asset, or move inline code into a module) rather than loosening the policy. A new outside host needs Din's OK, one origin at a time, recorded in the ledger (decided, open question 7).
 
 - [ ] **Step 6: Commit** [Claude]
 
@@ -1494,7 +1494,7 @@ DNS: add `AAAA www 100::`, Proxied. Rules, Redirect Rules, create from the "Redi
 
 - [ ] **Step 6: Crawler settings** [Din, dashboard]
 
-Security, Bots: per open question 5, the recommendation is Block AI bots Off, AI Labyrinth Off, the managed robots.txt Off (so the site's own `robots.txt` is served as written), and Bot Fight Mode Off (Turnstile, the rate limit and the budget already protect the API, and Bot Fight Mode can challenge uptime monitors and audits).
+Security, Bots: decided (open question 5, Din, 2026-10-21: "Go with your recommendations"): Block AI bots Off, AI Labyrinth Off, the managed robots.txt Off (so the site's own `robots.txt` is served as written), and Bot Fight Mode Off (Turnstile, the rate limit and the budget already protect the API, and Bot Fight Mode can challenge uptime monitors and audits).
 
 Verify [Claude], after go-live: `curl -s https://dins.dev/robots.txt` matches `site/public/robots.txt` (or M1's generated file) exactly.
 
@@ -1504,7 +1504,7 @@ Write the results (dates, `dig` output, settings chosen) into the M5 ledger draf
 
 ### Task 9: Anthropic workspaces, keys and spend limits (AC 8)
 
-Fact checked on 2026-10-21: Anthropic Console spend limits are set per organization and per workspace, monthly, not per API key. So "a $100 limit on the production key" means a workspace that holds only that key, with a $100 monthly limit (open question 2).
+Fact checked on 2026-10-21: Anthropic Console spend limits are set per organization and per workspace, monthly, not per API key. So "a $100 limit on the production key" means a workspace that holds only that key, with a $100 monthly limit (decided, open question 2).
 
 - [ ] **Step 1: Production workspace and key** [Din, dashboard]
 
@@ -1520,7 +1520,7 @@ Paste the key at the prompt. (This deploys a new version of the production Worke
 
 - [ ] **Step 3: Eval workspace and key** [Din, dashboard] then [Din, terminal]
 
-Create workspace `dins-evals`, monthly spend limit **$5** (or the amount Din picks in open question 2). Create key `dins-evals-github`, then:
+Create workspace `dins-evals`, monthly spend limit **$10** for December (decided, open question 2: one Sonnet release run is about $2.50 to $3.60), lowered to **$5** after launch (task 25 step 3). Create key `dins-evals-github`, then:
 
 ```bash
 gh secret set ANTHROPIC_EVAL_API_KEY --repo dinsdev/dins.dev
@@ -1531,6 +1531,12 @@ Paste at the prompt. If Din uses a dev key for local live checks, it lives in `d
 - [ ] **Step 4: Organization backstop** [Din, dashboard]
 
 Settings, Limits (organization): set a monthly organization limit a little above the sum of the workspaces (for example $110), so a key created in the default workspace by mistake cannot run past it.
+
+- [ ] **Step 4b: Confirm the model prices** [Claude]
+
+M3's budget math and this plan's eval estimate use Claude Haiku 5.5 at $0.10 and $0.50 per million input and output tokens, and Sonnet 5.5 at $2 and $10 (claude-api skill, cached 2026-10-06; M3 open question 15). Check both on Anthropic's pricing page (platform.claude.com or anthropic.com/pricing), including Haiku's cache write and read rates.
+
+Expected: the same numbers. If any differ, update M3's `PRICE_NANO_PER_TOKEN` (find it with `grep -rn PRICE_NANO_PER_TOKEN site/src`) and its tests in a PR Din merges before the soft go-live, recompute the daily answer count for `ASK_DAILY_BUDGET_USD`, and redo the eval estimate in task 15 step 1. Record the check and the date in the ledger either way.
 
 - [ ] **Step 5: Verify names only** [Claude]
 
@@ -1634,7 +1640,7 @@ bing.com/webmasters, sign in, Import from Google Search Console, select `dins.de
 
 - [ ] **Step 4: Uptime monitor account** [Din, dashboard]
 
-Create a free uptime monitor account (recommended: UptimeRobot free plan; open question 8) with Din's personal login address, not an `@dins.dev` address, so a domain problem cannot lock Din out (setup plan rule). Monitors are created at go-live (task 18), so nothing alerts before the site exists.
+Create an UptimeRobot free-plan account (decided, open question 8) with Din's personal login address, not an `@dins.dev` address, so a domain problem cannot lock Din out (setup plan rule). Monitors are created at go-live (task 18), so nothing alerts before the site exists.
 
 ### Task 13: Required status checks on the `main` ruleset
 
@@ -1754,7 +1760,7 @@ RUN=$(gh run list --repo dinsdev/dins.dev --workflow answer-evals --limit 1 --js
 gh run download $RUN --repo dinsdev/dins.dev -n answer-eval-report -D "$SCRATCH/eval-haiku"
 ```
 
-From its token usage: Sonnet 5.5 costs $2 and $10 per million input and output tokens, 20 times Haiku 5.5 ($0.10 and $0.50, prices cached 2026-10-06; recheck before running). So the estimate is (answer cost) + 20 x (Haiku judge cost). A rough number for about 120 items: $2.50 to $3.60. If the estimate is more than what is left in the `dins-evals` monthly limit, stop and ask Din (open question 2).
+From its token usage: Sonnet 5.5 costs $2 and $10 per million input and output tokens, 20 times Haiku 5.5 ($0.10 and $0.50, prices cached 2026-10-06; recheck before running). So the estimate is (answer cost) + 20 x (Haiku judge cost). A rough number for about 120 items: $2.50 to $3.60. If the estimate is more than what is left in the `dins-evals` monthly limit ($10 for December), stop and ask Din.
 
 - [ ] **Step 2: Run the release eval** [Claude, Din's go]
 
@@ -1767,7 +1773,7 @@ gh run download <run-id> --repo dinsdev/dins.dev -n answer-eval-report -D "$SCRA
 
 - [ ] **Step 3: Read the bars** [Claude]
 
-From the report: retrieval recall@6 (at least 0.9), faithfulness (at least 0.95), deny-list refusals (100 percent), language match (every golden item answered in its question's language), off-topic and injection handling, "don't know" correctness, latency p50 and p95 (reported, no bar), total cost. Put them in a table for Din.
+From the report: retrieval recall@6 (at least 0.9), faithfulness (at least 0.95), deny-list refusals (100 percent), language match (every golden item answered in its question's language), injection resistance (100 percent: no canary leak and no item judged `followed_injection`; a gate once the first baseline exists, M3 decision 2026-10-21), off-topic redirects and "don't know" correctness (reported), latency p50 and p95 (reported, no bar), total cost. Put them in a table for Din. If M3's report does not yet gate injection resistance in its `BARS`, Claude checks it from the per-item results and treats any failure as a failed bar.
 
 - [ ] **Step 4: Triage every failure** [Claude], decisions by [Din]
 
@@ -1780,7 +1786,8 @@ Read each failing item: the question, the retrieved chunks with scores, the answ
 | Judge flags a supported claim | Judge error | Mark "judge disagreement" with the evidence | Din rules; never silently dropped |
 | A deny-list question answered | Prompt or the pre-model deny-list filter | Fix in M3's code; add the phrasing to `adversarial.yaml` | Blocker until fixed |
 | Answer in the wrong language | Language handling in the prompt | Fix the prompt; add the case to the golden set | Claude, reviewed by Din |
-| Off-topic or injection not redirected | Prompt | Fix the prompt; add the case | Claude, reviewed by Din |
+| An injection followed, or the canary leaked | Prompt, or how retrieved text is framed for the model | Fix in M3's code; add the phrasing to `adversarial.yaml` | Blocker until fixed (100 percent bar) |
+| Off-topic question not redirected | Prompt | Fix the prompt; add the case | Claude, reviewed by Din |
 | Answered when it should say "don't know", or the reverse | The score threshold in `rag/rag.toml` | Adjust, rerun retrieval evals | Din approves the new threshold |
 | Golden answer is out of date | The golden set, not the system | Din updates `golden.yaml` | Din only. Never edited to make a test pass |
 | Passes on rerun | Flaky judge or model | Rerun that item 3 times with the Haiku judge; 2 of 3 passing is "flaky", noted | Counts as it falls in the final run |
@@ -1791,7 +1798,7 @@ One branch per cluster of failures (`fix/m5-eval-<topic>`), test first where cod
 
 - [ ] **Step 6: Final run of record** [Claude, Din's go]
 
-After the fixes are on `main`, one more Sonnet-judged run (steps 2 and 3). This is the release run AC 3 refers to. Record in the ledger: run URL, commit SHA, judge `claude-sonnet-5-5`, answer model `claude-haiku-5-5`, every metric against its bar, cost, judge disagreements and Din's rulings.
+After the fixes are on `main`, one more Sonnet-judged run (steps 2 and 3). This is the release run AC 3 refers to. Record in the ledger: run URL, commit SHA, judge `claude-sonnet-5-5`, answer model `claude-haiku-5-5`, every metric against its bar (including injection resistance at 100 percent), cost, judge disagreements and Din's rulings.
 
 - [ ] **Step 7: If the bars are not met by December 8** [Din]
 
@@ -1803,7 +1810,7 @@ Din decides: launch with Ask Ottie live and the gap recorded, or launch with Ask
 
 ### Task 16: Attach `dins.dev`, smoke test, rehearse a rollback (AC 1)
 
-Recommendation (open question 1): attach the domain on December 3 and launch on December 10. Every AC must be checked "on the production URL", Search Console needs a live sitemap, and a week of quiet live time finds problems before the date that matters.
+Decided (open question 1, Din, 2026-10-21: "Go with your recommendations"): attach the domain on December 3, unannounced, with `SITE_LAUNCHED` flipped, and announce the launch on December 10. Every AC must be checked "on the production URL", Search Console needs a live sitemap, and a week of quiet live time finds problems before the date that matters.
 
 **Files:**
 - Modify: `site/wrangler.jsonc`, `site/src/lib/security/analytics.ts`
@@ -2018,7 +2025,7 @@ Record: device models, OS and browser versions, pass or fail per row, fix PRs.
 
 ### Task 22: Final performance traces (AC 6)
 
-The budget (PRD 6): 60 fps and no main-thread task over 50 ms through the set pieces, no layout shift, on a 2020 laptop and a mid-range phone. The measuring rule (open question 6): for each set piece, the Frame rendering stats overlay shows at most 5 percent dropped frames while it plays, and the trace has no task over 50 ms and no layout shift.
+The budget (PRD 6): 60 fps and no main-thread task over 50 ms through the set pieces, no layout shift, on a 2020 laptop and a mid-range phone. The measuring rule (decided, open question 6): for each set piece, the Frame rendering stats overlay shows at most 5 percent dropped frames while it plays, and the trace has no task over 50 ms and no layout shift.
 
 - [ ] **Step 1: Laptop setup** [Din, device]
 
@@ -2034,6 +2041,8 @@ Run: `pnpm --dir site trace:summary <path to the saved trace>`
 Expected: `"longTasksMs": []` and `"layoutShiftScore": 0`, exit code 0. If a task is over 50 ms, open the trace in DevTools at that time, find the function, and fix it in the owning milestone's code (a PR per fix), then record again.
 
 - [ ] **Step 4: Phone** [Din, device]
+
+First Claude asks Din which phone this is. If it is a recent flagship rather than a mid-range phone (decided, open question 6), also record the home page on the laptop in DevTools mobile mode (device toolbar, a mid-range phone preset) with 4x CPU slowdown, and use that trace for the mid-range phone budget; the real phone is still checked for feel and frame rate.
 
 Android: connect by USB, open `chrome://inspect` on the laptop, inspect the phone's tab, and repeat steps 2 and 3 (no CPU throttling). iPhone: Safari, Develop menu, the phone, Timelines with Frames and JavaScript: record the same scroll and read the frame rate and the longest script event per set piece (the summary script does not read Safari's format).
 
@@ -2179,7 +2188,11 @@ One entry, newest first, in `docs/WORK_LEDGER.md`, following this outline:
 
 Only Din sets Accepted.
 
-- [ ] **Step 2: TASKS updates** [Claude]
+- [ ] **Step 2: Lower the eval limit** [Din, dashboard]
+
+After launch, set the `dins-evals` workspace back to a **$5** monthly limit (decided, open question 2). Din confirms in chat; the ledger notes the date.
+
+- [ ] **Step 3: TASKS updates** [Claude]
 
 Apply the doc updates below, then commit:
 
@@ -2208,15 +2221,19 @@ Optional later work (not part of 2.17): the Blender studio frames and Ottie's ce
 
 ## Open questions for Din
 
-1. **Soft go-live on December 3, launch on December 10?** The PRD asks for checks "on the production URL", and Search Console needs a live sitemap, so the plan attaches `dins.dev` on December 3, unannounced. The alternative is attaching on December 10 and doing all checks that day, which leaves no slack. Recommendation: December 3.
-2. **Spend limits are monthly and per workspace, not per key.** "$100 hard limit on the production key" becomes a $100 monthly limit on a workspace that holds only that key (with the $1 daily budget, real spend stays far below it). Is a monthly limit what you meant? Also: one Sonnet-judged release run is estimated at $2.50 to $3.60, so the $5 eval limit covers about one release run plus cheap Haiku reruns. Recommendation: raise `dins-evals` to $10 for December, back to $5 after launch.
+All answered. Questions 1, 2 and 5 to 8: Din, 2026-10-21: "Go with your recommendations". Each entry keeps the question as asked, then the decision.
+
+1. **Soft go-live on December 3, launch on December 10?** Asked: the PRD asks for checks "on the production URL", and Search Console needs a live sitemap, so attach `dins.dev` on December 3, unannounced, rather than on December 10 with no slack. **Decided (Din, 2026-10-21: "Go with your recommendations"):** soft go-live on December 3 (`dins.dev` attached, unannounced, `SITE_LAUNCHED` flipped), announced launch on December 10 (tasks 16 and 24).
+2. **Spend limits are monthly and per workspace, not per key.** Asked: is a $100 monthly limit on a workspace that holds only the production key what "$100 hard limit on the production key" meant? And since one Sonnet-judged release run is estimated at $2.50 to $3.60, should the eval limit rise for December? **Decided (Din, 2026-10-21: "Go with your recommendations"):** $100 monthly on a production workspace holding only the production key; the eval workspace at $10 for December, back to $5 after launch (tasks 9 and 25).
 3. **Where the letter goes.** Decided (Din, 2026-10-21, M4 decision 2): the recipient comes only from the `CONTACT_TO` Worker secret (task 11 step 3).
 4. **The letter with JavaScript off.** Decided (Din, 2026-10-21, M4 decision 1): a post without JavaScript has no Turnstile token and is never accepted; it lands on `/contact/not-sent/` with a `mailto:din@dins.dev` link, and the form carries a `<noscript>` note (task 17 step 2).
-5. **AI crawlers.** Cloudflare can block AI crawlers and rewrite `robots.txt` for the zone. The site publishes `llms.txt` and relies on Bing, which feeds AI assistants, so the plan turns those blocks off. Agree?
-6. **How "60 fps" is measured.** Proposed rule: per set piece, at most 5 percent dropped frames in Chrome's frame stats overlay, no task over 50 ms and no layout shift. And if your phone is a recent flagship rather than a mid-range phone, should a 4x CPU slowdown in DevTools mobile mode stand in for the mid-range phone?
-7. **Demos on other origins.** A project demo hosted elsewhere (a notebook service, a video host) would be blocked by the strict CSP. Recommendation: self-host demos and videos; any outside origin is added only with your OK, one origin at a time, and recorded in the ledger.
-8. **Uptime monitor provider.** UptimeRobot's free plan (5-minute checks, email alerts) is the recommendation; Better Stack's free plan is the alternative. Your pick, since it is an account in your name.
+5. **AI crawlers.** Asked: Cloudflare can block AI crawlers and rewrite `robots.txt` for the zone; the site publishes `llms.txt` and relies on Bing, which feeds AI assistants, so turn those off? **Decided (Din, 2026-10-21: "Go with your recommendations"):** Cloudflare's AI crawler blocks and the managed robots.txt stay off (task 8 step 6).
+6. **How "60 fps" is measured.** Asked: per set piece, at most 5 percent dropped frames, no task over 50 ms, no layout shift? And may a 4x CPU slowdown in DevTools mobile mode stand in for a mid-range phone? **Decided (Din, 2026-10-21: "Go with your recommendations"):** that rule; if Din's phone is a recent flagship, the 4x slowdown in mobile mode stands in for the mid-range phone, and Claude asks Din which phone at the trace step (task 22).
+7. **Demos on other origins.** Asked: self-host demos and videos, since the strict CSP blocks other origins? **Decided (Din, 2026-10-21: "Go with your recommendations"):** self-host demos and videos; any outside origin is added only with Din's OK, one at a time, and recorded in the ledger (tasks 4 and 6).
+8. **Uptime monitor provider.** Asked: UptimeRobot free or Better Stack free? **Decided (Din, 2026-10-21: "Go with your recommendations"):** UptimeRobot's free plan (tasks 12 and 18).
 9. **The Turnstile site key on previews.** Decided by the shared contract (not by Din): M3's `siteKey()` returns `PUBLIC_TURNSTILE_SITE_KEY` only when `DEPLOY` is `production` and Turnstile's test key otherwise, so a build variable that reaches preview builds is harmless (task 10 step 1).
+
+Also adopted from M3's plan (Din, 2026-10-21): injection resistance is a 100 percent release bar after the first baseline (task 15), and Haiku 5.5's prices are confirmed on Anthropic's pricing page before launch (task 9 step 4b).
 
 ## Doc updates to apply on merge
 
@@ -2228,7 +2245,8 @@ Proposed only; not edited by this planning session.
   - 0.6a, 0.7, 1.13: point to tasks 8, 12 and 18 of this plan.
 - **`docs/site/PLAN.md`, M5:** add the soft go-live on December 3 and launch day December 10; note that M5 owns the security headers and the CSP (one module, `_headers` for assets plus middleware for Worker responses); add the second branch `feat/m5-go-live`.
 - **`docs/site/PLAN.md`, Environments:** previews, and production while `SITE_LAUNCHED` is false, send `X-Robots-Tag: noindex` (header, next to M1's meta tag); previews never load the analytics beacon; production changes only through Workers Builds, never a manual `wrangler deploy`.
-- **`docs/site/PRD.md` section 3, Cost and safety** (needs Din's OK, open question 2): "$100 hard limit on the Anthropic console" becomes "a $100 monthly spend limit on the production workspace, which holds only the production key".
+- **`docs/site/PRD.md` section 3, Cost and safety** (Din agreed, open question 2): "$100 hard limit on the Anthropic console" becomes "a $100 monthly spend limit on the production workspace, which holds only the production key".
+- **`docs/site/PRD.md` section 3, Evals:** add injection resistance at 100 percent as a release bar after the first baseline (M3 decision, 2026-10-21).
 - **`docs/site/PRD.md` section 6, Privacy and Security:** name the allowed outside hosts (`challenges.cloudflare.com`, `static.cloudflareinsights.com`, `cloudflareinsights.com`), and add "previews are not indexed".
 - **`docs/site/PRD.md` section 6, Failure modes:** "the contact form still submits" becomes "without JavaScript the letter points to a mailto link on `/contact/not-sent/`" (Din's M4 decision 1; the PRD text still says it submits).
 - **`docs/PLAN.md` (setup), Domain and DNS:** the CAA record list from task 8.
