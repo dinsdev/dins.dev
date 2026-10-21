@@ -66,11 +66,11 @@ From M1 (Pages and content):
 - Content helpers: `getVisibleProjects()`, `getVisiblePosts()` (`site/src/lib/collections.ts`), `featuredProjects(projects, max = 4)`, `latestPosts(posts, n = 3)`, `readingMinutes(body)` (`site/src/lib/content.ts`), and the components `ProjectWindow` (`{ project; eager? }`, a 16:10 window with the capture image, or a `<video controls>` when `demo.type === "video"`), `PostCard` (`{ post; headingLevel? }`) and `ContactForm`.
 - Project fields used here: `title`, `summary`, `kind`, `stack`, `featured` (1 to 4), `demo` (`{ type: "live" | "chart" | "video", src }`, optional), `capture`, `captureAlt`, `status`. `library` entries with `approved_on` and `sample` (M3's fields).
 - M1's empty states stay: with no featured projects the work section shows "Projects are on their way.", with no posts the writing section shows "The first posts are on their way." M4 enhances only when there is content.
-- Contact, from `site/src/lib/contact.ts` (M1 Task 7, lands first): `CONTACT_FIELDS` (`message`, `reason`, `name`, `email`, honeypot `website`, Turnstile `cf-turnstile-response`), `CONTACT_LIMITS` (`name` 100, `email` 254, `message` 4000), `REASONS` (`{ value, label }`: "A role", "Admissions", "Just saying hi"), `CONTACT_REDIRECTS = { sent: "/contact/sent/", notSent: "/contact/not-sent/" }`, `parseContact(form: FormData | URLSearchParams)` returning `{ ok: true; value: { message, reason, name, email } }` or `{ ok: false; spam: boolean; errors }`, which already trims and strips control characters other than newline and tab. The name is required.
+- Contact, from `site/src/lib/contact.ts` (M1 Task 7, lands first): `CONTACT_FIELDS` (`message`, `reason`, `name`, `email`, honeypot `website`, Turnstile `cf-turnstile-response`), `CONTACT_LIMITS` (`name` 100, `email` 254, `message` 4000), `REASONS` (`{ value, label }`: "A role", "Admissions", "Just saying hi"), `CONTACT_REDIRECTS = { sent: "/contact/sent/", notSent: "/contact/not-sent/" }`, `parseContact(form: FormData | URLSearchParams)` returning `{ ok: true; value: { message, reason, name, email } }` or `{ ok: false; spam: boolean; errors }`, which trims, strips control characters (newline and tab survive only in `message`), collapses whitespace in `name` and rejects an `email` with a line break. The name is required.
 - `ContactForm.astro`: `<form class="letter-form" method="post" action="/api/contact" data-letter-form>` with labels "Message", legend "Why are you writing?", radios "A role", "Admissions", "Just saying hi", labels "Your name" and "Your email", the honeypot, an empty `<div data-turnstile-slot>`, the button "Seal and send", and a `<noscript>` note. M1 also creates `/contact/sent/` and `/contact/not-sent/` (with the `mailto:din@dins.dev` link); the sitemap lists only indexable routes, so neither is in it.
 
 From M2 (Ottie):
-- `site/src/ottie/events.ts`: `cueOttie(type, extra?)` dispatches `ottie:cue` on `window` with `detail.type`; `onOttieState(handler)` reports `detail.state`. The letter's cues are `letter:open` (in view: point), `letter:ready` (filled in: fetch jump) and `letter:sent` (jump). There are no state-named cues and no `prefetchOttie`. Only `site/src/lib/setpieces/letter/ottie-bridge.ts` imports this module.
+- `site/src/ottie/events.ts`: `cueOttie(type, extra?)` dispatches `ottie:cue` on `window` with `detail.type`; `onOttieState(handler)` calls `handler(state, context)` from `detail.state` and `detail.context`. The letter's cues are `letter:open` (in view: point), `letter:ready` (filled in: fetch jump) and `letter:sent` (jump). There are no state-named cues and no `prefetchOttie`. Only `site/src/lib/setpieces/letter/ottie-bridge.ts` imports this module.
 - M2's Task 16 places `<Ottie context="contact">` in the home `#contact` section and on `/contact`. That is the letter Ottie; M4 mounts no Ottie of its own. M2 also treats `<html data-motion="calm">` as reduced.
 
 From M3 (Ask Ottie):
@@ -90,7 +90,7 @@ site/
   src/
     lib/
       motion.ts                         resolveMotion, readMotionInput, currentMotion, onMotionChange      (Task 1)
-      contact.ts                        M1's; Task 5 adds single-line cleaning of name and email             (Task 5)
+      contact.ts                        M1's: fields, limits, reasons, redirects, parseContact (incl. the name rule)
       contact/handler.ts                handleContact                                                         (Task 6)
       setpieces/
         flags.ts                        RELEASES, pieceEnabled, deployEnv (reads M0's DEPLOY)               (Task 2)
@@ -122,7 +122,7 @@ site/
     pages/contact/not-sent.astro        M1's; Task 7 adjusts the copy only if needed
     styles/view-transitions.css                                                                                (Task 18)
   scripts/budget.ts                                                                                            (Task 4)
-  tests/unit/  motion, flags, lazy, budget, fps, contact-single-line, field-words, field-model, pose, studio-frame,
+  tests/unit/  motion, flags, lazy, budget, fps, field-words, field-model, pose, studio-frame,
                studio-tokens, terminal-lines, letter-machine, motion-properties                               (per task)
   tests/worker/contact.test.ts                                                                                 (Task 6)
   tests/e2e/   setpieces-loading, setpieces-keyboard, setpieces-calm, letter, shots (tag @shots), perf (tag @perf)
@@ -149,7 +149,7 @@ Branching: each gate is one squash-merged PR from `feat/m4-set-pieces`, recreate
 **Files:**
 - Create: `site/src/lib/motion.ts`
 - Create: `site/src/components/home/MotionHead.astro`
-- Modify: `site/src/layouts/BaseLayout.astro` (render `<MotionHead />` first in `<head>`)
+- Modify: `site/src/layouts/BaseLayout.astro` (render `<MotionHead />` in `BaseLayout.astro` itself, as the first child of `<head>` and before `<slot name="head" />`, so `data-motion` is set on every page)
 - Test: `site/tests/unit/motion.test.ts`
 
 **Interfaces:**
@@ -942,73 +942,9 @@ git commit -m "test(site): guard set pieces to transform and opacity motion"
 
 M1 owns the form contract (`site/src/lib/contact.ts`, `ContactForm.astro`, `/contact/sent/`, `/contact/not-sent/`); M4 builds `/api/contact` on it and enhances the form. If M1's module differs from "Assumes" when this part starts, follow M1's file and adjust the tests here, not the other way round.
 
-### Task 5: Single-line name and email in M1's `contact.ts`
+### Task 5: (moved to M1) Contact parsing rules
 
-M1's `parseContact` keeps newlines and tabs in every field, which is right for the message but not for the name and email: the name becomes the reply-to display name, an email header. This is the one extension M4 needs.
-
-**Files:**
-- Modify: `site/src/lib/contact.ts` (M1's)
-- Test: `site/tests/unit/contact-single-line.test.ts`
-
-**Interfaces:**
-- Consumes: `parseContact`, `CONTACT_FIELDS` (M1).
-- Produces: no new exports. After this task `parseContact` returns `name` and `email` with every run of whitespace (including CR, LF and tab) collapsed to one space; the message keeps its newlines.
-
-- [ ] **Step 1: Write the failing test**
-
-```ts
-// site/tests/unit/contact-single-line.test.ts
-import { describe, expect, it } from "vitest";
-import { CONTACT_FIELDS as F, parseContact } from "../../src/lib/contact";
-
-const form = (over: Record<string, string> = {}) =>
-  new URLSearchParams({ [F.message]: "Hi Din.", [F.name]: "Ada", [F.email]: "ada@example.com", [F.reason]: "role", ...over });
-
-describe("parseContact single-line fields", () => {
-  it("collapses line breaks and tabs in the name to single spaces", () => {
-    const r = parseContact(form({ [F.name]: "Ada\r\nBcc: x@y.z\tLovelace" }));
-    expect(r.ok && r.value.name).toBe("Ada Bcc: x@y.z Lovelace");
-  });
-  it("rejects an email with a line break instead of repairing it", () => {
-    const r = parseContact(form({ [F.email]: "ada@example.com\nbcc@evil.example" }));
-    expect(r.ok).toBe(false);
-  });
-  it("keeps newlines in the message", () => {
-    const r = parseContact(form({ [F.message]: "line one\nline two" }));
-    expect(r.ok && r.value.message).toBe("line one\nline two");
-  });
-});
-```
-
-- [ ] **Step 2: Run it to verify it fails**
-
-Run: `pnpm --dir site exec vitest run tests/unit/contact-single-line.test.ts`
-Expected: the name test FAILS (the newline is kept). The email test already passes if M1's email pattern rejects whitespace; keep it as a guard.
-
-- [ ] **Step 3: Implement**
-
-In `parseContact`, after M1's control-character stripping, clean the single-line fields:
-
-```ts
-// site/src/lib/contact.ts (inside parseContact, where value is built)
-const oneLine = (s: string) => s.replace(/\s+/g, " ").trim();
-// name: oneLine(get(CONTACT_FIELDS.name))
-// email: get(CONTACT_FIELDS.email) stays as is, so a line break fails the EMAIL check
-```
-
-Apply `oneLine` to the name only. The email is not repaired: a line break in it should fail validation, not be silently turned into a different address.
-
-- [ ] **Step 4: Run M1's contact tests and this one**
-
-Run: `pnpm --dir site exec vitest run tests/unit/contact.test.ts tests/unit/contact-single-line.test.ts`
-Expected: PASS (M1's tests unchanged and green, 3 new tests green).
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add site/src/lib/contact.ts site/tests/unit/contact-single-line.test.ts
-git commit -m "feat(site): keep the contact name on one line"
-```
+Nothing to build here. M1's `parseContact` now owns every rule this task used to add: control characters stripped, newline and tab kept only in `message`, whitespace in `name` collapsed to single spaces, and an `email` with a line break rejected (README, Contact seam). The task number stays so the later numbers and cross-references do not shift. Task 6's handler relies on these rules; if M1's contact tests do not cover them when Part B starts, ask M1's owner rather than re-adding them here.
 
 ### Task 6: `/api/contact` on the Worker with Turnstile, rate limit and `send_email`
 
@@ -1020,7 +956,7 @@ git commit -m "feat(site): keep the contact name on one line"
 - Test: `site/tests/worker/contact.test.ts`
 
 **Interfaces:**
-- Consumes: `parseContact`, `CONTACT_FIELDS`, `CONTACT_REDIRECTS`, `REASONS` (M1, Task 5); `verifyTurnstile` (M3 or this task).
+- Consumes: `parseContact`, `CONTACT_FIELDS`, `CONTACT_REDIRECTS`, `REASONS` (M1); `verifyTurnstile` (M3 or this task).
 - Produces:
   - `interface ContactEnv { EMAIL: { send(m: OutgoingEmail): Promise<{ messageId: string }> }; CONTACT_LIMITER: { limit(o: { key: string }): Promise<{ success: boolean }> }; CONTACT_TO: string }`
   - `interface OutgoingEmail { to: string; from: { email: string; name: string }; replyTo: { email: string; name?: string }; subject: string; text: string }`
@@ -3002,7 +2938,7 @@ git commit -m "feat(site): letter phases for the fold and seal"
 **Interfaces:**
 - Consumes: `letterReducer`, `phaseClasses`, `FOLD_MS`, `SEAL_MS`, `AWAY_MS` (Task 20); `parseContact` (M1); `currentMotion`, `onMotionChange` (Task 1); `canEnhance` (Task 3); `pieceEnabled("letter")` (Task 2); M2's `cueOttie` and `onOttieState`.
 - Produces:
-  - `ottie-bridge.ts` (the only file that imports `site/src/ottie/events.ts`): `pointAtLetter()` is `cueOttie("letter:open")`, `prefetchJump()` is `cueOttie("letter:ready")`, `celebrateLetter()` is `cueOttie("letter:sent")`, and `jumpEnded(subscribe = onOttieState, timeoutMs = 2500): Promise<"idle" | "timeout">`, which resolves when the state reported after `jump` is `idle`, or after the timeout (Quiet Ottie, reduced motion, a failed sheet, or no Ottie on the page all mean no report, and the letter must still fly).
+  - `ottie-bridge.ts` (the only file that imports `site/src/ottie/events.ts`): `pointAtLetter()` is `cueOttie("letter:open")`, `prefetchJump()` is `cueOttie("letter:ready")`, `celebrateLetter()` is `cueOttie("letter:sent")`, and `jumpEnded(subscribe = onOttieState, timeoutMs = 2500): Promise<"idle" | "timeout">`, which resolves when the letter Ottie (`context === "contact"`) reports `idle` after its own `jump`, or after the timeout. The hero Ottie on home (`context === "home"`) is ignored, so its idle can never set the envelope off (Quiet Ottie, reduced motion, a failed sheet, or no Ottie on the page all mean no report, and the letter must still fly).
   - `Envelope.astro`: `<div class="envelope" data-envelope>` around its slot (M1's form): `.env-back`, the slotted form as the sheet, `.env-front` (static `clip-path` shape, never animated), `.env-flap` (`rotateX(180deg)` open, `rotateX(0)` closed), `.wax` (the Ottie seal mark from `brand/logo/seal-light.svg` or `seal-dark.svg`, never recolored). Decorative parts are `aria-hidden`.
   - Task 7's helpers inside `letter-enhance.ts` (`send`, `showStatus`, `showErrors`, `showSentPanel`) serve both the calm and the full path.
 - M4 mounts no Ottie. M2's Task 16 places `<Ottie context="contact">` in the home `#contact` section and on `/contact`; the envelope's layout leaves room for it on the left (wide screens) or above (phones), and `[data-ottie-avoid]` goes on the form so Ottie never covers a field.
@@ -3015,13 +2951,13 @@ import { describe, expect, it, vi } from "vitest";
 import { jumpEnded } from "../../src/lib/setpieces/letter/ottie-bridge";
 
 function fakeStates() {
-  let handler: ((s: string) => void) | undefined;
-  const subscribe = (h: (s: string) => void) => { handler = h; return () => { handler = undefined; }; };
-  return { subscribe, emit: (s: string) => handler?.(s), active: () => handler !== undefined };
+  let handler: ((s: string, c: string) => void) | undefined;
+  const subscribe = (h: (s: string, c: string) => void) => { handler = h; return () => { handler = undefined; }; };
+  return { subscribe, emit: (s: string, c = "contact") => handler?.(s, c), active: () => handler !== undefined };
 }
 
 describe("jumpEnded", () => {
-  it("resolves idle once Ottie is back to idle after the jump", async () => {
+  it("resolves idle once the letter Ottie is back to idle after its jump", async () => {
     const f = fakeStates();
     const done = jumpEnded(f.subscribe, 5000);
     f.emit("idle");          // idle before the jump does not count
@@ -3029,6 +2965,19 @@ describe("jumpEnded", () => {
     f.emit("idle");
     await expect(done).resolves.toBe("idle");
     expect(f.active()).toBe(false);
+  });
+  it("ignores the hero Ottie on home", async () => {
+    vi.useFakeTimers();
+    const f = fakeStates();
+    const done = jumpEnded(f.subscribe, 2500);
+    f.emit("jump", "home");
+    f.emit("idle", "home");   // the hero's idle must not set the envelope off
+    f.emit("jump", "contact");
+    f.emit("idle", "home");
+    expect(f.active()).toBe(true);
+    f.emit("idle", "contact");
+    await expect(done).resolves.toBe("idle");
+    vi.useRealTimers();
   });
   it("gives up after the timeout when Ottie never reports", async () => {
     vi.useFakeTimers();
@@ -3059,13 +3008,14 @@ export const prefetchJump = (): void => cueOttie("letter:ready");
 export const celebrateLetter = (): void => cueOttie("letter:sent");
 
 export function jumpEnded(
-  subscribe: (h: (state: string) => void) => () => void = onOttieState,
+  subscribe: (h: (state: string, context: string) => void) => () => void = onOttieState,
   timeoutMs = 2500,
 ): Promise<"idle" | "timeout"> {
   return new Promise((resolve) => {
     let jumped = false;
     const finish = (r: "idle" | "timeout") => { clearTimeout(timer); off(); resolve(r); };
-    const off = subscribe((state) => {
+    const off = subscribe((state, context) => {
+      if (context !== "contact") return; // only the letter Ottie; the hero Ottie on home is ignored
       if (state === "jump") jumped = true;
       else if (jumped && state === "idle") finish("idle");
     });
@@ -3075,7 +3025,7 @@ export function jumpEnded(
 ```
 
 Run: `pnpm --dir site exec vitest run tests/unit/ottie-bridge.test.ts`
-Expected: PASS (2 tests).
+Expected: PASS (3 tests).
 
 - [ ] **Step 4: Write the failing e2e tests**
 
@@ -3162,7 +3112,7 @@ if (result.ok) {
   await wait(SEAL_MS);
   const jumped = jumpEnded();       // subscribe before cueing, so the state report is not missed
   celebrateLetter();                // letter:sent: M2's director plays jump
-  await jumped;                     // idle after jump, or the 2.5 s timeout
+  await jumped;                     // the contact Ottie's idle after jump, or the 2.5 s timeout
   dispatch({ type: "sealed" });     // is-away: the envelope flies off
   await wait(AWAY_MS);
   showSentPanel();                  // as in Task 7: hide the form, show the panel, focus its heading
@@ -3225,7 +3175,7 @@ Din's answer to all ten: "Go with your recommendations on the open questions". T
 
 1. **Contact form without JavaScript:** it still submits, and since Turnstile cannot run, the post lands on `/contact/not-sent/` with a `mailto:din@dins.dev` link, plus a `<noscript>` note on the form (Tasks 6 and 7). Unverified posts are never accepted.
 2. **Where the letters go:** the recipient lives in the `CONTACT_TO` Worker secret, never in `wrangler.jsonc`. It is `din@dins.dev` if Cloudflare accepts that address, otherwise Din's verified inbox. Task 7 Step 6 settles it with one real send, recorded in the ledger.
-3. **"Ottie carries it off":** for v1 Ottie jumps on `letter:sent` and the envelope flies off once `onOttieState` reports `idle` after the jump (or after 2.5 s), as in Task 21. A carry state is an optional post-launch item, like celebrate.
+3. **"Ottie carries it off":** for v1 Ottie jumps on `letter:sent` and the envelope flies off once `onOttieState` reports `idle` with `context === "contact"` after the jump (or after 2.5 s), as in Task 21. A carry state is an optional post-launch item, like celebrate.
 4. **A second Ottie at the letter:** M2's `<Ottie context="contact">`, which M2's Task 16 places in the home `#contact` section and on `/contact` (the README's Ottie seam). M4 only sends the `letter:*` cues and leaves room for it.
 5. **What counts toward the 100 KB:** the gate covers the JavaScript loaded before any interaction (the initial module graph plus inline scripts), and GSAP must never be in it. Chunks loaded on scroll are reported in CI without a gate (Task 4).
 6. **Gates and the calendar:** while Din reviews a piece, the next piece's pure-logic tasks (tests and math only) may start. Its visual work starts only after the previous piece is approved and merged (see "How a gate works", step 7).
