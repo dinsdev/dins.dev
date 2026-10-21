@@ -4,6 +4,15 @@ Decisions and why, work done, verification results, approvals, blockers, handoff
 
 ## 2026-10-21
 
+### Sending as din@dins.dev through Resend (Claude, 2026-10-21)
+
+- **Asked (Din):** pick a free outgoing mail provider for Gmail "Send mail as" on dins.dev, and drop the old `info@dineshd.dev` (its domain expired).
+- **Decided (Din):** Resend, free plan (3,000 a month, 100 a day, SMTP included, logs kept 30 days). Compared on 2026-10-21 against Brevo (300 a day, marketing-first, branding reported on the free plan), SMTP2GO (1,000 a month) and Cloudflare Email Sending (beta, and sending to outside recipients needs Workers Paid at $5 a month, which would be a paid service).
+- **Done (Din):** Resend account on the personal address; dins.dev added with Resend's one-click Cloudflare setup (DKIM TXT `resend._domainkey`, CNAMEs `send` and `rsend` to `forge.rmta.net`, which carry the bounce MX and SPF on subdomains, so the apex Email Routing SPF is untouched); DMARC through Cloudflare DMARC Management (`p=none`, aggregate reports to Cloudflare); a sending-only API key for dins.dev used as the SMTP password in Gmail (`smtp.resend.com:587`, TLS). The key lives only in Gmail and Resend.
+- **Verified (Claude):** the records answer from Cloudflare's nameserver, 1.1.1.1 and 8.8.8.8. Din's test from `din@dins.dev` to Din's other Gmail: `spf=pass` (return path on `rsend.dins.dev`, relaxed alignment), `dkim=pass` for `d=dins.dev` (aligned) and for `amazonses.com`, `dmarc=pass`. Sent through Amazon SES (54.240.11.151).
+- **Problem:** Gmail put the test in Spam with "similar to messages that were identified as spam in the past". Authentication is clean, so this is reputation, not setup: the domain is a day old, has no sending history, and the message was a one-word "Test". No DNS change helps; marking it Not spam, adding the contact and real correspondence over the next weeks do (task 0.10a). DMARC stays at `p=none` until the reports show clean weeks.
+- **Open (Din):** delete `info@dineshd.dev` from Gmail "Send mail as" (task 0.10b).
+
 ### Email Routing rules for dins.dev (Claude, 2026-10-21)
 
 - **Asked (Din):** set up the agreed addresses, everything to `dind.dev@gmail.com` (task 0.8).

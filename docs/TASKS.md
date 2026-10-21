@@ -12,8 +12,10 @@ Status vocabulary: Proposed, Planned, In progress, Implemented, Verified, Accept
 | 0.6a | **To do (Din):** extend `dins.dev` to 4 years and confirm auto-renew is on | Planned (Din) |
 | 0.7 | Turn on DNSSEC, add CAA records | Planned |
 | 0.8 | Email Routing: `din@`, `dinesh@`, `hello@`, `support@`, catch-all to the personal inbox | Verified (2026-10-21): four addresses in Cloudflare's log, catch-all on Din's report |
-| 0.9 | "Send mail as" with an outgoing mail provider, SPF, DKIM, DMARC | Planned |
-| 0.10 | Verify a sent message passes SPF, DKIM and DMARC | Planned |
+| 0.9 | "Send mail as" with an outgoing mail provider, SPF, DKIM, DMARC | Implemented (2026-10-21): Resend free plan, DMARC `p=none` |
+| 0.10 | Verify a sent message passes SPF, DKIM and DMARC | Verified (2026-10-21): all three pass in Gmail's headers |
+| 0.10a | **To do (Din):** warm up dins.dev mail (mark the test Not spam, add `din@dins.dev` as a contact, send real mail for a couple of weeks), then move DMARC to `p=quarantine` if the Cloudflare reports stay clean | Planned (Din) |
+| 0.10b | **To do (Din):** delete the old `info@dineshd.dev` from Gmail "Send mail as" | Planned (Din) |
 | 0.11 | GitHub organization `dinsdev` | Done (Din) |
 | 0.12 | Claim `dinsdev` on YouTube (Brand Account), TikTok, X | Done (Din) |
 | 0.14 | Optional: `@dins.dev` handle on Bluesky | Proposed |
