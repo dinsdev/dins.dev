@@ -4,6 +4,14 @@ Decisions and why, work done, verification results, approvals, blockers, handoff
 
 ## 2026-10-21
 
+### Holding page live on dins.dev (Claude, 2026-10-21)
+
+- **Go-ahead (Din):** PR 5 merged (bc05a86), then "Yes, deploy the holding page to dins.dev from here and verify it's live."
+- **Done:** `wrangler deploy --cwd holding` (4.151.3, with the wrangler login already on this Mac) uploaded 17 files (`_headers` is read as config, not uploaded) and attached `dins.dev` as a Custom Domain. Version `6774ca12-fc59-4ec1-9f21-3224329cc77b`.
+- **Verified (curl pinned to Cloudflare's edge IP, plus public DNS):** the authoritative servers, 1.1.1.1 and 8.8.8.8 all return Cloudflare addresses. The Let's Encrypt certificate for `dins.dev` is valid until 2027-01-19 and renews automatically. `/` returns HTTP/2 200 with the CSP, nosniff, referrer and permissions policies and `X-Robots-Tag: noindex`. The page serves "Under construction." and an unknown path falls back to the page. `/_headers` and `/.assetsignore` return the page, not the files. The fonts serve as `font/woff2` with `max-age=604800`, and Ottie's sheet, the manifest and the icons all load.
+- **Limit:** the browser pane on this Mac could not open the site yet. The local resolver had cached the earlier "no record" answer, and Cloudflare's negative-cache TTL is 1,800 s, so it clears within 30 minutes. Not a fault in the site.
+- **Noted:** plain `http://dins.dev` answers 200 rather than redirecting. Browsers never use it, because `.dev` is HSTS-preloaded and forces HTTPS.
+
 ### Holding page deploy setup (Claude, 2026-10-21)
 
 - **Go-ahead (Din):** "Go with Workers static assets: add the wrangler config on a branch, open a PR, and walk me through attaching dins.dev."
