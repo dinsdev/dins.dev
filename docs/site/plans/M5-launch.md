@@ -8,6 +8,8 @@
 
 **Tech Stack:** Astro 7.4 (`security.csp`), @astrojs/cloudflare 14.4 on Workers with static assets, wrangler 4.151, D1, Turnstile, Email Routing `send_email`, Workers AI, `@anthropic-ai/sdk` (Claude Haiku 5.5 answers, Claude Sonnet 5.5 release judge), Vitest 4.1, Playwright 1.64 with `@axe-core/playwright`, Lighthouse CI, `gh` CLI, `dig`, `curl`.
 
+**Contract:** `docs/site/plans/README.md` (shared names across the six plans; where this plan disagrees with it, the contract wins).
+
 **Spec:** `docs/site/PRD.md` (sections 2, 3, 6 and 7), `docs/site/PLAN.md` (M5 and After launch), `docs/PLAN.md` (setup plan: DNS, email, SEO baseline), `docs/TASKS.md` (2.16, 2.17, 0.6a, 0.7, 0.8 to 0.10, 1.13).
 
 ## Global Constraints
@@ -71,21 +73,21 @@ The five failure modes most likely to bite a visitor that no other milestone's t
 1. **A project demo or video served from another origin** (a hosted notebook, a chart service, YouTube) is blocked by the strict CSP, so a project window renders blank. Expected: every page loads only from allowed hosts with zero CSP violations. Pinned by the site sweep in task 6 (runs in CI on every PR and against production).
 2. **Preview deploys get indexed or reach production data.** A preview link shared in a PR shows up in Google, or a preview spends from the production key. Expected: previews send `X-Robots-Tag: noindex`, carry no Anthropic key, use their own D1. Pinned by task 3 (headers per deploy), task 6 (`EXPECT_DEPLOY=preview` run) and task 10 step 6.
 3. **Turnstile production keys do not match the hostname**, so Ask Ottie and the letter both fail on `dins.dev` while previews (test keys) pass. Expected: both work on production. Pinned by tasks 17 and 23, which run on production only.
-4. **Something expires a year after launch**: `security.txt` passes its `Expires` date, or the domain registration lapses. Expected: CI fails 30 days before `Expires`; the domain runs to 2030 with auto-renew. Pinned by task 2 and task 8 step 1.
-5. **Sample or draft content reaches the production build after the freeze** (a sample library entry in Ottie's index, a draft slug in the sitemap, `localhost` in a canonical). Expected: the release scan and the freeze checks fail the build. Pinned by task 1 and task 14.
+4. **Something expires after launch**: `security.txt` passes its `Expires` date (M1 sets it 180 days after each build, so a long gap without a deploy lets it lapse), or the domain registration lapses. Expected: the release scan and the deployed check fail 30 days before `Expires`; the domain runs to 2030 with auto-renew. Pinned by task 2 (unit test and release scan), task 6 (deployed check) and task 8 step 1.
+5. **Sample or draft content reaches the production build after the freeze** (a sample library entry in Ottie's index, a placeholder sentence in a published page, `localhost` in a canonical). Expected: the build fails. Pinned by task 1 (release scan), M1's `check:drafts`, and M3's `ottie-rag check --release` in task 14.
 
 ---
 
 ## Assumes
 
-From other milestones. Names marked "assumed" were not fixed by the shared contract; at execution, use the sibling plan's real name and edit the step, and note the change in the ledger.
+From other milestones, with the names fixed in the shared contract (`docs/site/plans/README.md`). If a sibling plan changes a name before it is built, use the contract's name and note the change in the ledger.
 
-- **M0:** `site/` Astro app with `site/astro.config.mjs`, `site/wrangler.jsonc`, `./check.sh`, GitHub Actions CI on every PR, Workers Builds connected (production from `main`, previews for other branches). Vitest runs single files with `pnpm --dir site exec vitest run <path>`. Playwright runs with `pnpm --dir site exec playwright test`, has a `chromium` project and a local `baseURL` set by its web server. `@lhci/cli` is a dev dependency. The static asset output directory is `site/dist/client` (assumed; the Cloudflare adapter's client output). Node 24 runs `.ts` scripts directly (type stripping), and the tsconfig extends Astro's base, which allows `.ts` import extensions.
-- **M0 or M3:** previews run as a separate preview configuration (wrangler `previews` block or `env.preview`) with their own vars and D1, the fake answer backend and Turnstile test keys. The top level of `site/wrangler.jsonc` is production. D1 binding `DB`; production database name `dins-site` (assumed).
-- **M1:** every route in PRD section 2, `@astrojs/sitemap` output at `/sitemap-index.xml` (assumed; adjust if M1 serves `/sitemap.xml`), `robots.txt` with a `Sitemap:` line, `llms.txt`, an RSS `<link rel="alternate" type="application/rss+xml">` on the home page, `site/public/.well-known/security.txt` (assumed path), a base layout at `site/src/layouts/Base.astro` (assumed name), drafts filtered out of production builds, M1's axe checks on every route in CI.
-- **M2:** Ottie loading and states verified by Din in the preview; the lines file test (bubbles at most 90 characters) in CI.
-- **M3:** `/api/ask` with Turnstile, rate limit, D1 budget (integer nano-dollars per UTC day in a table `budget(day TEXT PRIMARY KEY, spent INTEGER)`, assumed names), resting mode, the question log; the backend is real only when `ASK_BACKEND` is `"anthropic"` and the hostname is in `ASK_LIVE_HOSTS`; daily budget var `ASK_DAILY_BUDGET_USD` (assumed name). Worker secrets `ANTHROPIC_API_KEY` and `TURNSTILE_SECRET_KEY`, public var `PUBLIC_TURNSTILE_SITE_KEY` (assumed names). The library approval check, the deny-list scan and retrieval evals run in `./check.sh`. The committed index has a freshness check in CI. The answer eval workflow `.github/workflows/answer-evals.yml` takes `workflow_dispatch` input `judge` (`haiku` or `sonnet`) and uploads an artifact `answer-eval-report` with metrics, per-item results and token usage (assumed names). The eval key is the GitHub secret `ANTHROPIC_EVAL_API_KEY` (assumed name). A script regenerates suggested answers.
-- **M4:** the five set pieces with calm versions, a per-set-piece switch between full and calm (assumed: `site/src/config/set-pieces.ts`), the letter on `/api/contact` with Turnstile and the `send_email` binding, the home JavaScript budget check in CI, M4's own performance traces in the preview.
+- **M0:** Worker `dins-site` with the custom entry `site/src/worker.ts`; bindings `ASSETS` and D1 `DB` (databases `dins-site` and `dins-site-preview`); runtime var `SITE_ENV` (`production`, `preview`, `local`, `test`); previews configured by the `previews` block in `site/wrangler.jsonc`, where every binding and var is declared at the top level and again under `previews` (there is no `env.preview`). Build-time deploy: `site/src/lib/deploy.ts` exports `type Deploy` and `deployFromEnv(ci, branch)`; `site/src/lib/deploy-env.ts` exports `DEPLOY` (from the `__DINS_DEPLOY__` define in `astro.config.mjs`). Base layout `site/src/layouts/BaseLayout.astro`. Scripts `build`, `serve` (wrangler dev on 127.0.0.1:8787), `check`, `test`, `test:unit`, `test:worker`, `test:e2e`; root `./check.sh [--e2e]`; CI jobs `check` and `e2e`; `GET /api/health`. Vitest runs one file with `pnpm --dir site exec vitest run <path>`. Static assets build to `site/dist/client`. Node 24 runs `.ts` scripts directly (type stripping), and the tsconfig allows `.ts` import extensions.
+- **M0 and M1, Playwright:** M0's web server (`pnpm build && pnpm serve`, with `DINS_SHOW_DRAFTS=1` from M1) and the default `chromium` project, which runs M5's specs.
+- **M1:** every route in PRD section 2, all prerendered. SEO files are generated routes in `site/src/pages/`: `/sitemap.xml` (one file, no sitemap index, no `@astrojs/sitemap`; it never lists `/contact/sent/` or `/contact/not-sent/`), `/robots.txt` with `Sitemap: https://dins.dev/sitemap.xml`, `/llms.txt`, `/.well-known/security.txt` built by `buildSecurityTxt(now)` in `site/src/lib/textfiles.ts` (contact `din@dins.dev`, `Expires` 180 days after the build). An RSS `<link rel="alternate" type="application/rss+xml">` on the home page. `check:drafts` (draft leaks, in `check.sh` after a production build), `launch:blockers` (copy Din still owes), Lighthouse CI with `@lhci/cli` 0.15 in CI, axe on every route. The contact module `site/src/lib/contact.ts` with `CONTACT_REDIRECTS = { sent: "/contact/sent/", notSent: "/contact/not-sent/" }`.
+- **M2:** Ottie's loading and states verified by Din in the preview; the lines file test (bubbles at most 90 characters) in CI; the `/ottie/*` caching rule in `site/public/_headers`, which task 4's merge keeps.
+- **M3:** `POST /api/ask` and `POST /api/ask-feedback` with Turnstile, rate limit, budget, resting mode and the question log. The backend is real only when `ASK_BACKEND=anthropic` and `SITE_ENV` is `production` or `local` (there is no `ASK_LIVE_HOSTS`); previews set `ASK_BACKEND` to `fake`. Var `ASK_DAILY_BUDGET_USD` (default `"1"`). Tables `budget_daily(day TEXT PRIMARY KEY, spent_nano_usd INTEGER)` and `question_log` (migration `0001_ask.sql`; `created_at` in unix milliseconds, an `origin` column, no IP). Turnstile: secret `TURNSTILE_SECRET_KEY`, build variable `PUBLIC_TURNSTILE_SITE_KEY` (Workers Builds), var `TURNSTILE_EXPECTED_HOSTNAMES` (empty until M5 sets `dins.dev`). Secret `ANTHROPIC_API_KEY`. The CLI `uv run --project rag ottie-rag check` (in `check.sh`) and `ottie-rag check --release` (the release gate, which also fails if the index holds sample entries). The committed index `site/public/ask/index-v1.bin` with a freshness check in CI. Answer evals: workflow `answer-evals`, `workflow_dispatch` input `judge` (`haiku` or `sonnet`), secret `ANTHROPIC_EVAL_API_KEY`, artifact `answer-eval-report` (metrics, per-item results, token usage and total cost). Suggested answers: `pnpm --dir site ask:suggested`.
+- **M4:** the five set pieces with calm versions; release flags in `site/src/lib/setpieces/flags.ts` (`RELEASES`, values `calm`, `preview`, `full`; `preview` is full on local and preview builds and calm on production); the letter on `/api/contact` with Turnstile, the `send_email` binding and the recipient from the `CONTACT_TO` secret only; `pnpm --dir site budget` (100 KB gzipped home JavaScript) in `check.sh`; M4's own performance traces in the preview.
 - **Din, setup tasks:** Email Routing (0.8) is set up by about November 12, as the site plan requires.
 
 If M0 or M1 already ships security headers or a CSP, tasks 3 and 4 become verification only: keep their tests, point them at the existing module, and drop the duplicate code.
@@ -100,16 +102,16 @@ Created or modified by M5. Everything else is runbook.
 | `site/scripts/release-scan.ts` | CLI over `scan.ts`, exit 1 on findings | 1 |
 | `site/tests/unit/release-scan.test.ts` | Tests for the scan | 1 |
 | `site/src/lib/release/security-txt.ts` | Parse and check `security.txt` (RFC 9116 fields, expiry window) | 2 |
-| `site/tests/unit/security-txt.test.ts` | Tests, including a time-dependent check of the real file | 2 |
-| `site/src/lib/security/headers.ts` | One source of truth: deploy detection, header set per deploy, `_headers` merge, Worker response headers | 3 |
+| `site/tests/unit/security-txt.test.ts` | Tests, including M1's `buildSecurityTxt` output | 2 |
+| `site/scripts/release-scan.ts` | Also checks the built `security.txt` | 2 |
+| `site/src/lib/security/headers.ts` | One source of truth: header set per deploy, `_headers` merge, Worker response headers (the deploy itself comes from M0's `deploy.ts`) | 3 |
 | `site/src/lib/security/csp.ts` | Astro `security.csp` config (script and style sources, other directives) | 3 |
 | `site/tests/unit/security-headers.test.ts` | Tests for both | 3 |
 | `site/src/integrations/security-headers.ts` | Astro integration that writes the header block into the built `_headers` | 4 |
 | `site/src/middleware.ts` | Applies headers to Worker-generated responses (`_headers` does not cover them) | 4 |
-| `site/astro.config.mjs` | Wires CSP, the integration and `PUBLIC_DEPLOY` | 4 |
-| `site/src/env.d.ts` | Types for `PUBLIC_DEPLOY` | 4 |
+| `site/astro.config.mjs` | Wires the CSP and the integration (M0 already defines `__DINS_DEPLOY__`) | 4 |
 | `site/src/lib/security/analytics.ts` | Beacon attributes, production only | 5 |
-| `site/src/components/AnalyticsBeacon.astro` | The beacon tag in the base layout | 5 |
+| `site/src/components/AnalyticsBeacon.astro` | The beacon tag in `BaseLayout.astro` | 5 |
 | `site/tests/unit/analytics.test.ts` | Tests | 5 |
 | `site/tests/e2e/helpers/sweep.ts` | Sitemap URLs, CSP violation and outside-host capture | 6 |
 | `site/tests/e2e/site-sweep.spec.ts` | Every sitemap URL: zero CSP violations, only allowed hosts; axe when deployed | 6 |
@@ -179,7 +181,7 @@ describe("scanText", () => {
   });
 
   it("flags dev hosts in canonicals and sitemaps", () => {
-    expect(rulesHit("sitemap-0.xml", "<loc>http://localhost:4321/work</loc>")).toEqual(["dev-host"]);
+    expect(rulesHit("sitemap.xml", "<loc>http://localhost:4321/work</loc>")).toEqual(["dev-host"]);
     expect(
       rulesHit("a.html", '<link rel="canonical" href="https://dins-site.din.workers.dev/">'),
     ).toEqual(["dev-host"]);
@@ -217,7 +219,7 @@ describe("scanDir", () => {
     const dir = await mkdtemp(join(tmpdir(), "release-scan-"));
     await mkdir(join(dir, "work", "a"), { recursive: true });
     await writeFile(join(dir, "work", "a", "index.html"), "<p>Lorem ipsum</p>");
-    await writeFile(join(dir, "robots.txt"), "Sitemap: http://localhost:4321/sitemap-index.xml");
+    await writeFile(join(dir, "robots.txt"), "Sitemap: http://localhost:4321/sitemap.xml");
     await writeFile(join(dir, "app.js"), "// TODO this is vendor code");
     await writeFile(join(dir, "clean.xml"), "<loc>https://dins.dev/</loc>");
     const findings = await scanDir(dir);
@@ -328,7 +330,7 @@ Add to `site/package.json` `scripts`:
 "release:scan": "node scripts/release-scan.ts dist/client"
 ```
 
-Add to `check.sh`, on the line after the site build (`pnpm --dir site build`):
+Add to `check.sh`, after M1's production build and `check:drafts` (the scan must read a build made without `DINS_SHOW_DRAFTS`, so it runs before the e2e build):
 
 ```bash
 pnpm --dir site release:scan
@@ -356,18 +358,21 @@ git commit -m "feat(release): scan the built site for placeholders and dev hosts
 **Files:**
 - Create: `site/src/lib/release/security-txt.ts`
 - Test: `site/tests/unit/security-txt.test.ts`
+- Modify: `site/scripts/release-scan.ts` (task 1)
 
 **Interfaces:**
-- Consumes: `site/public/.well-known/security.txt` (M1).
-- Produces: `parseSecurityTxt(text: string): Map<string, string[]>` (keys lowercased) and `checkSecurityTxt(text: string, now: Date): string[]` (empty array means fine). Used by task 6 indirectly (the deployed file is the same).
+- Consumes: M1's `buildSecurityTxt(now: Date): string` from `site/src/lib/textfiles.ts`, and the built file `site/dist/client/.well-known/security.txt` (the route is prerendered).
+- Produces: `parseSecurityTxt(text: string): Map<string, string[]>` (keys lowercased) and `checkSecurityTxt(text: string, now: Date): string[]` (empty array means fine). Used by the release scan (this task) and the deployed spec (task 6).
+
+Why three places: the unit test pins M1's builder to RFC 9116; the release scan checks the file a build actually wrote; the deployed spec checks the live file. M1 sets `Expires` 180 days after the build, so the live file only goes stale if `main` is not deployed for about five months, and the deployed check (task 24, and any later run) catches that 30 days ahead.
 
 - [ ] **Step 1: Write the failing test** [Claude]
 
 ```ts
 // site/tests/unit/security-txt.test.ts
 import { describe, expect, it } from "vitest";
-import { readFile } from "node:fs/promises";
 import { checkSecurityTxt, parseSecurityTxt } from "../../src/lib/release/security-txt.ts";
+import { buildSecurityTxt } from "../../src/lib/textfiles";
 
 const NOW = new Date("2026-12-01T00:00:00Z");
 const good = [
@@ -424,11 +429,9 @@ describe("checkSecurityTxt", () => {
   });
 });
 
-// Time-dependent on purpose: CI starts failing 30 days before the file expires.
-describe("the published security.txt", () => {
-  it("is valid today", async () => {
-    const text = await readFile(new URL("../../public/.well-known/security.txt", import.meta.url), "utf8");
-    expect(checkSecurityTxt(text, new Date())).toEqual([]);
+describe("M1's buildSecurityTxt", () => {
+  it("passes the checks on the day it is built", () => {
+    expect(checkSecurityTxt(buildSecurityTxt(NOW), NOW)).toEqual([]);
   });
 });
 ```
@@ -500,12 +503,31 @@ export function checkSecurityTxt(text: string, now: Date): string[] {
 - [ ] **Step 4: Run the test** [Claude]
 
 Run: `pnpm --dir site exec vitest run tests/unit/security-txt.test.ts`
-Expected: PASS (7 tests). If only "the published security.txt" fails, M1's file is missing a field or has an `Expires` more than a year out: fix the file (it is content M1 owns; set `Expires` to about 2027-11-30 at launch) and note it in the PR.
+Expected: PASS (7 tests). If only "M1's buildSecurityTxt" fails, M1's builder disagrees with RFC 9116 or with this check: show Din both and fix the one that is wrong (M1 owns the builder).
+
+- [ ] **Step 4b: Check the built file in the release scan** [Claude]
+
+In `site/scripts/release-scan.ts`, after the findings loop and before the exit:
+
+```ts
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { checkSecurityTxt } from "../src/lib/release/security-txt.ts";
+
+const securityTxt = await readFile(join(dir, ".well-known", "security.txt"), "utf8").catch(() => "");
+const securityProblems = securityTxt ? checkSecurityTxt(securityTxt, new Date()) : ["security.txt missing from the build"];
+for (const p of securityProblems) console.log(`.well-known/security.txt [security-txt] ${p}`);
+```
+
+and make the exit condition `findings.length + securityProblems.length > 0` (the imports go at the top of the file).
+
+Run: `pnpm --dir site build && pnpm --dir site release:scan`
+Expected: `release-scan: clean (dist/client)`.
 
 - [ ] **Step 5: Commit** [Claude]
 
 ```bash
-git add site/src/lib/release/security-txt.ts site/tests/unit/security-txt.test.ts
+git add site/src/lib/release/security-txt.ts site/tests/unit/security-txt.test.ts site/scripts/release-scan.ts
 git commit -m "test(security): guard security.txt fields and its expiry window"
 ```
 
@@ -517,17 +539,16 @@ git commit -m "test(security): guard security.txt fields and its expiry window"
 - Test: `site/tests/unit/security-headers.test.ts`
 
 **Interfaces:**
+- Consumes: `type Deploy` from M0's `site/src/lib/deploy.ts`.
 - Produces (used by tasks 4, 5 and 6):
-  - `type Deploy = "production" | "preview" | "local"`
   - `SOURCES: { turnstile: "https://challenges.cloudflare.com"; analyticsScript: "https://static.cloudflareinsights.com"; analyticsConnect: "https://cloudflareinsights.com" }`
   - `HEADER_CSP: string`, `API_CSP: string`
-  - `deployFromEnv(ci: string | undefined, branch: string | undefined): Deploy`
   - `securityHeaders(deploy: Deploy): Record<string, string>`
   - `mergeHeadersFile(existing: string, deploy: Deploy): string`
   - `applySecurityHeaders(res: Response, deploy: Deploy): Response`
   - `cspConfig()`: the object for Astro's `security.csp`
 
-Design (why two CSPs): Astro's `security.csp` hashes every inline script and style and delivers the policy as a `<meta>` tag per page, which is the only way to get hashes onto static pages. A meta CSP cannot carry `frame-ancestors`, so a second policy goes in a header. Browsers enforce both, so the header policy carries only directives the meta policy lacks, and never `script-src` or `style-src`. Cloudflare's `_headers` file covers static assets only, not responses the Worker generates, so the Worker needs the same headers from middleware. Previews get `noindex` and no HSTS; production gets HSTS. The deploy is read at build time from Workers Builds' `WORKERS_CI` and `WORKERS_CI_BRANCH`.
+Design (why two CSPs): Astro's `security.csp` hashes every inline script and style and delivers the policy as a `<meta>` tag per page, which is the only way to get hashes onto static pages. A meta CSP cannot carry `frame-ancestors`, so a second policy goes in a header. Browsers enforce both, so the header policy carries only directives the meta policy lacks, and never `script-src` or `style-src`. Cloudflare's `_headers` file covers static assets only, not responses the Worker generates, so the Worker needs the same headers from middleware. Previews get `noindex` and no HSTS; production gets HSTS. The deploy is M0's build-time `Deploy` (from Workers Builds' `WORKERS_CI` and `WORKERS_CI_BRANCH`); this module only takes it as an argument, so it stays pure and testable.
 
 - [ ] **Step 1: Write the failing test** [Claude]
 
@@ -539,20 +560,10 @@ import {
   HEADER_CSP,
   SOURCES,
   applySecurityHeaders,
-  deployFromEnv,
   mergeHeadersFile,
   securityHeaders,
 } from "../../src/lib/security/headers.ts";
 import { cspConfig } from "../../src/lib/security/csp.ts";
-
-describe("deployFromEnv", () => {
-  it("reads Workers Builds variables", () => {
-    expect(deployFromEnv("1", "main")).toBe("production");
-    expect(deployFromEnv("1", "feat/m5-launch")).toBe("preview");
-    expect(deployFromEnv(undefined, "main")).toBe("local");
-    expect(deployFromEnv(undefined, undefined)).toBe("local");
-  });
-});
 
 describe("securityHeaders", () => {
   it("sends HSTS for at least a year on production and never noindex", () => {
@@ -671,7 +682,7 @@ Expected: FAIL, the import `../../src/lib/security/headers.ts` cannot be resolve
 
 ```ts
 // site/src/lib/security/headers.ts
-export type Deploy = "production" | "preview" | "local";
+import type { Deploy } from "../deploy.ts";
 
 // The only outside origins the site may load from (PRD 6: Turnstile and Cloudflare Web Analytics).
 export const SOURCES = {
@@ -686,11 +697,6 @@ export const HEADER_CSP = "frame-ancestors 'none'; base-uri 'self'; object-src '
 
 // Worker responses that are not HTML (JSON, NDJSON streams) load nothing.
 export const API_CSP = "default-src 'none'; frame-ancestors 'none'";
-
-export function deployFromEnv(ci: string | undefined, branch: string | undefined): Deploy {
-  if (ci !== "1") return "local";
-  return branch === "main" ? "production" : "preview";
-}
 
 export function securityHeaders(deploy: Deploy): Record<string, string> {
   const headers: Record<string, string> = {
@@ -757,7 +763,7 @@ If Astro's TypeScript types reject a directive string (they are template-literal
 - [ ] **Step 4: Run the test** [Claude]
 
 Run: `pnpm --dir site exec vitest run tests/unit/security-headers.test.ts`
-Expected: PASS (14 tests).
+Expected: PASS (13 tests).
 
 - [ ] **Step 5: Commit** [Claude]
 
@@ -771,11 +777,11 @@ git commit -m "feat(security): one source for security headers and the CSP"
 **Files:**
 - Create: `site/src/integrations/security-headers.ts`
 - Create or modify: `site/src/middleware.ts`
-- Modify: `site/astro.config.mjs`, `site/src/env.d.ts`
+- Modify: `site/astro.config.mjs`
 
 **Interfaces:**
-- Consumes: task 3's `deployFromEnv`, `mergeHeadersFile`, `applySecurityHeaders`, `cspConfig`.
-- Produces: `import.meta.env.PUBLIC_DEPLOY` (a `Deploy`) available in pages, components and the Worker; a built `site/dist/client/_headers` with the security block; headers on every Worker response.
+- Consumes: M0's `deployFromEnv` (`site/src/lib/deploy.ts`) and `DEPLOY` (`site/src/lib/deploy-env.ts`); task 3's `mergeHeadersFile`, `applySecurityHeaders`, `cspConfig`.
+- Produces: a built `site/dist/client/_headers` with the security block (M2's `/ottie/*` rule kept); headers on every Worker response.
 
 - [ ] **Step 1: Write the integration** [Claude]
 
@@ -784,7 +790,8 @@ git commit -m "feat(security): one source for security headers and the CSP"
 import type { AstroIntegration } from "astro";
 import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { mergeHeadersFile, type Deploy } from "../lib/security/headers.ts";
+import type { Deploy } from "../lib/deploy.ts";
+import { mergeHeadersFile } from "../lib/security/headers.ts";
 
 // Writes the security block into the _headers file Cloudflare serves static assets with.
 export function securityHeadersIntegration(deploy: Deploy): AstroIntegration {
@@ -817,12 +824,13 @@ If `site/src/middleware.ts` does not exist:
 ```ts
 // site/src/middleware.ts
 import { defineMiddleware } from "astro:middleware";
+import { DEPLOY } from "./lib/deploy-env.ts";
 import { applySecurityHeaders } from "./lib/security/headers.ts";
 
 // _headers covers static assets only. Responses the Worker generates (API routes, the 404 if rendered
 // on demand) get the same headers here.
 export const onRequest = defineMiddleware(async (_context, next) =>
-  applySecurityHeaders(await next(), import.meta.env.PUBLIC_DEPLOY),
+  applySecurityHeaders(await next(), DEPLOY),
 );
 ```
 
@@ -830,10 +838,10 @@ If it exists (M1 or M3 wrote one), keep theirs and compose: `export const onRequ
 
 - [ ] **Step 3: Wire the config** [Claude]
 
-In `site/astro.config.mjs`, keep everything M0 to M4 set and add:
+In `site/astro.config.mjs`, keep everything M0 to M4 set (including M0's `__DINS_DEPLOY__` define, computed from the same `deployFromEnv`) and add:
 
 ```js
-import { deployFromEnv } from "./src/lib/security/headers.ts";
+import { deployFromEnv } from "./src/lib/deploy.ts";
 import { cspConfig } from "./src/lib/security/csp.ts";
 import { securityHeadersIntegration } from "./src/integrations/security-headers.ts";
 
@@ -843,17 +851,10 @@ export default defineConfig({
   // ...existing settings...
   security: { /* ...existing keys such as checkOrigin... */ csp: cspConfig() },
   integrations: [/* ...existing integrations... */ securityHeadersIntegration(deploy)],
-  vite: { define: { "import.meta.env.PUBLIC_DEPLOY": JSON.stringify(deploy) } },
 });
 ```
 
-In `site/src/env.d.ts` add:
-
-```ts
-interface ImportMetaEnv {
-  readonly PUBLIC_DEPLOY: import("./lib/security/headers").Deploy;
-}
-```
+If M0 already holds the result in a `const` for its define, reuse that constant instead of calling `deployFromEnv` twice.
 
 - [ ] **Step 4: Verify the build output** [Claude]
 
@@ -861,7 +862,7 @@ Run: `pnpm --dir site build && grep -c 'http-equiv="content-security-policy"' si
 Expected: `1`.
 
 Run: `cat site/dist/client/_headers`
-Expected: the `# dins:security-headers start` block with `/*`, no `Strict-Transport-Security` and no `X-Robots-Tag` (a local build is `local`). If the file is missing, the client directory differs from `config.build.client`: print `config.build.client` in the hook and fix the path.
+Expected: M2's `/ottie/*` rule first, then the `# dins:security-headers start` block with `/*`, no `Strict-Transport-Security` and no `X-Robots-Tag` (a local build is `local`). If the file is missing, the client directory differs from `config.build.client`: print `config.build.client` in the hook and fix the path.
 
 Run: `WORKERS_CI=1 WORKERS_CI_BRANCH=feat/x pnpm --dir site build && grep X-Robots-Tag site/dist/client/_headers`
 Expected: `  X-Robots-Tag: noindex, nofollow`.
@@ -872,12 +873,12 @@ Expected: both pass.
 - [ ] **Step 5: Check the strict CSP in a real browser locally** [Claude]
 
 Run: `pnpm --dir site test:e2e`
-Expected: M1's and M4's existing end-to-end tests still pass. Task 6 adds the sweep that fails on any CSP violation; if an existing test now fails because something is blocked, read the console message (`Refused to ...`), and fix the cause (self-host the asset, or move inline code into a module) rather than loosening the policy. A new outside host needs Din's OK (open question 7).
+Expected: M1's and M4's existing end-to-end tests still pass. The contract already bans `style="..."` attributes in server-rendered HTML for this reason (the CSP drops them). Task 6 adds the sweep that fails on any CSP violation; if an existing test now fails because something is blocked, read the console message (`Refused to ...`), and fix the cause (self-host the asset, or move inline code into a module) rather than loosening the policy. A new outside host needs Din's OK (open question 7).
 
 - [ ] **Step 6: Commit** [Claude]
 
 ```bash
-git add site/src/integrations/security-headers.ts site/src/middleware.ts site/astro.config.mjs site/src/env.d.ts
+git add site/src/integrations/security-headers.ts site/src/middleware.ts site/astro.config.mjs
 git commit -m "feat(security): strict CSP and security headers on assets and Worker responses"
 ```
 
@@ -886,11 +887,11 @@ git commit -m "feat(security): strict CSP and security headers on assets and Wor
 **Files:**
 - Create: `site/src/lib/security/analytics.ts`
 - Create: `site/src/components/AnalyticsBeacon.astro`
-- Modify: `site/src/layouts/Base.astro` (one line before `</body>`)
+- Modify: `site/src/layouts/BaseLayout.astro` (one line before `</body>`)
 - Test: `site/tests/unit/analytics.test.ts`
 
 **Interfaces:**
-- Consumes: `SOURCES`, `Deploy` (task 3), `import.meta.env.PUBLIC_DEPLOY` (task 4).
+- Consumes: `SOURCES` (task 3), `type Deploy` (M0's `deploy.ts`), `DEPLOY` (M0's `deploy-env.ts`).
 - Produces: `BEACON_TOKEN: string` (public site token, empty until task 16), `beaconAttrs(deploy: Deploy, token: string): { src: string; config: string } | null`.
 
 Why the manual snippet rather than Cloudflare's automatic injection: the CSP stays exact and visible in the repo, and previews do not count as visits.
@@ -933,7 +934,8 @@ Expected: FAIL, the import cannot be resolved.
 
 ```ts
 // site/src/lib/security/analytics.ts
-import { SOURCES, type Deploy } from "./headers.ts";
+import type { Deploy } from "../deploy.ts";
+import { SOURCES } from "./headers.ts";
 
 // Public site token from Cloudflare Web Analytics (Din creates the site in task 12; set in task 16).
 // Empty means the beacon is off.
@@ -948,13 +950,14 @@ export function beaconAttrs(deploy: Deploy, token: string): { src: string; confi
 ```astro
 ---
 // site/src/components/AnalyticsBeacon.astro
+import { DEPLOY } from "../lib/deploy-env";
 import { BEACON_TOKEN, beaconAttrs } from "../lib/security/analytics";
-const beacon = beaconAttrs(import.meta.env.PUBLIC_DEPLOY, BEACON_TOKEN);
+const beacon = beaconAttrs(DEPLOY, BEACON_TOKEN);
 ---
 {beacon && <script is:inline defer src={beacon.src} data-cf-beacon={beacon.config}></script>}
 ```
 
-In `site/src/layouts/Base.astro`, import it and place `<AnalyticsBeacon />` just before `</body>`.
+In `site/src/layouts/BaseLayout.astro`, import it and place `<AnalyticsBeacon />` just before `</body>`.
 
 - [ ] **Step 4: Run the tests** [Claude]
 
@@ -964,7 +967,7 @@ Expected: PASS (3 tests); `astro check` reports 0 errors.
 - [ ] **Step 5: Commit** [Claude]
 
 ```bash
-git add site/src/lib/security/analytics.ts site/src/components/AnalyticsBeacon.astro site/src/layouts/Base.astro site/tests/unit/analytics.test.ts
+git add site/src/lib/security/analytics.ts site/src/components/AnalyticsBeacon.astro site/src/layouts/BaseLayout.astro site/tests/unit/analytics.test.ts
 git commit -m "feat(analytics): Cloudflare Web Analytics beacon on production only"
 ```
 
@@ -978,7 +981,7 @@ git commit -m "feat(analytics): Cloudflare Web Analytics beacon on production on
 - Modify: `site/package.json` (script `test:deployed`), `.gitignore` (`.lighthouse/`)
 
 **Interfaces:**
-- Consumes: `SOURCES` (task 3); the sitemap, `robots.txt`, `llms.txt`, `security.txt` and RSS link from M1; Playwright's `baseURL` from M0's config.
+- Consumes: `SOURCES` (task 3), `checkSecurityTxt` (task 2); M1's `/sitemap.xml`, `robots.txt`, `llms.txt`, `security.txt` and RSS link; Playwright's `baseURL` from M0's web server (127.0.0.1:8787).
 - Produces: `sitemapPaths(request, base): Promise<string[]>`, `watchPage(page, base): Watch` with `violations: string[]` and `outsideHosts: Set<string>`; `pnpm --dir site test:deployed` (needs `DEPLOYED_URL`, optional `EXPECT_DEPLOY=preview`). Used by tasks 16, 19 and 24.
 
 The sweep runs in CI on every PR against the local build (CSP violations and outside hosts on every sitemap URL), and against any deployed URL, where it also runs axe in light and dark. The deployed spec only runs when `DEPLOYED_URL` is set.
@@ -992,17 +995,12 @@ import { SOURCES } from "../../../src/lib/security/headers.ts";
 
 const locs = (xml: string) => [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
 
-// Paths from the sitemap index and its sitemaps. Locations are absolute https://dins.dev URLs,
+// Paths from M1's single /sitemap.xml. Locations are absolute https://dins.dev URLs,
 // so only the path is kept and requests go to the base under test.
 export async function sitemapPaths(request: APIRequestContext, base: string): Promise<string[]> {
-  const index = await request.get(`${base}/sitemap-index.xml`);
-  if (!index.ok()) throw new Error(`sitemap index: HTTP ${index.status()}`);
-  const paths: string[] = [];
-  for (const map of locs(await index.text())) {
-    const res = await request.get(base + new URL(map).pathname);
-    paths.push(...locs(await res.text()).map((u) => new URL(u).pathname));
-  }
-  return [...new Set(paths)].sort();
+  const res = await request.get(`${base}/sitemap.xml`);
+  if (!res.ok()) throw new Error(`sitemap: HTTP ${res.status()}`);
+  return [...new Set(locs(await res.text()).map((u) => new URL(u).pathname))].sort();
 }
 
 export const ALLOWED_OUTSIDE_HOSTS = new Set(Object.values(SOURCES).map((s) => new URL(s).host));
@@ -1091,6 +1089,7 @@ test.describe("every sitemap URL", () => {
 ```ts
 // site/tests/e2e/deployed.spec.ts
 import { expect, test } from "@playwright/test";
+import { checkSecurityTxt } from "../../src/lib/release/security-txt.ts";
 import { sitemapPaths } from "./helpers/sweep";
 
 const BASE = process.env.DEPLOYED_URL ?? "";
@@ -1105,6 +1104,8 @@ test("the sitemap lists every core route", async ({ request }) => {
   for (const route of ["/", "/work", "/writing", "/about", "/contact", "/privacy"]) {
     expect(paths).toContain(route);
   }
+  expect(paths).not.toContain("/contact/sent");
+  expect(paths).not.toContain("/contact/not-sent");
 });
 
 test("every page has a unique title, a description and a dins.dev canonical", async ({ page, request }) => {
@@ -1150,12 +1151,14 @@ test("pages carry the strict meta CSP", async ({ page }) => {
 
 test("SEO and policy files are served", async ({ page, request }) => {
   const robots = await request.get(BASE + "/robots.txt");
-  expect(await robots.text()).toContain("Sitemap: https://dins.dev/sitemap-index.xml");
+  expect(await robots.text()).toContain("Sitemap: https://dins.dev/sitemap.xml");
   for (const path of ["/llms.txt", "/.well-known/security.txt"]) {
     const res = await request.get(BASE + path);
     expect(res.status(), path).toBe(200);
     expect(res.headers()["content-type"], path).toContain("text/plain");
   }
+  const securityTxt = await (await request.get(BASE + "/.well-known/security.txt")).text();
+  expect(checkSecurityTxt(securityTxt, new Date())).toEqual([]);
   await page.goto(BASE + "/");
   const rss = await page.locator('link[rel="alternate"][type="application/rss+xml"]').getAttribute("href");
   expect(rss).toBeTruthy();
@@ -1210,7 +1213,7 @@ Add `.lighthouse/` to `.gitignore`.
 - [ ] **Step 4: Run the sweep locally** [Claude]
 
 Run: `pnpm --dir site test:e2e -- tests/e2e/site-sweep.spec.ts --project=chromium`
-Expected: the first test PASSES; the axe test is SKIPPED. The deployed spec is SKIPPED (no `DEPLOYED_URL`). A failure lists each blocked resource or outside host: fix the cause as in task 4 step 5.
+Expected: the first test PASSES against M0's web server (a drafts build, so draft pages are swept too); the axe test is SKIPPED. The deployed spec is SKIPPED (no `DEPLOYED_URL`). A failure lists each blocked resource or outside host: fix the cause as in task 4 step 5.
 
 - [ ] **Step 5: Commit, then run against the preview** [Claude] then [Claude, Din's go]
 
@@ -1512,7 +1515,7 @@ Din confirms both workspace limits in chat. Record workspace names and limits in
 
 - [ ] **Step 1: Turnstile widget** [Din, dashboard]
 
-Turnstile, Add widget: name `dins.dev`, hostname `dins.dev` only (www redirects before any page renders), widget mode as M3 and M4 chose (Managed or Invisible), pre-clearance off. Copy the site key into chat (it is public and goes in `wrangler.jsonc` in task 16). Then:
+Turnstile, Add widget: name `dins.dev`, hostname `dins.dev` only (www redirects before any page renders), widget mode as M3 and M4 chose (Managed or Invisible), pre-clearance off. The site key is public: Din sets it as the Workers Builds build variable `PUBLIC_TURNSTILE_SITE_KEY` (Workers, `dins-site`, Settings, Build, Variables), scoped so preview builds keep the test key (see the contract note in "Open questions", item 9). Then:
 
 ```bash
 pnpm --dir site exec wrangler secret put TURNSTILE_SECRET_KEY
@@ -1523,7 +1526,7 @@ pnpm --dir site exec wrangler secret put TURNSTILE_SECRET_KEY
 - [ ] **Step 2: Find or create the production D1** [Claude] then [Claude, Din's go]
 
 Run [Claude]: `pnpm --dir site exec wrangler d1 list`
-Expected: `dins-site` (production) and the preview database M0 or M3 created. If `dins-site` is missing, with Din's go: `pnpm --dir site exec wrangler d1 create dins-site`, and put its `database_id` in the top-level `d1_databases` entry of `site/wrangler.jsonc` in task 16.
+Expected: `dins-site` (production) and `dins-site-preview`, both created by M0. If `dins-site` is missing, with Din's go: `pnpm --dir site exec wrangler d1 create dins-site`, and put its `database_id` in the top-level `d1_databases` entry of `site/wrangler.jsonc` in task 16.
 
 - [ ] **Step 3: Apply migrations to production** [Claude, Din's go]
 
@@ -1534,26 +1537,26 @@ Run (Din's go): `pnpm --dir site exec wrangler d1 migrations apply dins-site --r
 Expected: each migration reported as applied.
 
 Run: `pnpm --dir site exec wrangler d1 execute dins-site --remote --command "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"`
-Expected: M3's budget and question log tables (and `d1_migrations`), and no table that stores contact messages.
+Expected: `budget_daily`, `question_log` and `d1_migrations`, and no table that stores contact messages.
 
 Rule from here on: migrations are additive (add tables or columns, never drop or rename in the same release), and they are applied before the code that needs them is merged. That keeps a Worker rollback safe, because the previous version still finds everything it expects.
 
 - [ ] **Step 4: Daily budget value** [Claude]
 
-Read `site/wrangler.jsonc`: the top-level `vars` hold `ASK_DAILY_BUDGET_USD` = `"1"` (or M3's equivalent), `ASK_BACKEND` = `"anthropic"` and `ASK_LIVE_HOSTS` = `"dins.dev"`. If any is missing, it is added in task 16 (they flip production to the real backend, so they go live with the domain).
+Read `site/wrangler.jsonc`: the top-level `vars` hold `SITE_ENV` = `"production"`, `ASK_DAILY_BUDGET_USD` = `"1"` and `ASK_BACKEND` = `"anthropic"`; the `previews` block holds `SITE_ENV` = `"preview"` and `ASK_BACKEND` = `"fake"`. If a production value is missing, it is added in task 16 together with `TURNSTILE_EXPECTED_HOSTNAMES` = `"dins.dev"` (they flip production to the real backend, so they go live with the domain).
 
 - [ ] **Step 5: Production secrets complete** [Claude]
 
 Run: `pnpm --dir site exec wrangler secret list`
-Expected: `ANTHROPIC_API_KEY` and `TURNSTILE_SECRET_KEY`, plus `CONTACT_TO` if task 11 chooses option B.
+Expected: `ANTHROPIC_API_KEY`, `TURNSTILE_SECRET_KEY` and `CONTACT_TO` (task 11).
 
 - [ ] **Step 6: Previews stay apart from production** [Claude]
 
-Check, against the preview configuration M0 or M3 set up (`env.preview` or the `previews` block):
+Check the `previews` block in `site/wrangler.jsonc` (M0) and the Worker's preview settings:
 
-- Its D1 `database_id` differs from production's: `grep -n "database_id" site/wrangler.jsonc` shows two different IDs.
-- Its secrets do not include `ANTHROPIC_API_KEY`: `pnpm --dir site exec wrangler secret list --env preview` (or the previews equivalent) does not list it.
-- Its vars keep the fake backend.
+- Its D1 entry is `dins-site-preview`, with a `database_id` different from production's: `grep -n "database_id\|database_name" site/wrangler.jsonc` shows both.
+- Its vars keep the fake backend (`ASK_BACKEND` = `"fake"`, `SITE_ENV` = `"preview"`), so even a preview that somehow had the key would not call the API (M3's `wantsLiveBackend`).
+- Previews have no `ANTHROPIC_API_KEY`: in the dashboard (Workers, `dins-site`, Settings, the preview variables and secrets) Din confirms it is not set for previews. Claude rechecks the current Wrangler docs for a command that lists preview secrets and uses it if one exists.
 
 Expected: all three hold. If previews share production bindings, stop and tell Din: that is a blocker, because previews would write to the production log and could spend from the production key.
 
@@ -1568,14 +1571,15 @@ Expected: Cloudflare's `route1/2/3.mx.cloudflare.net` MX records and an SPF reco
 
 From an outside account, send a short mail to `din@`, `dinesh@`, `hello@`, `support@` and a random address (catch-all). Expected: all five arrive in Din's personal inbox.
 
-- [ ] **Step 3: Decide how the letter reaches Din** [Din] with [Claude]
+- [ ] **Step 3: Set the letter's recipient** [Din, terminal]
 
-Cloudflare's docs (checked 2026-10-21) say a `send_email` binding can only send to verified destination addresses in the account. Din's verified destination is the personal inbox, and `wrangler.jsonc` is public. Options (open question 3):
+Decided (Din, 2026-10-21, M4 decision 2): the recipient comes only from the `CONTACT_TO` Worker secret. Cloudflare's `send_email` binding sends only to verified destination addresses, which is Din's personal inbox, and `wrangler.jsonc` is public, so the address never goes in the repo.
 
-- **A.** `to: "din@dins.dev"`, if Cloudflare accepts the routing address as a destination. Nothing private in the repo. Test it on the preview first (Claude, Din's go, using M4's letter with a temporary preview binding), then on production in task 17.
-- **B (fallback).** The binding with no address in config, and the personal inbox as the Worker secret `CONTACT_TO`, set by Din: `pnpm --dir site exec wrangler secret put CONTACT_TO`. M4's handler reads `env.CONTACT_TO`.
+```bash
+pnpm --dir site exec wrangler secret put CONTACT_TO
+```
 
-Never option C (the personal address in `wrangler.jsonc`).
+Din types the verified destination address at the prompt. Verify [Claude]: `pnpm --dir site exec wrangler secret list` includes `CONTACT_TO`.
 
 - [ ] **Step 4: Sending from din@ (tasks 0.9 and 0.10)** [Din]
 
@@ -1610,7 +1614,7 @@ SHA=$(gh pr list --repo dinsdev/dins.dev --state merged --limit 1 --json headRef
 gh api repos/dinsdev/dins.dev/commits/$SHA/check-runs --jq '.check_runs[].name' | sort -u
 ```
 
-Expected: M0's CI job names (for example the `check.sh` job, Playwright with axe, Lighthouse, the home JavaScript budget, retrieval evals) and the Workers Builds check. Required: all of them except the manual answer evals.
+Expected: M0's CI jobs `check` and `e2e` (M1's Lighthouse step runs inside `e2e`; the budget, retrieval evals and content checks run inside `check`), and the Workers Builds check. Required: all three. Never the manual `answer-evals`.
 
 - [ ] **Step 2: Read the current ruleset** [Claude]
 
@@ -1656,8 +1660,14 @@ Record the SHA as the freeze commit.
 
 - [ ] **Step 2: All checks green** [Claude]
 
-Run: `./check.sh`
-Expected: exit 0. This includes the release scan (task 1), the security.txt guard (task 2), M3's library approval check, the deny-list scan over entries and pages, the index freshness check and retrieval evals.
+Run: `./check.sh --e2e`
+Expected: exit 0. This includes M1's `check:drafts`, the release scan with the built `security.txt` (tasks 1 and 2), `pnpm --dir site budget`, M3's `ottie-rag check` (library approval, deny-list scan over entries and pages, index freshness) and retrieval evals, and the end-to-end suites with the site sweep (task 6).
+
+Run: `uv run --project rag ottie-rag check --release`
+Expected: `content checks passed`. This is M3's release gate; on top of the everyday check it fails if the committed index contains sample entries.
+
+Run: `pnpm --dir site launch:blockers`
+Expected: no blockers listed (M1's list of copy Din still owes).
 
 Run: `gh run list --repo dinsdev/dins.dev --branch main --limit 1`
 Expected: the latest run on the freeze commit is `completed success`.
@@ -1668,7 +1678,7 @@ Run: `pnpm --dir site build && pnpm --dir site release:scan`
 Expected: `release-scan: clean (dist/client)`.
 
 Run: `grep -rlE "^status: draft" site/src/content/projects site/src/content/writing`
-Expected: the list of held-back drafts. Din confirms each one is intentionally not launching. For each draft slug, `grep -rl "<slug>" site/dist/client` prints nothing (not in pages, sitemap or RSS).
+Expected: the list of held-back drafts. Din confirms each one is intentionally not launching. M1's `check:drafts` (in `check.sh`) already proves none of them is in the production build, sitemap or RSS.
 
 - [ ] **Step 4: Every library entry approved, no samples** [Claude]
 
@@ -1680,11 +1690,11 @@ Expected: no output (M3's sample entries are gone, so they are not in Ottie's in
 
 - [ ] **Step 5: Ottie's index matches the frozen library** [Claude]
 
-Run M3's index freshness check (part of `./check.sh`; standalone, M3's command). Expected: fresh. If stale, rebuild with M3's build command locally (it needs the bge-m3 weights on Din's machine), commit the index in a PR, and Din merges.
+`ottie-rag check` (step 2) reports the committed `site/public/ask/index-v1.bin` as fresh. If it is stale, rebuild it with M3's build command on Din's machine (it needs the bge-m3 weights), commit the index in a PR, and Din merges.
 
 - [ ] **Step 6: Suggested answers match the frozen library** [Claude, Din's go]
 
-If any library entry changed since the suggested answers were last generated (compare `git log -1 --format=%cs -- site/src/content/library` with the `generated_on` dates in `site/src/content/suggested/`), regenerate them with M3's script (it spends a few cents from the eval key), open a PR, and Din reviews every answer before merging.
+If any library entry changed since the suggested answers were last generated (compare `git log -1 --format=%cs -- site/src/content/library` with the `generated_on` dates in `site/src/content/suggested/suggested.yaml`), regenerate them with `pnpm --dir site ask:suggested` (it spends a few cents on a key Din provides in Din's terminal), open a PR, and Din reviews every answer and sets each to `status: published` before merging.
 
 - [ ] **Step 7: Projects and resume** [Din]
 
@@ -1696,7 +1706,7 @@ M2's lines file test passes in `./check.sh` (bubbles at most 90 characters). Din
 
 - [ ] **Step 9: Set pieces approved or calm (AC 2)** [Claude] with [Din]
 
-For lens, windows, paper, studio and letter: find Din's approval in the ledger (`grep -n "set piece" docs/WORK_LEDGER.md`). For any without an approval by December 1, switch it to its calm version in M4's switch (`site/src/config/set-pieces.ts`, assumed) in a PR Din merges. Record the final state of all five.
+For lens, windows, paper, studio and letter: find Din's approval in the ledger (`grep -n "set piece" docs/WORK_LEDGER.md`) and read `RELEASES` in `site/src/lib/setpieces/flags.ts`. Approved pieces are `full`. A piece without an approval by December 1 stays `preview` or `calm`, both of which ship the calm version on production; set it to `calm` in a PR Din merges so the release state is explicit. Record the final value of all five.
 
 - [ ] **Step 10: Record the freeze** [Claude]
 
@@ -1709,7 +1719,7 @@ Ledger entry "Content freeze (2026-12-01)": freeze SHA, check results, drafts he
 Download the last Haiku-judged run's report:
 
 ```bash
-RUN=$(gh run list --repo dinsdev/dins.dev --workflow answer-evals.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+RUN=$(gh run list --repo dinsdev/dins.dev --workflow answer-evals --limit 1 --json databaseId --jq '.[0].databaseId')
 gh run download $RUN --repo dinsdev/dins.dev -n answer-eval-report -D "$SCRATCH/eval-haiku"
 ```
 
@@ -1718,8 +1728,8 @@ From its token usage: Sonnet 5.5 costs $2 and $10 per million input and output t
 - [ ] **Step 2: Run the release eval** [Claude, Din's go]
 
 ```bash
-gh workflow run answer-evals.yml --repo dinsdev/dins.dev --ref main -f judge=sonnet
-gh run list --repo dinsdev/dins.dev --workflow answer-evals.yml --limit 1
+gh workflow run answer-evals --repo dinsdev/dins.dev --ref main -f judge=sonnet
+gh run list --repo dinsdev/dins.dev --workflow answer-evals --limit 1
 gh run watch <run-id> --repo dinsdev/dins.dev
 gh run download <run-id> --repo dinsdev/dins.dev -n answer-eval-report -D "$SCRATCH/eval-release-1"
 ```
@@ -1783,15 +1793,14 @@ In the top level (production) of `site/wrangler.jsonc`:
 "routes": [{ "pattern": "dins.dev", "custom_domain": true }],
 "workers_dev": false,
 "vars": {
-  // ...existing vars...
+  // ...existing vars, including "SITE_ENV": "production"...
   "ASK_BACKEND": "anthropic",
-  "ASK_LIVE_HOSTS": "dins.dev",
   "ASK_DAILY_BUDGET_USD": "1",
-  "PUBLIC_TURNSTILE_SITE_KEY": "<the production site key Din gave in task 10>"
+  "TURNSTILE_EXPECTED_HOSTNAMES": "dins.dev"
 }
 ```
 
-Plus the production `database_id` if task 10 created the database. In `site/src/lib/security/analytics.ts`, set `BEACON_TOKEN` to the token from task 12.
+The `previews` block keeps its own values (`ASK_BACKEND` `"fake"`, `SITE_ENV` `"preview"`, `TURNSTILE_EXPECTED_HOSTNAMES` `""`). Plus the production `database_id` if task 10 created the database. `PUBLIC_TURNSTILE_SITE_KEY` is not here: it is the Workers Builds build variable Din set in task 10. In `site/src/lib/security/analytics.ts`, set `BEACON_TOKEN` to the token from task 12.
 
 Run: `./check.sh`
 Expected: exit 0.
@@ -1852,11 +1861,11 @@ Ledger entry "Soft go-live (2026-12-03)": merge SHA, version ID, check results, 
 
 On `https://dins.dev/contact` and through the home page letter, send three letters (one per reason chip: a role, admissions, just saying hi), one from the laptop and one from the phone, with a real reply address.
 
-Expected: each arrives at `din@dins.dev` (Din's inbox) within a minute; the message shows the visitor's name, reason and message; Reply-To is the visitor's address; replying goes to the visitor. "Show original" shows `dkim=pass` for the sending domain.
+Expected: each arrives in Din's inbox (the `CONTACT_TO` destination) within a minute; the message shows the visitor's name, reason and message; Reply-To is the visitor's address; replying goes to the visitor. "Show original" shows `dkim=pass` for the sending domain.
 
 - [ ] **Step 2: Error paths** [Din, device]
 
-An invalid email address shows an inline error that names the field; an empty message is refused; after sending, "Sent. Thank you." and "Write another" work. With JavaScript off, the form behaves as decided in open question 4.
+An invalid email address shows an inline error that names the field; an empty message is refused; after sending, "Sent. Thank you." and "Write another" work. With JavaScript off (Safari, Settings, Advanced), the letter shows its `<noscript>` note, and a post lands on `/contact/not-sent/` with a `mailto:din@dins.dev` link that works (Din, 2026-10-21, M4 decision 1).
 
 - [ ] **Step 3: Nothing stored** [Claude]
 
@@ -1865,13 +1874,13 @@ Expected: no table holding contact messages (PRD 6: emailed, not stored).
 
 - [ ] **Step 4: Record** [Claude]
 
-Ledger: date, devices, result per letter, option A or B from task 11.
+Ledger: date, devices, result per letter, the no-JavaScript result.
 
 ### Task 18: Search Console, Bing, Web Analytics and uptime live (AC 7, setup task 1.13)
 
 - [ ] **Step 1: Submit the sitemap** [Din, dashboard]
 
-Search Console, `dins.dev`, Sitemaps: submit `https://dins.dev/sitemap-index.xml`. Expected status: Success, with the URL count matching `sitemapPaths`. URL Inspection on `https://dins.dev/` and `https://dins.dev/about`: Request indexing.
+Search Console, `dins.dev`, Sitemaps: submit `https://dins.dev/sitemap.xml`. Expected status: Success, with the URL count matching `sitemapPaths`. URL Inspection on `https://dins.dev/` and `https://dins.dev/about`: Request indexing.
 
 - [ ] **Step 2: Bing** [Din, dashboard]
 
@@ -1883,7 +1892,7 @@ Visit a few pages on production, then open Web Analytics for `dins.dev`. Expecte
 
 - [ ] **Step 4: Uptime monitor** [Din, dashboard]
 
-Create an HTTP(S) keyword monitor on `https://dins.dev/`, keyword `dins`, every 5 minutes, alerts to Din's personal address. Send a test alert. Expected: the test alert arrives; the monitor shows Up.
+Create an HTTP(S) keyword monitor on `https://dins.dev/`, keyword `dins`, every 5 minutes, alerts to Din's personal address. Add a second keyword monitor on `https://dins.dev/api/health`, keyword `"ok":true` (M0's health route, so a broken Worker shows up even when static pages still serve). Send a test alert. Expected: the test alert arrives; both monitors show Up.
 
 - [ ] **Step 5: Record** [Claude]
 
@@ -1894,8 +1903,7 @@ Ledger: verification and submission dates. Propose TASKS 1.13 as Done (Din) with
 - [ ] **Step 1: Lighthouse on every sitemap URL** [Claude]
 
 ```bash
-# Assumes one sitemap file behind the index; loop over each <loc> in sitemap-index.xml if there are more.
-URLS=$(curl -s https://dins.dev/sitemap-0.xml | grep -o '<loc>[^<]*' | sed 's/<loc>/--collect.url=/' | tr '\n' ' ')
+URLS=$(curl -s https://dins.dev/sitemap.xml | grep -o '<loc>[^<]*' | sed 's/<loc>/--collect.url=/' | tr '\n' ' ')
 pnpm --dir site exec lhci autorun --config=lighthouserc.production.json $URLS
 ```
 
@@ -1908,7 +1916,7 @@ Already run by task 16 step 6 (light and dark, every sitemap URL). Rerun after a
 - [ ] **Step 3: The JavaScript budget passed in CI** [Claude]
 
 Run: `gh run list --repo dinsdev/dins.dev --branch main --limit 1 --json conclusion,url`
-Expected: `success` on the go-live commit, which includes M0 or M4's home budget check (at most 100 KB gzipped first-party JavaScript before interaction). Record the measured size from the job log.
+Expected: `success` on the go-live commit; its `check` job ran `pnpm --dir site budget` (M4: at most 100 KB gzipped first-party JavaScript before interaction). Record the measured size from the job log.
 
 ### Task 20: VoiceOver pass (AC 5)
 
@@ -2022,33 +2030,33 @@ On `https://dins.dev/`, ask:
 
 - [ ] **Step 2: The budget counts** [Claude]
 
-Run: `pnpm --dir site exec wrangler d1 execute dins-site --remote --command "SELECT day, spent FROM budget WHERE day = date('now')"`
-Expected: one row for today with `spent` greater than 0 and small (well under the limit). The daily budget is active (AC 8).
+Run: `pnpm --dir site exec wrangler d1 execute dins-site --remote --command "SELECT day, spent_nano_usd FROM budget_daily WHERE day = date('now')"`
+Expected: one row for today (UTC) with `spent_nano_usd` greater than 0 and far below the limit (1,000,000,000 nano-dollars is $1). The daily budget is active (AC 8).
 
 - [ ] **Step 3: Resting when the budget is spent** [Claude, Din's go]
 
 ```bash
-pnpm --dir site exec wrangler d1 execute dins-site --remote --command "SELECT spent FROM budget WHERE day = date('now')"
+pnpm --dir site exec wrangler d1 execute dins-site --remote --command "SELECT spent_nano_usd FROM budget_daily WHERE day = date('now')"
 ```
 
 Note the value (call it `$SPENT`). Then mark today's budget as used up:
 
 ```bash
-pnpm --dir site exec wrangler d1 execute dins-site --remote --command "UPDATE budget SET spent = 1000000000000000 WHERE day = date('now')"
+pnpm --dir site exec wrangler d1 execute dins-site --remote --command "UPDATE budget_daily SET spent_nano_usd = 1000000000000000 WHERE day = date('now')"
 ```
 
 [Din, device]: ask a question. Expected: Ottie is "resting", shows the best-matching pages as links and Din's contact links, and no model call happens (`wrangler tail` shows no Anthropic request). Then restore the real value:
 
 ```bash
-pnpm --dir site exec wrangler d1 execute dins-site --remote --command "UPDATE budget SET spent = $SPENT WHERE day = date('now')"
+pnpm --dir site exec wrangler d1 execute dins-site --remote --command "UPDATE budget_daily SET spent_nano_usd = $SPENT WHERE day = date('now')"
 ```
 
-Ask once more: a normal answer. (Uses M3's table and column names; if M3 differs, adapt the SQL from M3's migration and keep the three steps.)
+Ask once more: a normal answer. (If today's row does not exist yet, ask one question first so M3's reservation creates it.)
 
 - [ ] **Step 4: The question log** [Claude]
 
-Run: `pnpm --dir site exec wrangler d1 execute dins-site --remote --command "SELECT * FROM question_log ORDER BY created_at DESC LIMIT 3"` (M3's names)
-Expected: the questions just asked with sources and scores, and no IP address or visitor identifier in any column.
+Run: `pnpm --dir site exec wrangler d1 execute dins-site --remote --command "SELECT * FROM question_log ORDER BY created_at DESC LIMIT 3"`
+Expected: the questions just asked, with `origin` = `production`, their mode, sources and scores, and no IP address or visitor identifier in any column.
 
 - [ ] **Step 5: Record** [Claude]
 
@@ -2095,7 +2103,7 @@ Ledger entry "Launched (2026-12-10)".
 
 | Problem | Action | Who | Undo |
 |---|---|---|---|
-| Ask Ottie misbehaving or spending too fast | Force resting: the `UPDATE budget ...` from task 23 step 3 (no deploy) | Claude with Din's go, or Din in the D1 console | Restore the noted value |
+| Ask Ottie misbehaving or spending too fast | Force resting: the `UPDATE budget_daily ...` from task 23 step 3 (no deploy; the next UTC day starts a new row, so repeat it daily while needed) | Claude with Din's go, or Din in the D1 console | Restore the noted value |
 | Ask Ottie must stop at once | Disable the `dins-site-worker-prod` key in the Anthropic Console: Ottie rests on API errors | Din, dashboard | Create a new key and `wrangler secret put` it (Din, terminal) |
 | A bad deploy | `pnpm --dir site exec wrangler rollback <last-good-version-id> --message "<why>"`, or the dashboard: Workers, the Worker, Deployments, Rollback | Claude with Din's go, or Din | Then fix forward with a revert PR on `main`: the next merge deploys again and would bring the bad change back |
 | A bad D1 migration | Migrations are additive, so roll back the Worker first. If data was damaged, D1 Time Travel: `pnpm --dir site exec wrangler d1 time-travel restore dins-site --timestamp=<unix time before the migration>` within the plan's Time Travel window | Claude with Din's go | Time Travel restores can themselves be undone with the bookmark it prints |
@@ -2166,12 +2174,13 @@ Optional later work (not part of 2.17): the Blender studio frames and Ottie's ce
 
 1. **Soft go-live on December 3, launch on December 10?** The PRD asks for checks "on the production URL", and Search Console needs a live sitemap, so the plan attaches `dins.dev` on December 3, unannounced. The alternative is attaching on December 10 and doing all checks that day, which leaves no slack. Recommendation: December 3.
 2. **Spend limits are monthly and per workspace, not per key.** "$100 hard limit on the production key" becomes a $100 monthly limit on a workspace that holds only that key (with the $1 daily budget, real spend stays far below it). Is a monthly limit what you meant? Also: one Sonnet-judged release run is estimated at $2.50 to $3.60, so the $5 eval limit covers about one release run plus cheap Haiku reruns. Recommendation: raise `dins-evals` to $10 for December, back to $5 after launch.
-3. **Where the letter goes.** Cloudflare's `send_email` binding sends only to verified destination addresses, which is your personal inbox, and `wrangler.jsonc` is public. Option A (`din@dins.dev` as the destination, if Cloudflare accepts it) is tested first; option B keeps the personal address in a Worker secret. Either is fine with you? (Never the personal address in the repo.)
-4. **The letter with JavaScript off.** PRD 6 says the contact form still submits with JavaScript off, and PRD 6 also puts Turnstile on every API route, which needs JavaScript. These conflict. Options: (a) without JavaScript the form shows a plain `mailto:din@dins.dev` link instead of submitting; (b) accept no-JavaScript submissions behind the rate limit only. Recommendation: (a), since it keeps Turnstile on every API route and still lets anyone write to you.
+3. **Where the letter goes.** Decided (Din, 2026-10-21, M4 decision 2): the recipient comes only from the `CONTACT_TO` Worker secret (task 11 step 3).
+4. **The letter with JavaScript off.** Decided (Din, 2026-10-21, M4 decision 1): a post without JavaScript has no Turnstile token and is never accepted; it lands on `/contact/not-sent/` with a `mailto:din@dins.dev` link, and the form carries a `<noscript>` note (task 17 step 2).
 5. **AI crawlers.** Cloudflare can block AI crawlers and rewrite `robots.txt` for the zone. The site publishes `llms.txt` and relies on Bing, which feeds AI assistants, so the plan turns those blocks off. Agree?
 6. **How "60 fps" is measured.** Proposed rule: per set piece, at most 5 percent dropped frames in Chrome's frame stats overlay, no task over 50 ms and no layout shift. And if your phone is a recent flagship rather than a mid-range phone, should a 4x CPU slowdown in DevTools mobile mode stand in for the mid-range phone?
 7. **Demos on other origins.** A project demo hosted elsewhere (a notebook service, a video host) would be blocked by the strict CSP. Recommendation: self-host demos and videos; any outside origin is added only with your OK, one origin at a time, and recorded in the ledger.
 8. **Uptime monitor provider.** UptimeRobot's free plan (5-minute checks, email alerts) is the recommendation; Better Stack's free plan is the alternative. Your pick, since it is an account in your name.
+9. **The Turnstile site key on previews (contract note).** The contract makes `PUBLIC_TURNSTILE_SITE_KEY` a Workers Builds build variable "for `main`". If Workers Builds applies build variables to every branch, preview builds would bake in the production site key, whose widget only allows `dins.dev`, and Ask Ottie and the letter would fail on every preview. Recommendation: before task 10, check whether build variables can be scoped to the production branch; if not, have `siteKey()` (M3) return the test key unless `DEPLOY` is `production`. M3 owns that function, so this goes to M3 and Din.
 
 ## Doc updates to apply on merge
 
@@ -2182,10 +2191,10 @@ Proposed only; not edited by this planning session.
   - Add rows under 2.16 if Din wants them tracked separately: 2.16a security headers and CSP, 2.16b content freeze, 2.16c release evals, 2.16d production setup, 2.16e soft go-live, 2.16f VoiceOver and phone, 2.16g traces, 2.16h launch.
   - 0.6a, 0.7, 1.13: point to tasks 8, 12 and 18 of this plan.
 - **`docs/site/PLAN.md`, M5:** add the soft go-live on December 3 and launch day December 10; note that M5 owns the security headers and the CSP (one module, `_headers` for assets plus middleware for Worker responses); add the second branch `feat/m5-go-live`.
-- **`docs/site/PLAN.md`, Environments:** previews send `X-Robots-Tag: noindex` and never load the analytics beacon.
+- **`docs/site/PLAN.md`, Environments:** previews send `X-Robots-Tag: noindex` (header, next to M1's meta tag) and never load the analytics beacon.
 - **`docs/site/PRD.md` section 3, Cost and safety** (needs Din's OK, open question 2): "$100 hard limit on the Anthropic console" becomes "a $100 monthly spend limit on the production workspace, which holds only the production key".
 - **`docs/site/PRD.md` section 6, Privacy and Security:** name the allowed outside hosts (`challenges.cloudflare.com`, `static.cloudflareinsights.com`, `cloudflareinsights.com`), and add "previews are not indexed".
-- **`docs/site/PRD.md` section 6, Failure modes:** the no-JavaScript letter behaviour, once Din answers open question 4.
+- **`docs/site/PRD.md` section 6, Failure modes:** "the contact form still submits" becomes "without JavaScript the letter points to a mailto link on `/contact/not-sent/`" (Din's M4 decision 1; the PRD text still says it submits).
 - **`docs/PLAN.md` (setup), Domain and DNS:** the CAA record list from task 8.
 - **`docs/WORK_LEDGER.md`:** the entries in task 25, plus a planning entry: "M5 plan written (Claude, 2026-10-21)".
 
