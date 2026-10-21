@@ -22,7 +22,7 @@
 - Full keyboard access, a visible teal focus ring, no focus traps in pinned sections, WCAG 2.2 AA, axe at zero violations (PRD section 6).
 - Any looping motion that runs on its own longer than 5 seconds can be paused or stops by itself (WCAG 2.2.2).
 - Readable and usable with JavaScript off: every piece is plain HTML, and the contact form still submits (PRD section 6).
-- Placeholders never ship: a section with no published content is not rendered (PRD section 2, content model).
+- Placeholders never ship (PRD section 2, content model). With no published content a section keeps M1's empty note, and the set piece is not rendered or booted.
 - Brand: tokens from `brand/tokens/tokens.css` only (no new colors), the lens and wordmark are never stretched, rotated, recolored or given effects, amber is never text on light, teal is the one accent, calm dark mode with no glow (`docs/BRAND.md`).
 - Copy: no em dashes, no en dashes as separators, no buzzwords; Din's voice is "I"; Ottie talks about Din; refer to Din by name in docs and comments.
 - Contact privacy: messages are emailed, never stored or logged (PRD section 6). Nothing personal (Din's inbox) in `wrangler.jsonc`; this repo is public.
@@ -35,7 +35,7 @@ These inputs are implied by the spec but easy to miss; each has a test in the ta
 
 1. A keyboard user tabbing through the pinned stage reaches every project link and leaves the section normally, and the focused link is visible (Task 13, `setpieces-keyboard.spec.ts`).
 2. A visitor who jumps past a set piece (nav link to `#contact`) before its JavaScript arrives sees no content jump; the piece stays calm for that page view (Task 3 `canEnhance`, Task 13 e2e "jumping past the stage").
-3. The home page with 0 or 1 published projects or 0 to 2 published posts renders no empty stage or empty paper section and no placeholder (Tasks 13 and 15).
+3. The home page with 0 or 1 published projects or 0 to 2 published posts shows M1's empty note or a calm layout, never an empty stage, an empty paper slot or a placeholder (Tasks 13 and 15).
 4. A contact submission with a filled honeypot, a missing Turnstile token (JavaScript off), a cross-origin `Origin`, a 20 KB body or a CR/LF in the name is handled without sending mail, and nothing the visitor typed ever reaches the logs (Task 6).
 5. Turning on reduced motion while the page is open switches every running piece to calm without a reload and without leftover transforms (Task 1 `onMotionChange`, Task 13 e2e "turning on reduced motion live"; the studio and paper use the same `gsap.matchMedia` revert).
 
@@ -52,30 +52,36 @@ These inputs are implied by the spec but easy to miss; each has a test in the ta
 
 ## Assumes
 
+The shared contract is `docs/site/plans/README.md`; where this plan and the README disagree, the README wins. This section lists what M4 takes from it and from the other plans.
+
 From M0 (Foundation):
-- `site/` scaffold with `pnpm --dir site dev|build|test|test:e2e|check`, `./check.sh`, Vitest projects for `tests/unit` and `tests/worker` (whether through `@cloudflare/vitest-pool-workers` or the renamed `@cloudflare/vitest-plugin`; Task 6 tests the handler directly with a fake env, so it runs under either), and a Playwright config whose `webServer` serves the built site with Wrangler locally and honors `BASE_URL`.
-- A build-time variable `PUBLIC_DEPLOY_ENV` with values `local`, `preview` or `production`. If M0 names it differently, only `deployEnv()` in Task 2 changes.
-- `wrangler.jsonc` with a top-level production Worker and an `env.preview` block (as the M5 notes describe), `.dev.vars` gitignored.
-- `overflow-x: clip` (not `hidden`) on `html` and `body` in the global styles, because `overflow: hidden` on an ancestor breaks `position: sticky`. Task 11 adds it if missing.
-- If M0 or M5 already ships `pnpm --dir site budget`, Task 4 extends it rather than creating it.
+- `site/` scaffold with the scripts `dev`, `build`, `serve` (wrangler dev on 127.0.0.1:8787), `check`, `test`, `test:unit`, `test:worker`, `test:e2e`, and the root `./check.sh`. Worker tests run on `@cloudflare/vitest-plugin` 1.4 with Vitest 4.1; Task 6 tests the handler directly with a fake env, so it does not depend on the plugin's fetch helpers.
+- The Playwright web server is M0's (`pnpm build && pnpm serve`, waiting on `/api/health`), so `/api/contact` works in e2e tests. M4's specs run in the default `chromium` project.
+- The shared build-time deploy: `site/src/lib/deploy-env.ts` exports `DEPLOY: "local" | "preview" | "production"` (from the `__DINS_DEPLOY__` define, which M0 also applies to Vitest through Astro's Vite config). `deployEnv()` in Task 2 reads it. Worker code reads `SITE_ENV` at runtime instead.
+- `site/wrangler.jsonc` declares every binding and var at the top level and again in the `previews` block. There is no `env.preview`. `.dev.vars` is gitignored.
+- `site/src/layouts/BaseLayout.astro` (M0 creates it, M1 fills it) with `<slot name="head" />` inside `<head>`, and global styles in `site/src/styles/global.css`. M4 adds `overflow-x: clip` (not `hidden`) on `html` and `body` there if it is missing, because `overflow: hidden` on an ancestor breaks `position: sticky`.
 
 From M1 (Pages and content):
-- `site/src/pages/index.astro` composes the home page from section components in this order: hero, work, writing, about, contact, footer, inside a base layout `site/src/layouts/BaseLayout.astro` with a `<slot name="head" />` (or equivalent) for head content.
-- Collection fields: `projects` with `title`, `summary`, `kind`, `stack` (string array), `featured` (number or absent), `status`, and a stage capture `stage: { kind: "video" | "image", src, poster, alt }` (16:10). `writing` with `title`, `kind`, `date`, `summary`, `motif`, `status`. `library` entries with `approved_on` and `sample`.
-- `/about` and `/contact` exist as plain pages; `/contact` has a plain form or none. M4 replaces the form with the `Letter` component and adds a screen header to `/about`.
-- The sitemap integration accepts a filter (M4 adds `/contact/sent/` and `/contact/not-sent/` to the excluded list).
+- The calm home page in `site/src/pages/index.astro` with the set-piece hooks `<header id="top" data-setpiece="lens">`, `<section id="work" data-setpiece="windows">`, `<section id="writing" data-setpiece="paper">`, `<section id="about" data-setpiece="studio">`, `<section id="contact" data-setpiece="letter">`, and `<div class="screen-panel" data-setpiece="studio-screen">` at the top of `/about`. `<html class="no-js">` is swapped to `js` by an inline script.
+- Content helpers: `getVisibleProjects()`, `getVisiblePosts()` (`site/src/lib/collections.ts`), `featuredProjects(projects, max = 4)`, `latestPosts(posts, n = 3)`, `readingMinutes(body)` (`site/src/lib/content.ts`), and the components `ProjectWindow` (`{ project; eager? }`, a 16:10 window with the capture image, or a `<video controls>` when `demo.type === "video"`), `PostCard` (`{ post; headingLevel? }`) and `ContactForm`.
+- Project fields used here: `title`, `summary`, `kind`, `stack`, `featured` (1 to 4), `demo` (`{ type: "live" | "chart" | "video", src }`, optional), `capture`, `captureAlt`, `status`. `library` entries with `approved_on` and `sample` (M3's fields).
+- M1's empty states stay: with no featured projects the work section shows "Projects are on their way.", with no posts the writing section shows "The first posts are on their way." M4 enhances only when there is content.
+- Contact, from `site/src/lib/contact.ts` (M1 Task 7, lands first): `CONTACT_FIELDS` (`message`, `reason`, `name`, `email`, honeypot `website`, Turnstile `cf-turnstile-response`), `CONTACT_LIMITS` (`name` 100, `email` 254, `message` 4000), `REASONS` (`{ value, label }`: "A role", "Admissions", "Just saying hi"), `CONTACT_REDIRECTS = { sent: "/contact/sent/", notSent: "/contact/not-sent/" }`, `parseContact(form: FormData | URLSearchParams)` returning `{ ok: true; value: { message, reason, name, email } }` or `{ ok: false; spam: boolean; errors }`, which already trims and strips control characters other than newline and tab. The name is required.
+- `ContactForm.astro`: `<form class="letter-form" method="post" action="/api/contact" data-letter-form>` with labels "Message", legend "Why are you writing?", radios "A role", "Admissions", "Just saying hi", labels "Your name" and "Your email", the honeypot, an empty `<div data-turnstile-slot>`, the button "Seal and send", and a `<noscript>` note. M1 also creates `/contact/sent/` and `/contact/not-sent/` (with the `mailto:din@dins.dev` link); the sitemap lists only indexable routes, so neither is in it.
 
 From M2 (Ottie):
-- `site/src/ottie/events.ts` exporting `cueOttie(cue, opts?)` (cues include `"point"` and `"jump"`, `opts.instance` picks a mounted Ottie) and `prefetchOttie(state)`. The `Ottie` component can be mounted a second time with `instance="letter"`. If the names differ, only `site/src/lib/setpieces/letter/ottie-bridge.ts` changes.
-- Ottie reads `<html data-motion>` (set by Task 1) to choose the still pose on Save-Data and low-memory devices.
+- `site/src/ottie/events.ts`: `cueOttie(type, extra?)` dispatches `ottie:cue` on `window` with `detail.type`; `onOttieState(handler)` reports `detail.state`. The letter's cues are `letter:open` (in view: point), `letter:ready` (filled in: fetch jump) and `letter:sent` (jump). There are no state-named cues and no `prefetchOttie`. Only `site/src/lib/setpieces/letter/ottie-bridge.ts` imports this module.
+- M2's Task 15 places `<Ottie context="contact">` in the home `#contact` section and on `/contact`. That is the letter Ottie; M4 mounts no Ottie of its own. M2 also treats `<html data-motion="calm">` as reduced.
 
 From M3 (Ask Ottie):
-- The Ask island dispatches `window` event `ask:state` with `detail.phase` in `idle | retrieving | streaming | done | dont-know | resting | error`. If M3 uses other names, only `site/src/lib/setpieces/field/ask-bridge.ts` changes.
-- `site/src/lib/turnstile.ts` exporting `verifyTurnstile({ token, secret, remoteip?, action?, fetcher? }): Promise<{ ok: boolean; codes: string[] }>` and a browser loader `loadTurnstile(): Promise<Turnstile>` in `site/src/lib/turnstile-client.ts`. Task 6 creates them if absent, with these exact signatures.
-- Secret `TURNSTILE_SECRET_KEY`, public var `PUBLIC_TURNSTILE_SITE_KEY` (names shared with the M3 and M5 notes).
+- `ask:state` on `window` with `detail.phase` in `idle | retrieving | streaming | done | dont-know | resting | error`. Only `site/src/lib/setpieces/field/ask-bridge.ts` reads it.
+- Turnstile: `site/src/lib/turnstile.ts` with `verifyTurnstile({ token, secret, remoteip, action, hostnames, fetcher, timeoutMs }): Promise<{ ok: boolean; codes: string[] }>` and `site/src/lib/turnstile-client.ts` with `loadTurnstile(): Promise<TurnstileApi>`, `siteKey()` and `TURNSTILE_TEST_SITEKEY`. Names: secret `TURNSTILE_SECRET_KEY`, build variable `PUBLIC_TURNSTILE_SITE_KEY`, var `TURNSTILE_EXPECTED_HOSTNAMES`. Whichever of M3 or M4 reaches Turnstile first creates both files with these signatures (Task 6 Step 5 and Task 7 Step 3 have the code).
+
+From M5 (Hardening):
+- The CSP hashes inline `<script>` and `<style>` elements, so `MotionHead.astro` and the lens scripts need no extra work, and it drops `style="…"` attributes in server HTML. M4 renders no `style` attributes: per-item values are classes, and runtime values are set from JavaScript.
 
 From Din:
-- Email Routing for `dins.dev` set up (task 0.8, about November 12), the `CONTACT_TO` secret set in preview and production, and approval of each gate in the preview.
+- Email Routing for `dins.dev` set up (task 0.8, about November 12), the `CONTACT_TO` secret set on the Worker, and approval of each gate in the preview.
 
 ## Repo map
 
@@ -84,8 +90,10 @@ site/
   src/
     lib/
       motion.ts                         resolveMotion, readMotionInput, currentMotion, onMotionChange      (Task 1)
+      contact.ts                        M1's; Task 5 adds single-line cleaning of name and email             (Task 5)
+      contact/handler.ts                handleContact                                                         (Task 6)
       setpieces/
-        flags.ts                        RELEASES, pieceEnabled, deployEnv                                    (Task 2)
+        flags.ts                        RELEASES, pieceEnabled, deployEnv (reads M0's DEPLOY)               (Task 2)
         lazy.ts                         canEnhance, whenNear, bootPiece                                       (Task 3)
         gsap.ts                         one place that imports and registers gsap + ScrollTrigger            (Task 3)
         field/words.ts                  extractFieldWords                                                     (Task 8)
@@ -98,24 +106,24 @@ site/
         studio/frame.ts                 studioFrame, revealCounts                                            (Task 17)
         studio/studio-enhance.ts        GSAP enhancer for the studio                                         (Task 18)
         letter/machine.ts               letterReducer, phaseClasses                                          (Task 20)
-        letter/letter-enhance.ts        form enhancer (fetch, fold, Turnstile, Ottie)                        (Task 7 plain, Task 21 motion)
-        letter/ottie-bridge.ts          cueOttie / prefetchOttie adapter                                      (Task 21)
-      contact/parse.ts                  parseContact, REASONS, LIMITS                                         (Task 5)
-      contact/handler.ts                handleContact                                                         (Task 6)
-    components/home/
-      MotionHead.astro                  inline head script: data-motion and data-intro                       (Tasks 1, 11)
-      LensIntro.astro, lens-intro.css                                                                         (Task 11)
-      LetterField.astro, letter-field.css                                                                     (Task 10)
-      WorkStage.astro, work-stage.css                                                                         (Tasks 12 to 13)
-      PaperStack.astro, PaperCard.astro, paper.css                                                            (Task 15)
-      studio/Studio.astro, studio/StudioScreen.astro, studio/studio.css, studio/terminal.ts                  (Tasks 17 to 18)
-      letter/Letter.astro, letter/letter.css                                                                  (Tasks 7, 21)
+        letter/letter-enhance.ts        form enhancer (fetch, Turnstile, fold)                               (Task 7 plain, Task 21 motion)
+        letter/ottie-bridge.ts          letter:* cues and jumpEnded                                          (Task 21)
+    components/
+      ContactForm.astro                 M1's; Task 7 adds error slots, status, sent panel, boot script
+      home/
+        MotionHead.astro                inline head script: data-motion (every page, via BaseLayout)         (Task 1)
+        LensIntro.astro, LensIntroHead.astro, lens-intro.css   home only; the head part goes through the head slot (Task 11)
+        LetterField.astro, letter-field.css                                                                   (Task 10)
+        WorkStage.astro, work-stage.css (wraps M1's ProjectWindow)                                            (Tasks 12 to 13)
+        PaperStack.astro, paper.css (wraps M1's PostCard)                                                     (Task 15)
+        studio/Studio.astro, studio/StudioScreen.astro, studio/studio.css, studio/terminal.ts                (Tasks 17 to 18)
+        letter/Envelope.astro, letter/letter.css (wraps M1's ContactForm)                                     (Tasks 7, 21)
     pages/api/contact.ts                                                                                       (Task 6)
-    pages/contact/sent.astro, pages/contact/not-sent.astro                                                     (Task 7)
+    pages/contact/not-sent.astro        M1's; Task 7 adjusts the copy only if needed
     styles/view-transitions.css                                                                                (Task 18)
   scripts/budget.ts                                                                                            (Task 4)
-  tests/unit/  motion, flags, lazy, budget, fps, field-words, field-model, pose, studio-frame, studio-tokens,
-               terminal-lines, contact-parse, letter-machine, motion-properties                                (per task)
+  tests/unit/  motion, flags, lazy, budget, fps, contact-single-line, field-words, field-model, pose, studio-frame,
+               studio-tokens, terminal-lines, letter-machine, motion-properties                               (per task)
   tests/worker/contact.test.ts                                                                                 (Task 6)
   tests/e2e/   setpieces-loading, setpieces-keyboard, setpieces-calm, letter, shots (tag @shots), perf (tag @perf)
 ```
@@ -257,7 +265,7 @@ const src = `(function(){try{var r=${resolveMotion.toString()};var n=navigator,c
 <script is:inline set:html={src} />
 ```
 
-In `BaseLayout.astro`, render `<MotionHead />` as the first child of `<head>`. Default CSS everywhere is the calm layout; the full layout is only ever selected with `:root[data-motion="full"]`, so JavaScript off means calm.
+In `BaseLayout.astro`, render `<MotionHead />` as the first child of `<head>`, before `<slot name="head" />`: M2 reads `data-motion` on every page, so it cannot depend on a page passing it through the slot. The home page's intro script (Task 11) is the one that goes through the head slot. Default CSS everywhere is the calm layout; the full layout is only ever selected with `:root[data-motion="full"]`, so JavaScript off means calm.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -285,7 +293,8 @@ git commit -m "feat(site): motion profile and data-motion head script"
 - Test: `site/tests/unit/flags.test.ts`
 
 **Interfaces:**
-- Produces: `type SetPiece = "lens" | "windows" | "paper" | "studio" | "letter"`; `type Release = "calm" | "preview" | "full"`; `type DeployEnv = "local" | "preview" | "production"`; `RELEASES: Readonly<Record<SetPiece, Release>>`; `deployEnv(raw?: string): DeployEnv`; `pieceEnabled(piece: SetPiece, env?: DeployEnv, releases?: Record<SetPiece, Release>): boolean` (build-time only; used in component frontmatter).
+- Consumes: `DEPLOY` from `site/src/lib/deploy-env.ts` and `type Deploy` from `site/src/lib/deploy.ts` (M0).
+- Produces: `type SetPiece = "lens" | "windows" | "paper" | "studio" | "letter"`; `type Release = "calm" | "preview" | "full"`; `type DeployEnv = Deploy` (`"local" | "preview" | "production"`); `RELEASES: Readonly<Record<SetPiece, Release>>`; `deployEnv(raw?: string): DeployEnv`; `pieceEnabled(piece: SetPiece, env?: DeployEnv, releases?: Record<SetPiece, Release>): boolean` (build-time only; used in component frontmatter).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -340,12 +349,15 @@ Expected: FAIL, module not found.
 
 ```ts
 // site/src/lib/setpieces/flags.ts
+import type { Deploy } from "../deploy";
+import { DEPLOY } from "../deploy-env";
+
 // One release value per set piece. "preview" shows the full version in local and
 // preview builds and the calm version in production. Move a piece to "full" only
 // after Din approves it in the preview, with a ledger entry.
 export type SetPiece = "lens" | "windows" | "paper" | "studio" | "letter";
 export type Release = "calm" | "preview" | "full";
-export type DeployEnv = "local" | "preview" | "production";
+export type DeployEnv = Deploy;
 
 export const RELEASES: Readonly<Record<SetPiece, Release>> = {
   lens: "calm",
@@ -355,7 +367,9 @@ export const RELEASES: Readonly<Record<SetPiece, Release>> = {
   letter: "calm",
 };
 
-export function deployEnv(raw: string | undefined = import.meta.env.PUBLIC_DEPLOY_ENV): DeployEnv {
+// M0's shared build-time deploy (README "Build-time deploy"). The default argument is
+// only read when called without one, so the tests pass explicit strings.
+export function deployEnv(raw: string | undefined = DEPLOY): DeployEnv {
   if (raw === "local" || raw === "preview") return raw;
   return "production";
 }
@@ -503,7 +517,7 @@ git commit -m "feat(site): lazy set-piece loader and the shared GSAP module"
 ### Task 4: JavaScript budget gate, screenshot and perf harness
 
 **Files:**
-- Create (or extend if M0/M5 shipped it): `site/scripts/budget.ts`
+- Create: `site/scripts/budget.ts` (M4 owns it per the README; `check.sh` runs it after the build)
 - Modify: `site/package.json` (script `"budget": "node scripts/budget.ts"`), `check.sh` (run `pnpm --dir site budget` after the build), the CI workflow if `check.sh` is not what CI runs
 - Create: `site/tests/e2e/helpers/scroll.ts`, `site/tests/e2e/helpers/fps.ts`
 - Create: `site/tests/e2e/shots.spec.ts` (tag `@shots`), `site/tests/e2e/perf.spec.ts` (tag `@perf`)
@@ -684,8 +698,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 }
 ```
 
-If M0 or M5 already shipped a `budget` script, keep theirs and add only the `findGsap` check and the lazy report, with the same tests.
-
 - [ ] **Step 4: Run the tests and the script**
 
 Run: `pnpm --dir site exec vitest run tests/unit/budget.test.ts && pnpm --dir site build && pnpm --dir site budget`
@@ -768,9 +780,9 @@ import { scrollToProgress } from "./helpers/scroll";
 
 const PIECES = [
   { name: "lens", selector: "#top", points: [0] },
-  { name: "windows", selector: "#work", points: [0, 0.25, 0.5, 0.75, 1] },
+  { name: "windows", selector: "#work .stage", points: [0, 0.25, 0.5, 0.75, 1] },
   { name: "paper", selector: "#writing", points: [0, 0.5, 1] },
-  { name: "studio", selector: "#about", points: [0, 0.2, 0.45, 0.7, 1] },
+  { name: "studio", selector: "#about .studio", points: [0, 0.2, 0.45, 0.7, 1] },
   { name: "letter", selector: "#contact", points: [0, 1] },
 ];
 const VIEWPORTS = [{ name: "laptop", width: 1440, height: 900 }, { name: "phone", width: 390, height: 844 }];
@@ -928,125 +940,74 @@ git commit -m "test(site): guard set pieces to transform and opacity motion"
 
 ## Part B. Contact delivery (not a visual gate; ships with the foundation PR)
 
-Precheck: if `site/src/pages/api/contact.ts` already exists from M1, read it, keep its behaviour, and turn Tasks 5 and 6 into adding the missing tests and cases listed here (honeypot, origin, size, logging) instead of rewriting.
+M1 owns the form contract (`site/src/lib/contact.ts`, `ContactForm.astro`, `/contact/sent/`, `/contact/not-sent/`); M4 builds `/api/contact` on it and enhances the form. If M1's module differs from "Assumes" when this part starts, follow M1's file and adjust the tests here, not the other way round.
 
-### Task 5: Contact form parsing shared by browser and Worker
+### Task 5: Single-line name and email in M1's `contact.ts`
+
+M1's `parseContact` keeps newlines and tabs in every field, which is right for the message but not for the name and email: the name becomes the reply-to display name, an email header. This is the one extension M4 needs.
 
 **Files:**
-- Create: `site/src/lib/contact/parse.ts`
-- Test: `site/tests/unit/contact-parse.test.ts`
+- Modify: `site/src/lib/contact.ts` (M1's)
+- Test: `site/tests/unit/contact-single-line.test.ts`
 
 **Interfaces:**
-- Produces: `REASONS = ["role", "admissions", "hi"] as const`; `type Reason`; `REASON_LABELS: Record<Reason, string>` (`"A role"`, `"Admissions"`, `"Just saying hi"`); `LIMITS = { message: 4000, name: 100, email: 254 }`; `interface ContactInput { message: string; email: string; name: string; reason: Reason; token: string; honeypot: string }`; `type ContactField = "message" | "email" | "name" | "reason"`; `type ParseResult = { ok: true; value: ContactInput } | { ok: false; errors: Partial<Record<ContactField, string>> }`; `parseContact(form: FormData): ParseResult`. Field names in the form: `message`, `email`, `name`, `reason`, `cf-turnstile-response`, `website` (the honeypot).
+- Consumes: `parseContact`, `CONTACT_FIELDS` (M1).
+- Produces: no new exports. After this task `parseContact` returns `name` and `email` with every run of whitespace (including CR, LF and tab) collapsed to one space; the message keeps its newlines.
 
 - [ ] **Step 1: Write the failing test**
 
 ```ts
-// site/tests/unit/contact-parse.test.ts
+// site/tests/unit/contact-single-line.test.ts
 import { describe, expect, it } from "vitest";
-import { LIMITS, parseContact } from "../../src/lib/contact/parse";
+import { CONTACT_FIELDS as F, parseContact } from "../../src/lib/contact";
 
-function fd(fields: Record<string, string>): FormData {
-  const f = new FormData();
-  for (const [k, v] of Object.entries(fields)) f.set(k, v);
-  return f;
-}
-const good = { message: "Hi Din, about a data role.", email: "a@b.co", name: "Ada", reason: "role", "cf-turnstile-response": "tok", website: "" };
+const form = (over: Record<string, string> = {}) =>
+  new URLSearchParams({ [F.message]: "Hi Din.", [F.name]: "Ada", [F.email]: "ada@example.com", [F.reason]: "role", ...over });
 
-describe("parseContact", () => {
-  it("accepts a good letter and trims it", () => {
-    const r = parseContact(fd({ ...good, message: "  hello  ", name: " Ada " }));
-    expect(r).toEqual({ ok: true, value: { message: "hello", email: "a@b.co", name: "Ada", reason: "role", token: "tok", honeypot: "" } });
+describe("parseContact single-line fields", () => {
+  it("collapses line breaks and tabs in the name to single spaces", () => {
+    const r = parseContact(form({ [F.name]: "Ada\r\nBcc: x@y.z\tLovelace" }));
+    expect(r.ok && r.value.name).toBe("Ada Bcc: x@y.z Lovelace");
   });
-  it("needs a message", () => {
-    const r = parseContact(fd({ ...good, message: "   " }));
+  it("rejects an email with a line break instead of repairing it", () => {
+    const r = parseContact(form({ [F.email]: "ada@example.com\nbcc@evil.example" }));
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.errors.message).toBe("Write a few words first.");
   });
-  it("needs a plausible email", () => {
-    for (const email of ["", "no-at", "a@b", "a b@c.co", "x".repeat(250) + "@b.co"]) {
-      const r = parseContact(fd({ ...good, email }));
-      expect(r.ok).toBe(false);
-      if (!r.ok) expect(r.errors.email).toBe("Add an email so I can reply.");
-    }
-  });
-  it("limits the message length", () => {
-    const r = parseContact(fd({ ...good, message: "a".repeat(LIMITS.message + 1) }));
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.errors.message).toBe(`Keep it under ${LIMITS.message} characters.`);
-  });
-  it("strips line breaks and control characters from the name", () => {
-    const r = parseContact(fd({ ...good, name: "Ada\r\nBcc: x@y.z\u0007" }));
-    expect(r.ok && r.value.name).toBe("Ada Bcc: x@y.z");
-  });
-  it("keeps line breaks in the message but drops other control characters", () => {
-    const r = parseContact(fd({ ...good, message: "line one\nline two\u0000" }));
+  it("keeps newlines in the message", () => {
+    const r = parseContact(form({ [F.message]: "line one\nline two" }));
     expect(r.ok && r.value.message).toBe("line one\nline two");
-  });
-  it("falls back to the first reason when the value is unknown", () => {
-    const r = parseContact(fd({ ...good, reason: "<script>" }));
-    expect(r.ok && r.value.reason).toBe("role");
-  });
-  it("name is optional", () => {
-    const r = parseContact(fd({ ...good, name: "" }));
-    expect(r.ok && r.value.name).toBe("");
-  });
-  it("passes the honeypot and token through for the handler to judge", () => {
-    const r = parseContact(fd({ ...good, website: "http://spam", "cf-turnstile-response": "" }));
-    expect(r.ok && r.value.honeypot).toBe("http://spam");
-    expect(r.ok && r.value.token).toBe("");
   });
 });
 ```
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `pnpm --dir site exec vitest run tests/unit/contact-parse.test.ts`
-Expected: FAIL, module not found.
+Run: `pnpm --dir site exec vitest run tests/unit/contact-single-line.test.ts`
+Expected: the name test FAILS (the newline is kept). The email test already passes if M1's email pattern rejects whitespace; keep it as a guard.
 
-- [ ] **Step 3: Write the implementation**
+- [ ] **Step 3: Implement**
+
+In `parseContact`, after M1's control-character stripping, clean the single-line fields:
 
 ```ts
-// site/src/lib/contact/parse.ts
-// Shared by the letter in the browser and /api/contact on the Worker.
-export const REASONS = ["role", "admissions", "hi"] as const;
-export type Reason = (typeof REASONS)[number];
-export const REASON_LABELS: Record<Reason, string> = { role: "A role", admissions: "Admissions", hi: "Just saying hi" };
-export const LIMITS = { message: 4000, name: 100, email: 254 } as const;
-
-export interface ContactInput { message: string; email: string; name: string; reason: Reason; token: string; honeypot: string }
-export type ContactField = "message" | "email" | "name" | "reason";
-export type ParseResult = { ok: true; value: ContactInput } | { ok: false; errors: Partial<Record<ContactField, string>> };
-
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const str = (f: FormData, k: string) => { const v = f.get(k); return typeof v === "string" ? v : ""; };
-
-export function parseContact(form: FormData): ParseResult {
-  const message = str(form, "message").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "").trim();
-  const email = str(form, "email").trim();
-  const name = str(form, "name").replace(/[\r\n]+/g, " ").replace(/[\u0000-\u001F\u007F]/g, "").trim();
-  const rawReason = str(form, "reason");
-  const reason = (REASONS as readonly string[]).includes(rawReason) ? (rawReason as Reason) : REASONS[0];
-  const errors: Partial<Record<ContactField, string>> = {};
-  if (!message) errors.message = "Write a few words first.";
-  else if (message.length > LIMITS.message) errors.message = `Keep it under ${LIMITS.message} characters.`;
-  if (!EMAIL.test(email) || email.length > LIMITS.email) errors.email = "Add an email so I can reply.";
-  if (name.length > LIMITS.name) errors.name = `Keep your name under ${LIMITS.name} characters.`;
-  if (Object.keys(errors).length) return { ok: false, errors };
-  return { ok: true, value: { message, email, name, reason, token: str(form, "cf-turnstile-response"), honeypot: str(form, "website") } };
-}
+// site/src/lib/contact.ts (inside parseContact, where value is built)
+const oneLine = (s: string) => s.replace(/\s+/g, " ").trim();
+// name: oneLine(get(CONTACT_FIELDS.name))
+// email: get(CONTACT_FIELDS.email) stays as is, so a line break fails the EMAIL check
 ```
 
-- [ ] **Step 4: Run it to verify it passes**
+Apply `oneLine` to the name only. The email is not repaired: a line break in it should fail validation, not be silently turned into a different address.
 
-Run: `pnpm --dir site exec vitest run tests/unit/contact-parse.test.ts`
-Expected: PASS (9 tests).
+- [ ] **Step 4: Run M1's contact tests and this one**
+
+Run: `pnpm --dir site exec vitest run tests/unit/contact.test.ts tests/unit/contact-single-line.test.ts`
+Expected: PASS (M1's tests unchanged and green, 3 new tests green).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add site/src/lib/contact/parse.ts site/tests/unit/contact-parse.test.ts
-git commit -m "feat(site): contact form parsing shared by the letter and the Worker"
+git add site/src/lib/contact.ts site/tests/unit/contact-single-line.test.ts
+git commit -m "feat(site): keep the contact name on one line"
 ```
 
 ### Task 6: `/api/contact` on the Worker with Turnstile, rate limit and `send_email`
@@ -1055,23 +1016,24 @@ git commit -m "feat(site): contact form parsing shared by the letter and the Wor
 - Create: `site/src/lib/contact/handler.ts`
 - Create: `site/src/pages/api/contact.ts`
 - Create only if M3 has not: `site/src/lib/turnstile.ts` (signature in "Assumes")
-- Modify: `site/wrangler.jsonc` (bindings for production and `env.preview`), `site/.dev.vars.example`
+- Modify: `site/wrangler.jsonc` (top level and the `previews` block), `site/.dev.vars.example`
 - Test: `site/tests/worker/contact.test.ts`
 
 **Interfaces:**
-- Consumes: `parseContact`, `REASON_LABELS` (Task 5); `verifyTurnstile` (M3 or this task).
+- Consumes: `parseContact`, `CONTACT_FIELDS`, `CONTACT_REDIRECTS`, `REASONS` (M1, Task 5); `verifyTurnstile` (M3 or this task).
 - Produces:
   - `interface ContactEnv { EMAIL: { send(m: OutgoingEmail): Promise<{ messageId: string }> }; CONTACT_LIMITER: { limit(o: { key: string }): Promise<{ success: boolean }> }; CONTACT_TO: string }`
   - `interface OutgoingEmail { to: string; from: { email: string; name: string }; replyTo: { email: string; name?: string }; subject: string; text: string }`
   - `interface ContactDeps { verify(token: string, ip: string | null): Promise<boolean>; log(event: string, data?: Record<string, string | number>): void }`
   - `handleContact(request: Request, env: ContactEnv, deps: ContactDeps): Promise<Response>`
-  - Responses: JSON `{ ok: true }` (200) or `{ ok: false, code, errors? }` with `code` in `invalid | verify | rate | origin | too-large | send` (400, 403, 429, 403, 413, 502) when `Accept` includes `application/json`; otherwise `303` to `/contact/sent/` or `/contact/not-sent/`.
+  - Responses: JSON `{ ok: true }` (200) or `{ ok: false, code, errors? }` with `code` in `invalid | verify | rate | origin | too-large | send` (400, 403, 429, 403, 413, 502) when `Accept` includes `application/json`; otherwise `303` to `CONTACT_REDIRECTS.sent` or `CONTACT_REDIRECTS.notSent`. A filled honeypot (`spam: true`) gets the same answer as a success and sends nothing.
 
 - [ ] **Step 1: Write the failing Worker test**
 
 ```ts
 // site/tests/worker/contact.test.ts
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { CONTACT_FIELDS as F, CONTACT_REDIRECTS } from "../../src/lib/contact";
 import { handleContact, type ContactDeps, type ContactEnv, type OutgoingEmail } from "../../src/lib/contact/handler";
 
 const ORIGIN = "https://dins.dev";
@@ -1107,7 +1069,10 @@ function post(fields: Record<string, string>, opts: { json?: boolean; origin?: s
     },
   });
 }
-const good = { message: "Hi Din, about a data role.", email: "ada@example.com", name: "Ada", reason: "admissions", "cf-turnstile-response": "tok", website: "" };
+const good = {
+  [F.message]: "Hi Din, about a data role.", [F.email]: "ada@example.com", [F.name]: "Ada",
+  [F.reason]: "admissions", [F.turnstile]: "tok", [F.honeypot]: "",
+};
 
 describe("POST /api/contact", () => {
   it("sends one plain-text email to CONTACT_TO with the visitor as reply-to", async () => {
@@ -1121,21 +1086,24 @@ describe("POST /api/contact", () => {
     expect(sent[0].subject).toBe("Letter from dins.dev: Admissions");
     expect(sent[0].text).toContain("Hi Din, about a data role.");
   });
-  it("redirects to /contact/sent/ for a no-JavaScript post", async () => {
+  it("redirects to the sent page for a no-JavaScript post", async () => {
     const res = await handleContact(post(good, { json: false }), env, deps);
     expect(res.status).toBe(303);
-    expect(res.headers.get("location")).toBe("/contact/sent/");
+    expect(res.headers.get("location")).toBe(CONTACT_REDIRECTS.sent);
   });
-  it("returns field errors and sends nothing for an invalid letter", async () => {
-    const res = await handleContact(post({ ...good, email: "nope" }), env, deps);
+  it("returns M1's field errors and sends nothing for an invalid letter", async () => {
+    const res = await handleContact(post({ ...good, [F.email]: "nope" }), env, deps);
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ ok: false, code: "invalid", errors: { email: "Add an email so I can reply." } });
+    const body = await res.json();
+    expect(body.ok).toBe(false);
+    expect(body.code).toBe("invalid");
+    expect(body.errors.email).toEqual(expect.any(String));
     expect(sent).toHaveLength(0);
   });
-  it("treats a missing Turnstile token (JavaScript off) as unverified and points to the fallback page", async () => {
-    const res = await handleContact(post({ ...good, "cf-turnstile-response": "" }, { json: false }), env, deps);
+  it("treats a missing Turnstile token (JavaScript off) as unverified and points to the not-sent page", async () => {
+    const res = await handleContact(post({ ...good, [F.turnstile]: "" }, { json: false }), env, deps);
     expect(res.status).toBe(303);
-    expect(res.headers.get("location")).toBe("/contact/not-sent/");
+    expect(res.headers.get("location")).toBe(CONTACT_REDIRECTS.notSent);
     expect(deps.verify).not.toHaveBeenCalled();
     expect(sent).toHaveLength(0);
   });
@@ -1152,9 +1120,10 @@ describe("POST /api/contact", () => {
     expect(res.status).toBe(429);
     expect(deps.verify).not.toHaveBeenCalled();
   });
-  it("pretends success for a filled honeypot and sends nothing", async () => {
-    const res = await handleContact(post({ ...good, website: "http://spam.example" }), env, deps);
+  it("answers a filled honeypot like a success and sends nothing", async () => {
+    const res = await handleContact(post({ ...good, [F.honeypot]: "http://spam.example" }), env, deps);
     expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
     expect(sent).toHaveLength(0);
   });
   it("rejects a cross-origin post", async () => {
@@ -1163,7 +1132,7 @@ describe("POST /api/contact", () => {
     expect((await res.json()).code).toBe("origin");
   });
   it("rejects a body over 16 KB", async () => {
-    const res = await handleContact(post({}, { body: new URLSearchParams({ ...good, message: "a".repeat(17000) }) }), env, deps);
+    const res = await handleContact(post({}, { body: new URLSearchParams({ ...good, [F.message]: "a".repeat(17000) }) }), env, deps);
     expect(res.status).toBe(413);
     expect(sent).toHaveLength(0);
   });
@@ -1177,7 +1146,7 @@ describe("POST /api/contact", () => {
     await handleContact(post(good), env, deps);
     env.EMAIL.send = async () => { throw Object.assign(new Error("ada@example.com"), { code: "E_X" }); };
     await handleContact(post(good), env, deps);
-    await handleContact(post({ ...good, email: "bad" }), env, deps);
+    await handleContact(post({ ...good, [F.email]: "bad" }), env, deps);
     const all = logs.join("\n");
     for (const secret of ["ada@example.com", "Hi Din", "Ada", "203.0.113.9"]) expect(all).not.toContain(secret);
   });
@@ -1187,14 +1156,14 @@ describe("POST /api/contact", () => {
 - [ ] **Step 2: Run it to verify it fails**
 
 Run: `pnpm --dir site exec vitest run tests/worker/contact.test.ts`
-Expected: FAIL, module not found.
+Expected: FAIL, cannot resolve `../../src/lib/contact/handler`.
 
 - [ ] **Step 3: Write the handler**
 
 ```ts
 // site/src/lib/contact/handler.ts
 // The letter's endpoint. Messages are emailed and never stored or logged (PRD section 6).
-import { parseContact, REASON_LABELS } from "./parse";
+import { CONTACT_FIELDS, CONTACT_REDIRECTS, parseContact, REASONS } from "../contact";
 
 export interface OutgoingEmail {
   to: string;
@@ -1219,12 +1188,12 @@ const STATUS: Record<Code, number> = { invalid: 400, verify: 403, rate: 429, ori
 
 export async function handleContact(request: Request, env: ContactEnv, deps: ContactDeps): Promise<Response> {
   const wantsJson = (request.headers.get("accept") ?? "").includes("application/json");
-  const ok = () => (wantsJson ? Response.json({ ok: true }) : redirect("/contact/sent/"));
+  const ok = () => (wantsJson ? Response.json({ ok: true }) : redirect(CONTACT_REDIRECTS.sent));
   const fail = (code: Code, errors?: Record<string, string>) => {
     deps.log("contact_rejected", { code });
     return wantsJson
       ? Response.json({ ok: false, code, ...(errors ? { errors } : {}) }, { status: STATUS[code] })
-      : redirect("/contact/not-sent/");
+      : redirect(CONTACT_REDIRECTS.notSent);
   };
 
   const origin = request.headers.get("origin");
@@ -1239,27 +1208,29 @@ export async function handleContact(request: Request, env: ContactEnv, deps: Con
     return fail("invalid");
   }
   const parsed = parseContact(form);
-  if (!parsed.ok) return fail("invalid", parsed.errors);
-  const letter = parsed.value;
-  if (letter.honeypot) {
-    deps.log("contact_honeypot");
-    return ok();
+  if (!parsed.ok) {
+    if (parsed.spam) {
+      deps.log("contact_honeypot");
+      return ok();
+    }
+    return fail("invalid", parsed.errors);
   }
+  const letter = parsed.value;
+  const token = String(form.get(CONTACT_FIELDS.turnstile) ?? "");
 
   const ip = request.headers.get("cf-connecting-ip");
   const { success } = await env.CONTACT_LIMITER.limit({ key: ip ?? "unknown" });
   if (!success) return fail("rate");
-  if (!letter.token || !(await deps.verify(letter.token, ip))) return fail("verify");
+  if (!token || !(await deps.verify(token, ip))) return fail("verify");
 
-  const reason = REASON_LABELS[letter.reason];
-  const from = letter.name ? `${letter.name} <${letter.email}>` : letter.email;
+  const reason = REASONS.find((r) => r.value === letter.reason)?.label ?? letter.reason;
   try {
     await env.EMAIL.send({
       to: env.CONTACT_TO,
       from: { email: "letters@dins.dev", name: "dins.dev letters" },
-      replyTo: letter.name ? { email: letter.email, name: letter.name } : { email: letter.email },
+      replyTo: { email: letter.email, name: letter.name },
       subject: `Letter from dins.dev: ${reason}`,
-      text: `Reason: ${reason}\nFrom: ${from}\n\n${letter.message}\n`,
+      text: `Reason: ${reason}\nFrom: ${letter.name} <${letter.email}>\n\n${letter.message}\n`,
     });
   } catch (err) {
     deps.log("contact_send_failed", { code: String((err as { code?: string }).code ?? "unknown") });
@@ -1274,6 +1245,8 @@ function redirect(location: string): Response {
 }
 ```
 
+The subject never contains anything the visitor typed, so there is nothing to inject into it.
+
 - [ ] **Step 4: Run it to verify it passes**
 
 Run: `pnpm --dir site exec vitest run tests/worker/contact.test.ts`
@@ -1282,26 +1255,7 @@ Expected: PASS (11 tests).
 - [ ] **Step 5: Create `verifyTurnstile` only if M3 has not**
 
 Run: `test -f site/src/lib/turnstile.ts && echo exists || echo create`
-If `create`: write the module and its unit test with a fake `fetcher`.
-
-```ts
-// site/src/lib/turnstile.ts
-export async function verifyTurnstile(o: {
-  token: string; secret: string; remoteip?: string; action?: string; fetcher?: typeof fetch;
-}): Promise<{ ok: boolean; codes: string[] }> {
-  if (!o.token || o.token.length > 2048) return { ok: false, codes: ["missing-or-long-token"] };
-  const body = new URLSearchParams({ secret: o.secret, response: o.token });
-  if (o.remoteip) body.set("remoteip", o.remoteip);
-  try {
-    const res = await (o.fetcher ?? fetch)("https://challenges.cloudflare.com/turnstile/v0/siteverify", { method: "POST", body });
-    const data = (await res.json()) as { success?: boolean; action?: string; "error-codes"?: string[] };
-    const actionOk = !o.action || data.action === o.action;
-    return { ok: Boolean(data.success) && actionOk, codes: data["error-codes"] ?? (actionOk ? [] : ["action-mismatch"]) };
-  } catch {
-    return { ok: false, codes: ["siteverify-unreachable"] };
-  }
-}
-```
+If `create`, write it with the contract's signature, test first:
 
 ```ts
 // site/tests/unit/turnstile.test.ts
@@ -1309,25 +1263,56 @@ import { describe, expect, it } from "vitest";
 import { verifyTurnstile } from "../../src/lib/turnstile";
 
 const fake = (json: unknown) => (async () => new Response(JSON.stringify(json))) as unknown as typeof fetch;
+const base = { secret: "s", remoteip: undefined, hostnames: ["dins.dev"], timeoutMs: 3000 };
 
 describe("verifyTurnstile", () => {
-  it("passes on success with the right action", async () => {
-    expect((await verifyTurnstile({ token: "t", secret: "s", action: "contact", fetcher: fake({ success: true, action: "contact" }) })).ok).toBe(true);
+  it("passes on success with the right action and hostname", async () => {
+    const r = await verifyTurnstile({ ...base, token: "t", action: "contact", fetcher: fake({ success: true, action: "contact", hostname: "dins.dev" }) });
+    expect(r.ok).toBe(true);
   });
   it("fails on a different action", async () => {
-    expect((await verifyTurnstile({ token: "t", secret: "s", action: "contact", fetcher: fake({ success: true, action: "ask" }) })).ok).toBe(false);
+    const r = await verifyTurnstile({ ...base, token: "t", action: "contact", fetcher: fake({ success: true, action: "ask", hostname: "dins.dev" }) });
+    expect(r.ok).toBe(false);
+  });
+  it("fails on an unexpected hostname", async () => {
+    const r = await verifyTurnstile({ ...base, token: "t", action: "contact", fetcher: fake({ success: true, action: "contact", hostname: "evil.example" }) });
+    expect(r.ok).toBe(false);
   });
   it("fails without calling out on an empty token", async () => {
-    expect((await verifyTurnstile({ token: "", secret: "s", fetcher: fake({ success: true }) })).ok).toBe(false);
+    expect((await verifyTurnstile({ ...base, token: "", action: "contact", fetcher: fake({ success: true }) })).ok).toBe(false);
   });
   it("fails closed when siteverify is unreachable", async () => {
     const down = (async () => { throw new Error("down"); }) as unknown as typeof fetch;
-    expect((await verifyTurnstile({ token: "t", secret: "s", fetcher: down })).ok).toBe(false);
+    expect((await verifyTurnstile({ ...base, token: "t", action: "contact", fetcher: down })).ok).toBe(false);
   });
 });
 ```
 
-Run: `pnpm --dir site exec vitest run tests/unit/turnstile.test.ts` (FAIL first if written test-first, then PASS, 4 tests).
+```ts
+// site/src/lib/turnstile.ts
+export async function verifyTurnstile(o: {
+  token: string; secret: string; remoteip?: string; action?: string;
+  hostnames?: string[]; fetcher?: typeof fetch; timeoutMs?: number;
+}): Promise<{ ok: boolean; codes: string[] }> {
+  if (!o.token || o.token.length > 2048) return { ok: false, codes: ["missing-or-long-token"] };
+  const body = new URLSearchParams({ secret: o.secret, response: o.token });
+  if (o.remoteip) body.set("remoteip", o.remoteip);
+  try {
+    const res = await (o.fetcher ?? fetch)("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "POST", body, signal: AbortSignal.timeout(o.timeoutMs ?? 3000),
+    });
+    const data = (await res.json()) as { success?: boolean; action?: string; hostname?: string; "error-codes"?: string[] };
+    const codes = [...(data["error-codes"] ?? [])];
+    if (o.action && data.action !== o.action) codes.push("action-mismatch");
+    if (o.hostnames?.length && !o.hostnames.includes(String(data.hostname))) codes.push("hostname-mismatch");
+    return { ok: Boolean(data.success) && codes.length === 0, codes };
+  } catch {
+    return { ok: false, codes: ["siteverify-unreachable"] };
+  }
+}
+```
+
+Run: `pnpm --dir site exec vitest run tests/unit/turnstile.test.ts` (FAIL before the module exists, then PASS, 5 tests).
 
 - [ ] **Step 6: Wire the route and the bindings**
 
@@ -1343,19 +1328,26 @@ export const prerender = false;
 export const POST: APIRoute = ({ request }) =>
   handleContact(request, env as unknown as ContactEnv, {
     verify: async (token, ip) =>
-      (await verifyTurnstile({ token, secret: env.TURNSTILE_SECRET_KEY, remoteip: ip ?? undefined, action: "contact" })).ok,
+      (await verifyTurnstile({
+        token,
+        secret: env.TURNSTILE_SECRET_KEY,
+        remoteip: ip ?? undefined,
+        action: "contact",
+        hostnames: String(env.TURNSTILE_EXPECTED_HOSTNAMES ?? "").split(",").map((h) => h.trim()).filter(Boolean),
+        timeoutMs: 3000,
+      })).ok,
     log: (event, data) => console.log(JSON.stringify({ event, ...data })),
   });
 ```
 
-Add to `site/wrangler.jsonc`, at the top level and again inside `env.preview` (bindings are not inherited by environments):
+Add to `site/wrangler.jsonc` at the top level **and again inside the `previews` block** (the contract: every binding and var is declared in both places; there is no `env.preview`):
 
 ```jsonc
 "send_email": [{ "name": "EMAIL" }],
 "ratelimits": [{ "name": "CONTACT_LIMITER", "namespace_id": "2001", "simple": { "limit": 3, "period": 60 } }]
 ```
 
-No `destination_address` in the file: the recipient comes from the `CONTACT_TO` secret, so Din's personal inbox never lands in this public repo. `namespace_id` must differ from M3's limiter; check `grep namespace_id site/wrangler.jsonc` and pick the next free integer.
+No `destination_address` in the file: the recipient comes from the `CONTACT_TO` secret, so Din's personal inbox never lands in this public repo. `namespace_id` must differ from M3's limiter; check `grep namespace_id site/wrangler.jsonc` and pick the next free integer. `TURNSTILE_EXPECTED_HOSTNAMES` is M3's var and already in both places.
 
 Add to `site/.dev.vars.example` (the real `.dev.vars` stays gitignored):
 
@@ -1364,7 +1356,7 @@ CONTACT_TO=din@dins.dev
 TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
 ```
 
-The site key for local and preview is Cloudflare's always-pass test key `1x00000000000000000000AA` (`PUBLIC_TURNSTILE_SITE_KEY`), shared with M3.
+The local and preview site key is Cloudflare's always-pass test key (`TURNSTILE_TEST_SITEKEY`, `1x00000000000000000000AA`), shared with M3.
 
 Then regenerate binding types: `pnpm --dir site exec wrangler types` (expected: `EMAIL`, `CONTACT_LIMITER` and `CONTACT_TO` appear in the generated `Env`).
 
@@ -1381,23 +1373,20 @@ git add site/src/lib/turnstile.ts site/tests/unit/turnstile.test.ts 2>/dev/null 
 git commit -m "feat(site): /api/contact with Turnstile, rate limit and the send_email binding"
 ```
 
-### Task 7: The plain letter (calm version) on home and `/contact`, plus the result pages
+### Task 7: The plain letter (calm version): enhance M1's form
 
 **Files:**
-- Create: `site/src/components/home/letter/Letter.astro`, `site/src/components/home/letter/letter.css`
+- Modify: `site/src/components/ContactForm.astro` (M1's): wrap it in `<div class="letter" data-letter>`, add per-field error elements, a form status line, the "Sent" panel, `data-sitekey` on the Turnstile slot and the boot script
 - Create: `site/src/lib/setpieces/letter/letter-enhance.ts` (plain behaviour only in this task)
-- Create: `site/src/pages/contact/sent.astro`, `site/src/pages/contact/not-sent.astro`
-- Modify: `site/src/pages/index.astro` (contact section uses `<Letter />`), `site/src/pages/contact.astro` (same component), the sitemap filter in `site/astro.config.mjs`
+- Create only if M3 has not: `site/src/lib/turnstile-client.ts`
+- Modify only if needed: `site/src/pages/contact/not-sent.astro` (M1's). It must say that sending needs JavaScript for the spam check and carry the `mailto:din@dins.dev` link; M1's amended page should already do both. `/contact/sent/` and the sitemap need no change.
 - Test: `site/tests/e2e/letter.spec.ts`
 
 **Interfaces:**
-- Consumes: `parseContact` (Task 5), `loadTurnstile()` (M3, or create `site/src/lib/turnstile-client.ts` with that signature: injects `https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit` once and resolves `window.turnstile`), `bootPiece` (Task 3).
-- Produces: `Letter.astro` markup contract used by Task 22:
-  - `<section id="contact" class="letter-section" data-piece="letter">` containing `<form class="letter" method="post" action="/api/contact" novalidate>`.
-  - Fields: `<textarea name="message" id="letter-message" required maxlength="4000">` with a visible label "Message" (visually styled as the "Dear Din," salutation line, label kept for screen readers), `<fieldset class="reasons"><legend>What is it about?</legend>` with three `<input type="radio" name="reason" value="role|admissions|hi">` (role checked), `<input name="name" id="letter-name" autocomplete="name">` labelled "Your name", `<input name="email" id="letter-email" type="email" autocomplete="email" required>` labelled "Your email" (labels visually hidden behind the "From" row, never placeholder-only), a hidden honeypot `<div class="hp" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div>`, a `<div class="turnstile" data-sitekey={PUBLIC_TURNSTILE_SITE_KEY}>`, per-field error elements `#letter-message-error` and `#letter-email-error` wired with `aria-describedby`, a form-level `<p class="letter-status" role="status">`, and `<button type="submit" class="seal">Seal and send</button>`.
-  - `<noscript><p>Sending needs JavaScript for a spam check. You can also write to <a href="mailto:din@dins.dev">din@dins.dev</a>.</p></noscript>`.
-  - A success panel `<div class="letter-sent" hidden><h3 tabindex="-1">Sent. Thank you.</h3><p>I’ll reply to the email you gave.</p><button type="button" class="again">Write another</button></div>`.
-- `letter-enhance.ts` exports `enhance(section: HTMLElement): void`, booted with `bootPiece(section, () => import(...), { needsFull: false })` (the form behaviour is needed in calm mode too).
+- Consumes: `parseContact`, `CONTACT_FIELDS` (M1); `loadTurnstile()`, `siteKey()` (M3, or this task); `bootPiece` (Task 3).
+- Produces:
+  - Markup additions inside M1's form: `#c-message-error`, `#c-name-error`, `#c-email-error` (each `<p class="field-error">`, referenced from the field's `aria-describedby`, keeping M1's existing ids such as `salute`), `<p class="letter-status" role="status">`, and `data-sitekey={siteKey()}` on `[data-turnstile-slot]`. After the form, inside the wrapper: `<div class="letter-sent" hidden><h3 tabindex="-1">Sent. Thank you.</h3><p>I’ll reply to the email you gave.</p><button type="button" class="again">Write another</button></div>`.
+  - `letter-enhance.ts` exports `enhance(letter: HTMLElement): void` (the `[data-letter]` wrapper), booted with `bootPiece(el, () => import(...), { needsFull: false })`, because the form behaviour is needed in calm mode too. The same component serves the home `#contact` section and `/contact`, so the enhancer never looks outside its wrapper.
 
 - [ ] **Step 1: Write the failing e2e test**
 
@@ -1405,28 +1394,33 @@ git commit -m "feat(site): /api/contact with Turnstile, rate limit and the send_
 // site/tests/e2e/letter.spec.ts
 import { expect, test } from "@playwright/test";
 
+async function fill(page: import("@playwright/test").Page, message = "Hi Din, a test letter.") {
+  await page.getByLabel("Message").fill(message);
+  await page.getByLabel("Your name").fill("Ada");
+  await page.getByLabel("Your email").fill("ada@example.com");
+}
+
 test("the letter is a real labelled form", async ({ page }) => {
-  await page.goto("/contact");
+  await page.goto("/contact/");
   await expect(page.getByLabel("Message")).toBeVisible();
-  await expect(page.getByRole("group", { name: "What is it about?" })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Why are you writing?" })).toBeVisible();
   await expect(page.getByRole("radio", { name: "A role" })).toBeChecked();
   await expect(page.getByLabel("Your email")).toBeVisible();
   await expect(page.getByRole("button", { name: "Seal and send" })).toBeVisible();
 });
 
 test("shows field errors and focuses the first invalid field", async ({ page }) => {
-  await page.goto("/contact");
+  await page.goto("/contact/");
   await page.getByRole("button", { name: "Seal and send" }).click();
-  await expect(page.getByText("Write a few words first.")).toBeVisible();
+  await expect(page.locator("#c-message-error")).not.toBeEmpty();
   await expect(page.getByLabel("Message")).toBeFocused();
   await expect(page.getByLabel("Message")).toHaveAttribute("aria-invalid", "true");
 });
 
 test("sends with JavaScript and announces success", async ({ page }) => {
   await page.route("**/api/contact", (r) => r.fulfill({ json: { ok: true } }));
-  await page.goto("/contact");
-  await page.getByLabel("Message").fill("Hi Din, a test letter.");
-  await page.getByLabel("Your email").fill("ada@example.com");
+  await page.goto("/contact/");
+  await fill(page);
   await page.getByRole("button", { name: "Seal and send" }).click();
   await expect(page.getByRole("heading", { name: "Sent. Thank you." })).toBeFocused();
   await page.getByRole("button", { name: "Write another" }).click();
@@ -1435,9 +1429,8 @@ test("sends with JavaScript and announces success", async ({ page }) => {
 
 test("keeps the letter and explains when sending fails", async ({ page }) => {
   await page.route("**/api/contact", (r) => r.fulfill({ status: 502, json: { ok: false, code: "send" } }));
-  await page.goto("/contact");
-  await page.getByLabel("Message").fill("Hi Din.");
-  await page.getByLabel("Your email").fill("ada@example.com");
+  await page.goto("/contact/");
+  await fill(page, "Hi Din.");
   await page.getByRole("button", { name: "Seal and send" }).click();
   await expect(page.locator(".letter-status")).toContainText("din@dins.dev");
   await expect(page.getByLabel("Message")).toHaveValue("Hi Din.");
@@ -1445,10 +1438,9 @@ test("keeps the letter and explains when sending fails", async ({ page }) => {
 
 test.describe("without JavaScript", () => {
   test.use({ javaScriptEnabled: false });
-  test("still submits, and lands on the fallback page with Din's email", async ({ page }) => {
-    await page.goto("/contact");
-    await page.getByLabel("Message").fill("Hi Din, no JS here.");
-    await page.getByLabel("Your email").fill("ada@example.com");
+  test("still submits, and lands on the not-sent page with Din's email", async ({ page }) => {
+    await page.goto("/contact/");
+    await fill(page, "Hi Din, no JS here.");
     await page.getByRole("button", { name: "Seal and send" }).click();
     await expect(page).toHaveURL(/\/contact\/not-sent\/$/);
     await expect(page.getByRole("link", { name: "din@dins.dev" })).toBeVisible();
@@ -1459,43 +1451,73 @@ test.describe("without JavaScript", () => {
 - [ ] **Step 2: Run it to verify it fails**
 
 Run: `pnpm --dir site test:e2e tests/e2e/letter.spec.ts`
-Expected: FAIL (labels and pages not found).
+Expected: the error, success and failure tests FAIL (no error elements, no enhancer); the labelled-form test may already pass on M1's form; the no-JS test passes once Task 6 is in.
 
-- [ ] **Step 3: Build the component, the enhancer's plain behaviour and the two pages**
+- [ ] **Step 3: Add the markup, the enhancer's plain behaviour and, if needed, the Turnstile loader**
 
-`Letter.astro` renders the markup contract above with the sketch's paper look (surface card, ruled lines as a static background on the textarea, "Dear Din," in Fraunces at H3, "From" row) and no motion. `letter.css` uses tokens only; the reason radios are visually chips (the input is visually hidden but focusable; `:focus-visible + span` shows the teal ring; checked uses `--color-accent-soft` background and `--color-accent` text). Transitions are limited to `opacity` and `transform` (no `transition: all`).
+`ContactForm.astro` keeps M1's fields and copy. The additions are the wrapper, the error elements, the status line, the sent panel, `data-sitekey` and this boot script:
 
-`letter-enhance.ts` in this task:
+```astro
+<script>
+  import { bootPiece } from "../lib/setpieces/lazy";
+  for (const el of document.querySelectorAll<HTMLElement>("[data-letter]"))
+    bootPiece(el, () => import("../lib/setpieces/letter/letter-enhance"), { needsFull: false });
+</script>
+```
+
+Styles: M1's tokens-only styles stay. M4 adds `.field-error` (muted red is not a brand color, so errors use `--color-ink` with a teal left rule and the text itself), `.letter-status`, and the reason chips' `:focus-visible` teal ring on the label when the radio has focus. Transitions only on `opacity` and `transform`.
 
 ```ts
 // site/src/lib/setpieces/letter/letter-enhance.ts
-import { parseContact, type ContactField } from "../../contact/parse";
+import { CONTACT_FIELDS as F, parseContact } from "../../contact";
 import { loadTurnstile } from "../../turnstile-client";
 
-export function enhance(section: HTMLElement): void {
-  const form = section.querySelector<HTMLFormElement>("form.letter")!;
+type FieldErrors = Partial<Record<"message" | "name" | "email", string>>;
+const FAIL = "That didn’t go through. Try again in a minute, or write to din@dins.dev.";
+
+export function enhance(letter: HTMLElement): void {
+  const form = letter.querySelector<HTMLFormElement>("form[data-letter-form]")!;
   const status = form.querySelector<HTMLElement>(".letter-status")!;
-  const sentPanel = section.querySelector<HTMLElement>(".letter-sent")!;
-  const box = form.querySelector<HTMLElement>(".turnstile")!;
+  const sentPanel = letter.querySelector<HTMLElement>(".letter-sent")!;
+  const slot = form.querySelector<HTMLElement>("[data-turnstile-slot]")!;
   let widgetId: string | undefined;
   let busy = false;
 
   loadTurnstile()
-    .then((ts) => { widgetId = ts.render(box, { sitekey: box.dataset.sitekey!, action: "contact", appearance: "interaction-only" }); })
+    .then((ts) => { widgetId = ts.render(slot, { sitekey: slot.dataset.sitekey!, action: "contact", appearance: "interaction-only" }); })
     .catch(() => { status.textContent = "The spam check did not load. You can write to din@dins.dev instead."; });
 
-  const fields: ContactField[] = ["message", "email", "name"];
-  const showErrors = (errors: Partial<Record<ContactField, string>>) => {
+  const fields = ["message", "name", "email"] as const;
+  const showErrors = (errors: FieldErrors) => {
     for (const f of fields) {
-      const input = form.elements.namedItem(f) as HTMLInputElement | null;
-      const err = section.querySelector<HTMLElement>(`#letter-${f}-error`);
+      const input = form.elements.namedItem(F[f]) as HTMLInputElement | null;
+      const err = form.querySelector<HTMLElement>(`#c-${f}-error`);
       if (!input || !err) continue;
       err.textContent = errors[f] ?? "";
       if (errors[f]) input.setAttribute("aria-invalid", "true");
       else input.removeAttribute("aria-invalid");
     }
     const first = fields.find((f) => errors[f]);
-    if (first) (form.elements.namedItem(first) as HTMLElement).focus();
+    if (first) (form.elements.namedItem(F[first]) as HTMLElement).focus();
+  };
+  const showStatus = (text: string) => { status.textContent = text; };
+  const showSentPanel = () => {
+    showStatus("");
+    form.hidden = true;
+    sentPanel.hidden = false;
+    sentPanel.querySelector<HTMLElement>("h3")!.focus();
+  };
+  const send = async (data: FormData): Promise<{ ok: boolean; message: string; errors?: FieldErrors }> => {
+    try {
+      const res = await fetch(form.action, { method: "POST", body: data, headers: { accept: "application/json" } });
+      const body = (await res.json().catch(() => ({}))) as { ok?: boolean; errors?: FieldErrors };
+      if (res.ok && body.ok) return { ok: true, message: "" };
+      return { ok: false, message: FAIL, errors: body.errors };
+    } catch {
+      return { ok: false, message: FAIL };
+    } finally {
+      if (widgetId !== undefined) window.turnstile?.reset(widgetId);
+    }
   };
 
   form.addEventListener("submit", async (e) => {
@@ -1503,75 +1525,81 @@ export function enhance(section: HTMLElement): void {
     if (busy) return;
     const data = new FormData(form);
     const parsed = parseContact(data);
-    if (!parsed.ok) return showErrors(parsed.errors);
+    if (!parsed.ok) {
+      if (parsed.spam) return showSentPanel(); // a bot filled the honeypot: pretend, send nothing
+      return showErrors(parsed.errors);
+    }
     showErrors({});
     busy = true;
     form.setAttribute("aria-busy", "true");
-    status.textContent = "Sending.";
-    try {
-      const res = await fetch(form.action, { method: "POST", body: data, headers: { accept: "application/json" } });
-      const body = (await res.json().catch(() => ({}))) as { ok?: boolean; errors?: Partial<Record<ContactField, string>> };
-      if (res.ok && body.ok) {
-        status.textContent = "";
-        form.hidden = true;
-        sentPanel.hidden = false;
-        sentPanel.querySelector<HTMLElement>("h3")!.focus();
-      } else if (body.errors) {
-        status.textContent = "";
-        showErrors(body.errors);
-      } else {
-        status.textContent = "That didn’t go through. Try again in a minute, or write to din@dins.dev.";
-      }
-    } catch {
-      status.textContent = "That didn’t go through. Try again in a minute, or write to din@dins.dev.";
-    } finally {
-      busy = false;
-      form.removeAttribute("aria-busy");
-      if (widgetId !== undefined) window.turnstile?.reset(widgetId);
-    }
+    showStatus("Sending.");
+    const result = await send(data);
+    busy = false;
+    form.removeAttribute("aria-busy");
+    if (result.ok) showSentPanel();
+    else if (result.errors) { showStatus(""); showErrors(result.errors); }
+    else showStatus(result.message);
   });
 
   sentPanel.querySelector(".again")!.addEventListener("click", () => {
     form.reset();
     sentPanel.hidden = true;
     form.hidden = false;
-    (form.elements.namedItem("message") as HTMLElement).focus();
+    (form.elements.namedItem(F.message) as HTMLElement).focus();
   });
 }
 ```
 
-Boot it from `Letter.astro`:
+If `site/src/lib/turnstile-client.ts` does not exist yet, create it with the contract's names:
 
-```astro
-<script>
-  import { bootPiece } from "../../../lib/setpieces/lazy";
-  const el = document.querySelector<HTMLElement>('[data-piece="letter"]');
-  if (el) bootPiece(el, () => import("../../../lib/setpieces/letter/letter-enhance"), { needsFull: false });
-</script>
+```ts
+// site/src/lib/turnstile-client.ts
+export const TURNSTILE_TEST_SITEKEY = "1x00000000000000000000AA";
+export interface TurnstileApi {
+  render(el: HTMLElement, opts: Record<string, unknown>): string;
+  reset(id?: string): void;
+}
+declare global { interface Window { turnstile?: TurnstileApi } }
+
+export function siteKey(): string {
+  return import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || TURNSTILE_TEST_SITEKEY;
+}
+
+let loading: Promise<TurnstileApi> | undefined;
+export function loadTurnstile(): Promise<TurnstileApi> {
+  if (window.turnstile) return Promise.resolve(window.turnstile);
+  loading ??= new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+    s.async = true;
+    s.onload = () => (window.turnstile ? resolve(window.turnstile) : reject(new Error("turnstile missing")));
+    s.onerror = () => { loading = undefined; reject(new Error("turnstile failed to load")); };
+    document.head.append(s);
+  });
+  return loading;
+}
 ```
 
-`sent.astro` ("Sent. Thank you." plus a link home) and `not-sent.astro` ("The letter didn’t go through. The spam check needs JavaScript, or something went wrong on my side. Write to me at din@dins.dev, or go back and try again." with a `mailto:` link) use the base layout with `<meta name="robots" content="noindex">`. Exclude both from the sitemap with the integration's `filter`.
+The e2e "sends with JavaScript" test routes `/api/contact`, so it does not depend on Turnstile; the widget itself is exercised on the preview in Task 22 with the always-pass test key.
 
-The e2e "sends with JavaScript" test routes `/api/contact`, so it does not need Turnstile to pass; the Turnstile widget itself is exercised in Task 23 against the preview with the always-pass test key.
+- [ ] **Step 4: Run the e2e test and M1's contact specs**
 
-- [ ] **Step 4: Run the e2e test**
-
-Run: `pnpm --dir site build && pnpm --dir site test:e2e tests/e2e/letter.spec.ts`
-Expected: PASS (5 tests).
+Run: `pnpm --dir site build && pnpm --dir site test:e2e tests/e2e/letter.spec.ts && pnpm --dir site test:e2e --grep contact`
+Expected: PASS (5 letter tests, M1's contact specs unchanged and green).
 
 - [ ] **Step 5: Run everything and commit**
 
-Run: `./check.sh` (expected green, budget unchanged except the small letter stub).
+Run: `./check.sh` (expected green, budget unchanged except the small letter boot stub).
 
 ```bash
-git add site/src/components/home/letter site/src/lib/setpieces/letter/letter-enhance.ts site/src/pages/contact site/src/pages/index.astro site/src/pages/contact.astro site/astro.config.mjs site/tests/e2e/letter.spec.ts
-git add site/src/lib/turnstile-client.ts 2>/dev/null || true
-git commit -m "feat(site): the plain letter form on home and /contact"
+git add site/src/components/ContactForm.astro site/src/lib/setpieces/letter/letter-enhance.ts site/tests/e2e/letter.spec.ts
+git add site/src/lib/turnstile-client.ts site/src/pages/contact/not-sent.astro 2>/dev/null || true
+git commit -m "feat(site): enhance the letter form with Turnstile and inline errors"
 ```
 
 - [ ] **Step 6: Foundation PR**
 
-Ask Din for the go to push `feat/m4-set-pieces` and open the PR "M4 foundation and contact delivery". After Din has set `CONTACT_TO` with `pnpm --dir site exec wrangler secret put CONTACT_TO --env preview`, send one real letter on the preview and confirm it reaches Din's inbox. If Cloudflare returns `E_RECIPIENT_NOT_ALLOWED` for `din@dins.dev`, see Open question 2. Record the result in the ledger.
+Ask Din for the go to push `feat/m4-set-pieces` and open the PR "M4 foundation and contact delivery". After Din has set `CONTACT_TO` with `pnpm --dir site exec wrangler secret put CONTACT_TO` (secrets belong to the Worker, so preview versions use the same value; confirm against M0's `previews` setup), send one real letter on the preview and confirm it reaches Din's inbox. If Cloudflare returns `E_RECIPIENT_NOT_ALLOWED` for `din@dins.dev`, follow decision 2: set `CONTACT_TO` to Din's verified inbox. Record the result in the ledger.
 
 ---
 
@@ -1898,7 +1926,7 @@ git commit -m "feat(site): letter field model with words, heat and sweep"
 **Files:**
 - Create: `site/src/lib/setpieces/field/renderer.ts`, `site/src/lib/setpieces/field/ask-bridge.ts`, `site/src/lib/setpieces/field/field-enhance.ts`
 - Create: `site/src/components/home/LetterField.astro`, `site/src/components/home/letter-field.css`
-- Modify: the hero component from M1 (render `<LetterField />` as the first child of the hero, behind the content)
+- Modify: `site/src/pages/index.astro` (render `<LetterField />` as the first child of M1's `<header id="top" data-setpiece="lens">`, behind the content)
 - Test: `site/tests/e2e/setpieces-loading.spec.ts` (first two tests)
 
 **Interfaces:**
@@ -1906,7 +1934,7 @@ git commit -m "feat(site): letter field model with words, heat and sweep"
 - Produces: `onAskState(fn: (phase: string) => void): () => void` in `ask-bridge.ts` (listens to `window` `ask:state`); `startField(canvas: HTMLCanvasElement, words: string[]): { stop(): void }` in `renderer.ts`; `enhance(section)` in `field-enhance.ts`.
 
 Implementation notes (visual work; Din judges it in the preview):
-- `LetterField.astro` frontmatter: `const enabled = pieceEnabled("lens")`; if false, render nothing. Else `getCollection("library", (e) => Boolean(e.data.approved_on) && !e.data.sample)`, `extractFieldWords(entries.map((e) => e.body ?? ""))`; if that yields fewer than 20 words, add words from published projects' `title` and `stack`. Render `<canvas class="letter-field" aria-hidden="true" data-piece="field" data-words={JSON.stringify(words)}></canvas>` positioned `absolute; inset: 0; pointer-events: none; z-index: 0` inside the hero (not fixed to the window), plus the boot script `bootPiece(el, () => import(".../field-enhance"))` (needs full motion).
+- `LetterField.astro` frontmatter: `const enabled = pieceEnabled("lens")`; if false, render nothing. Else `getCollection("library", (e) => Boolean(e.data.approved_on) && !e.data.sample)`, `extractFieldWords(entries.map((e) => e.body ?? ""))`; if that yields fewer than 20 words, add words from published projects' `title` and `stack`. Render `<canvas class="letter-field" aria-hidden="true" data-words={JSON.stringify(words)}></canvas>` (found by its class; `data-setpiece="lens"` stays on M1's header) positioned `absolute; inset: 0; pointer-events: none; z-index: 0` inside the hero (not fixed to the window), plus the boot script `bootPiece(el, () => import(".../field-enhance"))` (needs full motion).
 - Calm version: no canvas script at all, so the hero shows plain paper. (A static faint field was considered; plain paper is calmer and costs nothing.)
 - Renderer: wait for `document.fonts.load('500 12px "JetBrains Mono"')` (with a 1.5 s timeout, then the fallback mono). Build two glyph atlases (ink at 0.055 alpha base, accent) on an `OffscreenCanvas` when available, else a detached canvas, once per theme; rebuild on `data-theme` attribute changes and on the `prefers-color-scheme` media change. Cell 18 px on wide screens, 22 px under 760 px. DPR capped at 2. Each frame: `stepField`, plus `flicker(6)` only while the last pointer or touch was under `FLICKER_IDLE_MS` ago, then for each dirty index `clearRect` the cell and `drawImage` the glyph from the matching atlas with `globalAlpha = 0.08 + heat * 0.55` for hot cells. The loop stops itself (no `requestAnimationFrame`) when there is no recent input, no sweep and `warm` is empty, and restarts on `pointermove`, `pointerdown` or an `ask:state` "retrieving". An IntersectionObserver stops it when the hero is off screen; `visibilitychange` stops it in hidden tabs. `ResizeObserver` (debounced 150 ms) rebuilds the field and redraws everything once.
 - Touch: a `pointerdown` with `pointerType === "touch"` sets the pointer for 1.2 s, then clears it, so the words bloom where the visitor tapped and fade.
@@ -1984,7 +2012,8 @@ git commit -m "feat(site): letter field canvas behind the hero"
 
 **Files:**
 - Create: `site/src/components/home/LensIntro.astro`, `site/src/components/home/lens-intro.css`
-- Modify: `site/src/components/home/MotionHead.astro` (also set `data-intro="play"`), `site/src/layouts/BaseLayout.astro` (wrap page content in `<div class="page">` if M1 has no such wrapper), `site/src/pages/index.astro` (render `<LensIntro />` once)
+- Create: `site/src/components/home/LensIntroHead.astro` (the home-only head script, passed through BaseLayout's `<slot name="head" />`)
+- Modify: `site/src/layouts/BaseLayout.astro` (wrap page content in `<div class="page">` if M1 has no such wrapper), `site/src/pages/index.astro` (render `<LensIntroHead slot="head" />` and `<LensIntro />` once)
 - Test: `site/tests/e2e/setpieces-calm.spec.ts` (lens tests)
 
 **Interfaces:**
@@ -1992,7 +2021,7 @@ git commit -m "feat(site): letter field canvas behind the hero"
 - Produces: `<html data-intro="play">` while the intro runs (set before first paint only when motion is full, the lens piece is enabled, the page is the home page and `sessionStorage["dins:intro-seen"]` is unset); removed on `animationend` of the lens, after 1,600 ms at most, or at once on `keydown`, `wheel`, `touchstart` or `pointerdown`.
 
 Implementation notes:
-- `MotionHead.astro` takes a prop `intro: boolean` (true only on the home page and only when `pieceEnabled("lens")`); the inline script adds, inside the same try block: `if(${intro}&&mode==="full"){try{if(!sessionStorage.getItem("dins:intro-seen")){sessionStorage.setItem("dins:intro-seen","1");document.documentElement.dataset.intro="play"}}catch(e){}}`.
+- `LensIntroHead.astro` renders nothing unless `pieceEnabled("lens")`; otherwise one inline script, which runs after `MotionHead` because BaseLayout renders `MotionHead` first: `(function(){try{var d=document.documentElement,k="dins:intro-seen";if(d.dataset.motion==="full"&&!sessionStorage.getItem(k)){sessionStorage.setItem(k,"1");d.dataset.intro="play"}}catch(e){}})();`. Only the home page passes it, so no other page can play the intro.
 - `LensIntro.astro` renders `<div class="lens-intro" aria-hidden="true">` with both lens SVGs inline (light shown in light theme, dark shown in dark theme, never recolored), and an inline end script (`is:inline`, under 400 bytes) that removes `data-intro` on the events listed above.
 - CSS, all under `:root[data-intro="play"]`: the lens fades and scales in (`opacity 0 to 1`, `scale(0.92) to scale(1)`, 420 ms), then scales to 26 through the right lens (`transform-origin: 73.3% 50%`, 950 ms, the sketch's `cubic-bezier(.7,0,.2,1)`), fading in its last 30 percent. The page wrapper starts at `opacity: 0.6; transform: scale(1.035)` and settles to `opacity: 1; transform: none` over 1,000 ms with the brand ease. No `filter`. The overlay never blocks input (`pointer-events: none`), so the Ask input works during the intro.
 - First paint shows the hero content at 60 percent opacity at least, so Resume, Email, GitHub and LinkedIn are visible on first paint (PRD 2.2).
@@ -2054,7 +2083,7 @@ Expected: PASS (4 e2e, motion guard PASS).
 - [ ] **Step 4: Commit**
 
 ```bash
-git add site/src/components/home/LensIntro.astro site/src/components/home/lens-intro.css site/src/components/home/MotionHead.astro site/src/layouts/BaseLayout.astro site/src/pages/index.astro site/tests/e2e/setpieces-calm.spec.ts
+git add site/src/components/home/LensIntro.astro site/src/components/home/LensIntroHead.astro site/src/components/home/lens-intro.css site/src/layouts/BaseLayout.astro site/src/pages/index.astro site/tests/e2e/setpieces-calm.spec.ts
 git commit -m "feat(site): lens intro through Ottie's right lens"
 ```
 
@@ -2226,22 +2255,22 @@ git commit -m "feat(site): project stage pose math"
 **Files:**
 - Create: `site/src/components/home/WorkStage.astro`, `site/src/components/home/work-stage.css`
 - Create: `site/src/lib/setpieces/stage/stage-enhance.ts`
-- Modify: `site/src/pages/index.astro` (work section uses `<WorkStage />`), global styles (`overflow-x: clip` on `html, body` if missing)
+- Modify: `site/src/pages/index.astro` (inside M1's `<section id="work" data-setpiece="windows">`, the `featured.length` branch renders `<WorkStage projects={featured} />` instead of M1's card grid; M1's heading, empty note and "All work" link stay), `site/src/styles/global.css` (`overflow-x: clip` on `html, body` if missing)
 - Test: `site/tests/e2e/setpieces-keyboard.spec.ts`, more cases in `site/tests/e2e/setpieces-loading.spec.ts`
 
 **Interfaces:**
-- Consumes: `windowPose`, `activeIndex`, `progressForIndex`, `poseToTransform` (Task 12); `{ gsap, ScrollTrigger }` (Task 3); `bootPiece` with `guardLayout: true` (Task 3); `onMotionChange` (Task 1); `pieceEnabled("windows")` (Task 2).
+- Consumes: `windowPose`, `activeIndex`, `progressForIndex`, `poseToTransform` (Task 12); `{ gsap, ScrollTrigger }` (Task 3); `bootPiece` with `guardLayout: true` (Task 3); `pieceEnabled("windows")` (Task 2); M1's `featuredProjects`, `getVisibleProjects`, `ProjectWindow` and `KIND_LABELS`.
 - Produces: the markup contract:
-  - `<section id="work" class="stage" data-piece="windows" style="--n: N">` with an `<h2>` "Selected work", then `<ol class="stage-list">` of N `<li class="stage-item" data-i="i">`, each holding `<article>` with the caption (`<h3>` title, summary, tag list, `<a class="more" href="/work/<slug>">View project</a>`) and `<div class="win">` (window chrome with an `aria-hidden` `dins.dev/work/<slug>` address bar, and the stage capture: `<video muted playsinline loop preload="none" poster=... aria-label="<title> demo">` or `<img loading="lazy" decoding="async" width height alt="">`). The window is not `aria-hidden`, because the calm version's video has native controls and axe rejects focusable content inside `aria-hidden`.
+  - `WorkStage.astro` props `{ projects: CollectionEntry<"projects">[] }` (M1's `featuredProjects` output, 1 to 4). It renders `<div class="stage stage-n{N}" data-enhance="1|0">` inside M1's section (the count is a class, `stage-n2` to `stage-n4`, never a `style` attribute), then `<ol class="stage-list">` of N `<li class="stage-item" data-i="i">`, each holding `<article>` with the caption (`<h3>` title, summary, the stack as a tag list, `<a class="more" href="/work/<id>/">View project</a>`) and `<div class="win">` wrapping M1's `<ProjectWindow project={p} eager={i === 0} />` (capture image, or a `<video controls>` demo). The window is not `aria-hidden`, because the calm version's video has native controls and axe rejects focusable content inside `aria-hidden`.
   - A "Pause demos" toggle button (`aria-pressed`) shown only when any capture is a video.
   - The progress rail `<div class="rail" aria-hidden="true">` with N ticks.
-  - Classes set by the enhancer: `.is-full` on the section, `.is-active` on the active `li`, `.is-on` on the active rail tick.
+  - Classes set by the enhancer: `.is-full` and `.is-live` on `.stage`, `.is-active` on the active `li`, `.is-on` on the active rail tick.
 
-Data: `getCollection("projects", (p) => p.data.status === "published" && typeof p.data.featured === "number")`, sorted by `featured`, first 4. With 0 projects the component renders nothing (no heading, no empty section); with 1 project it renders the calm layout only and never boots the enhancer.
+Data: M1's `featuredProjects(await getVisibleProjects())` in `index.astro`. With 0 projects M1's empty note "Projects are on their way." stays and `WorkStage` is not rendered; with 1 project `WorkStage` renders `data-enhance="0"` (calm layout only, the enhancer never boots).
 
 Layout:
 - Calm (default, phones, reduced motion, JavaScript off, flag off): the `ol` is a plain list. On phones each item is the window (flat, 16:10) with the caption below it, stacked. On wider screens the calm list is two columns: caption left, window right, one row per project, with the sketch's hairline separators. Videos show their poster with native controls (no autoplay).
-- Full (only `.stage.is-full`, which the enhancer adds; the CSS also requires `@media (min-width: 761px)`): the section's height becomes `calc(var(--n) * 90vh + 100vh)`; an inner `.stage-sticky` is `position: sticky; top: 0; height: 100vh`; the list items stack in place on a 2-column grid (captions absolutely positioned in the left column, windows absolutely positioned in a `perspective: 1800px` scene on the right). Non-active captions have `opacity: 0` and `transform: translateY(18px)` with a 500 ms transition on transform and opacity only; the active caption is `opacity: 1; transform: none`.
+- Full (only `.stage.is-full`, which the enhancer adds; the CSS also requires `@media (min-width: 761px)`): the stage's height comes from its count class, `.stage.is-full.stage-n2 { height: calc(2 * 90vh + 100vh) }`, `.stage-n3` and `.stage-n4` likewise; an inner `.stage-sticky` is `position: sticky; top: 0; height: 100vh`; the list items stack in place on a 2-column grid (captions absolutely positioned in the left column, windows absolutely positioned in a `perspective: 1800px` scene on the right). Non-active captions have `opacity: 0` and `transform: translateY(18px)` with a 500 ms transition on transform and opacity only; the active caption is `opacity: 1; transform: none`.
 - Depth without blur: a window's opacity and scale come from `windowPose`; the inactive windows also get `.is-dim` (a static darker hairline and shadow, not animated).
 
 Enhancer (`stage-enhance.ts`) outline:
@@ -2251,6 +2280,7 @@ Enhancer (`stage-enhance.ts`) outline:
 import { gsap, ScrollTrigger } from "../gsap";
 import { activeIndex, poseToTransform, progressForIndex, windowPose } from "./pose";
 
+// `section` is WorkStage's `.stage` wrapper inside M1's #work section.
 export function enhance(section: HTMLElement): void {
   const items = [...section.querySelectorAll<HTMLElement>(".stage-item")];
   const wins = items.map((li) => li.querySelector<HTMLElement>(".win")!);
@@ -2263,6 +2293,7 @@ export function enhance(section: HTMLElement): void {
   const mm = gsap.matchMedia();
   mm.add("(min-width: 761px) and (prefers-reduced-motion: no-preference)", () => {
     section.classList.add("is-full");
+    videos.forEach((v) => { if (v) v.controls = false; }); // the stage plays the focused demo; "Pause demos" stops it
     ScrollTrigger.refresh();
     const state = { p: 0 };
     const apply = () => {
@@ -2303,7 +2334,7 @@ export function enhance(section: HTMLElement): void {
       section.classList.remove("is-full", "is-live");
       items.forEach((li) => li.classList.remove("is-active"));
       wins.forEach((w) => { w.style.transform = ""; w.style.opacity = ""; });
-      videos.forEach((v) => v?.pause());
+      videos.forEach((v) => { if (v) { v.pause(); v.controls = true; } });
       active = -1;
     };
   });
@@ -2384,7 +2415,7 @@ test("jumping past the stage before its script arrives keeps it calm (no jump)",
   await page.waitForTimeout(2500);
   const after = await page.evaluate(() => document.querySelector("#contact")!.getBoundingClientRect().top);
   expect(Math.abs(after - before)).toBeLessThan(1);
-  await expect(page.locator("#work")).not.toHaveClass(/is-full/);
+  await expect(page.locator("#work .stage")).not.toHaveClass(/is-full/);
 });
 
 test("phones get the flat stack with no pinning", async ({ page }) => {
@@ -2392,16 +2423,16 @@ test("phones get the flat stack with no pinning", async ({ page }) => {
   await page.goto("/");
   await page.locator("#work").scrollIntoViewIfNeeded();
   await page.waitForTimeout(1000);
-  await expect(page.locator("#work")).not.toHaveClass(/is-full/);
+  await expect(page.locator("#work .stage")).not.toHaveClass(/is-full/);
 });
 
 test("turning on reduced motion live returns the stage to the list", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   for (let y = 0; y < 6; y++) await page.mouse.wheel(0, 900);
-  await expect(page.locator("#work")).toHaveClass(/is-full/);
+  await expect(page.locator("#work .stage")).toHaveClass(/is-full/);
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await expect(page.locator("#work")).not.toHaveClass(/is-full/);
+  await expect(page.locator("#work .stage")).not.toHaveClass(/is-full/);
   expect(await page.locator("#work .win").first().evaluate((w) => (w as HTMLElement).style.transform)).toBe("");
 });
 ```
@@ -2418,12 +2449,12 @@ Boot from `WorkStage.astro` only when `pieceEnabled("windows")` and there are at
 ```astro
 <script>
   import { bootPiece } from "../../lib/setpieces/lazy";
-  const el = document.querySelector<HTMLElement>('[data-piece="windows"]');
+  const el = document.querySelector<HTMLElement>('[data-setpiece="windows"] .stage');
   if (el && el.dataset.enhance === "1") bootPiece(el, () => import("../../lib/setpieces/stage/stage-enhance"), { guardLayout: true });
 </script>
 ```
 
-(`data-enhance="1"` is rendered by the frontmatter when the flag is on and there are 2 or more projects.)
+(`data-enhance="1"` is rendered by the frontmatter when `pieceEnabled("windows")` and there are 2 or more projects.)
 
 - [ ] **Step 4: Run the tests, the motion guard, axe and the budget**
 
@@ -2464,24 +2495,25 @@ On approval: `RELEASES.windows = "full"`, a ledger entry quoting Din, commit `fe
 
 Set `RELEASES.paper = "preview"` at the start of Task 15.
 
-### Task 15: Paper cards, the drift enhancer and empty states
+### Task 15: Paper cards and the drift enhancer
 
 **Files:**
-- Create: `site/src/components/home/PaperStack.astro`, `site/src/components/home/PaperCard.astro`, `site/src/components/home/paper.css`
+- Create: `site/src/components/home/PaperStack.astro`, `site/src/components/home/paper.css`
 - Create: `site/src/lib/setpieces/paper/paper-enhance.ts`
-- Modify: `site/src/pages/index.astro` (writing section uses `<PaperStack />`)
+- Modify: `site/src/pages/index.astro` (inside M1's `<section id="writing" data-setpiece="paper">`, the `posts.length` branch renders `<PaperStack posts={posts} />` instead of M1's grid; M1's heading, empty note and "All writing" link stay)
 - Test: more cases in `site/tests/e2e/setpieces-loading.spec.ts`
 
 **Interfaces:**
-- Consumes: `{ gsap }` (Task 3), `bootPiece` with `guardLayout: true` (Task 3), `pieceEnabled("paper")` (Task 2).
-- Produces: `<section id="writing" class="paper-section" data-piece="paper">` with `<h2>` "Behind the work", an "All writing" link, and `<ul class="papers">` of up to 3 `<li class="paper" style="--r: <deg>; --dy: <px>">` each wrapping `<a class="sheet" href="/writing/<slug>">` (motif, kind label, date in `<time>`, `<h3>` title, summary, "Read" with an `aria-hidden` arrow). If M1 already has a writing card component, `PaperCard.astro` wraps it instead of duplicating its markup.
+- Consumes: `{ gsap }` (Task 3), `bootPiece` with `guardLayout: true` (Task 3), `pieceEnabled("paper")` (Task 2); M1's `latestPosts`, `getVisiblePosts` and `PostCard` (motif, kind label, date, reading time, title link, summary).
+- Produces: `PaperStack.astro` props `{ posts: CollectionEntry<"writing">[] }` (1 to 3). It renders `<ul class="papers" data-enhance="1|0">` of `<li class="paper paper-1">`, `paper-2`, `paper-3`, each wrapping M1's `<PostCard post={p} />`. The per-slot tilt and drift live in `paper.css` as custom properties on the slot classes (`.paper-1 { --r: -3.2deg; --dy: 140px }`, `.paper-2 { --r: 2.4deg; --dy: 220px }`, `.paper-3 { --r: -1.6deg; --dy: 170px }`), never in a `style` attribute; the enhancer reads them with `getComputedStyle(li).getPropertyValue("--dy")`.
 
 Behaviour:
-- Data: published `writing` entries sorted by `date` descending, first 3. 0 posts: the section is not rendered. 1 or 2 posts: rendered as-is with no empty slots.
-- Fixed per-slot values so the layout is stable: `--r` is `-3.2deg`, `2.4deg`, `-1.6deg`; `--dy` is `140px`, `220px`, `170px`; slot 2 has `margin-top: 56px` and slot 3 `20px` on wide screens.
-- Calm (default): cards sit in their settled pose (rotation `calc(var(--r) * 0.35)`) or flat on phones; hover and focus change only the border color and shadow to teal (static, no lift).
-- Full (`.paper-section.is-full`, wide screens, full motion): each `li` gets `gsap.fromTo(li, { y: dy, rotate: r, opacity: 0 }, { y: 0, rotate: r * 0.35, opacity: 1, ease: "none", scrollTrigger: { trigger: section, start: "top bottom", end: \`top ${30 + i * 12}%\`, scrub: 0.5 } })`, so the three cards arrive at different speeds and settle. Hover (`@media (hover: hover)`) and `:focus-within` lift the inner `.sheet` with `transform: translateY(-10px) rotate(calc(var(--r) * -1)) scale(1.02)` and set the siblings to `opacity: 0.72; transform: scale(0.985)` (no blur), 600 ms spring on transform, 400 ms on opacity.
+- Data: M1's `latestPosts(await getVisiblePosts())` in `index.astro`. 0 posts: M1's note "The first posts are on their way." stays and `PaperStack` is not rendered. 1 or 2 posts: rendered as-is with no empty slots.
+- Wide screens: slot 2 has `margin-top: 56px` and slot 3 `20px`, so the stack is staggered even when calm.
+- Calm (default): cards sit in their settled pose (`rotate(calc(var(--r) * 0.35))`) or flat on phones; hover and focus change only the border color and shadow to teal (static, no lift).
+- Full (`.papers.is-full`, wide screens, full motion): each `li` gets `gsap.fromTo(li, { y: dy, rotate: r, opacity: 0 }, { y: 0, rotate: r * 0.35, opacity: 1, ease: "none", scrollTrigger: { trigger: list, start: "top bottom", end: \`top ${30 + i * 12}%\`, scrub: 0.5 } })`, so the cards arrive at different speeds and settle. Hover (`@media (hover: hover)`) and `:focus-within` lift the inner `.post-card` with `transform: translateY(-10px) rotate(calc(var(--r) * -1)) scale(1.02)` and set the siblings to `opacity: 0.72; transform: scale(0.985)` (no blur), 600 ms spring on transform, 400 ms on opacity. GSAP moves the `li`; CSS moves the card inside it, so the two never fight over one `transform`.
 - `gsap.matchMedia` reverts the tweens on phone widths and under reduced motion.
+- Boot from `PaperStack.astro`: `const el = document.querySelector<HTMLElement>('[data-setpiece="paper"] .papers'); if (el && el.dataset.enhance === "1") bootPiece(el, () => import("../../lib/setpieces/paper/paper-enhance"), { guardLayout: true });` (`data-enhance="1"` when `pieceEnabled("paper")`).
 
 - [ ] **Step 1: Write the failing e2e tests**
 
@@ -2500,17 +2532,22 @@ test("paper cards settle once the section is in view", async ({ page }) => {
     expect(Math.abs(t)).toBeLessThan(2);
 });
 
-test("the writing section is absent when nothing is published", async ({ page }) => {
+test("with nothing published the writing section keeps M1's note and no cards", async ({ page }) => {
   await page.goto("/");
   const count = await page.locator("#writing li.paper").count();
-  if (count === 0) await expect(page.locator("#writing")).toHaveCount(0);
+  if (count === 0) await expect(page.locator("#writing [data-empty]")).toBeVisible();
   else expect(count).toBeLessThanOrEqual(3);
+});
+
+test("the home page HTML has no style attributes (the CSP drops them)", async ({ page }) => {
+  const html = await (await page.request.get("/")).text();
+  expect(html).not.toMatch(/<[^>]+\sstyle="/);
 });
 
 test("keyboard focus on a card shows it like hover", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
-  const first = page.locator("#writing a.sheet").first();
+  const first = page.locator("#writing .post-card a").first();
   test.skip((await first.count()) === 0, "needs published writing");
   await first.focus();
   await expect(first).toBeFocused();
@@ -2521,7 +2558,7 @@ test("keyboard focus on a card shows it like hover", async ({ page }) => {
 - [ ] **Step 2: Run them to verify they fail**
 
 Run: `pnpm --dir site build && pnpm --dir site test:e2e tests/e2e/setpieces-loading.spec.ts`
-Expected: the new tests FAIL or fail on missing `#writing li.paper` structure.
+Expected: the settle test FAILS or skips (no `li.paper` yet); the others pass on M1's page and keep guarding.
 
 - [ ] **Step 3: Build the component and the enhancer as described**
 
@@ -2533,7 +2570,7 @@ Expected: PASS, budget exits 0.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add site/src/components/home/PaperStack.astro site/src/components/home/PaperCard.astro site/src/components/home/paper.css site/src/lib/setpieces/paper site/src/pages/index.astro site/tests/e2e/setpieces-loading.spec.ts site/src/lib/setpieces/flags.ts
+git add site/src/components/home/PaperStack.astro site/src/components/home/paper.css site/src/lib/setpieces/paper site/src/pages/index.astro site/tests/e2e/setpieces-loading.spec.ts site/src/lib/setpieces/flags.ts
 git commit -m "feat(site): floating paper cards for the latest writing"
 ```
 
@@ -2734,18 +2771,18 @@ git commit -m "feat(site): studio frame math, terminal lines and the studio pale
 - Modify: `site/src/components/home/studio/studio.css` (the rest of the styles)
 - Create: `site/src/lib/setpieces/studio/studio-enhance.ts`
 - Create: `site/src/styles/view-transitions.css` (imported by the base layout)
-- Modify: `site/src/pages/index.astro` (about section uses `<Studio />`), `site/src/pages/about.astro` (renders `<StudioScreen />` as the page header, above M1's bio)
+- Modify: `site/src/pages/index.astro` (M1's `<section id="about" data-setpiece="studio">` keeps its id, hook and heading id, drops `wrap` so the studio can run full width, and renders `<Studio teaser={teaser} />` as its content), `site/src/pages/about.astro` (inside M1's `<div class="screen-panel" data-setpiece="studio-screen">`, `<StudioScreen />` replaces M1's one-line `whoami` placeholder; the hook stays)
 - Test: `site/tests/e2e/setpieces-calm.spec.ts` (studio cases)
 
 **Interfaces:**
 - Consumes: `studioFrame`, `revealCounts` (Task 17), `TERMINAL`, `PROMPT` (Task 17), `{ gsap }` (Task 3), `bootPiece` with `guardLayout: true`, `pieceEnabled("studio")`.
 - Produces:
-  - `StudioScreen.astro`: the terminal screen at its final state, `<div class="studio-screen" style="view-transition-name: studio-screen">` containing `<pre class="term">` with one `<span class="line" data-len="N">` per `TERMINAL` line (the prompt in a `.p` span for commands, muted lines in `.m`), each line followed by an `aria-hidden` `<span class="cover">`, and a cursor `<span class="cur" aria-hidden="true">`. On `/about` the screen is followed by the page `<h1>`.
-  - `Studio.astro`: `<section id="about" class="studio" data-piece="studio">` with the heading (`<h2>` "Look closer." under an "About" label), the laptop (`.laptop > .lid > .face.front > StudioScreen` and `.face.back` with the lens mark, `.base` with keyboard and trackpad), and the link "Read the full story" to `/about` (a real `<a>`, always in the DOM).
+  - `StudioScreen.astro`: the terminal screen at its final state, `<div class="studio-screen">` (its `view-transition-name: studio-screen` is set in `studio.css` on the class, never in a `style` attribute) containing `<pre class="term">` with one `<span class="line" data-len="N">` per `TERMINAL` line (the prompt in a `.p` span for commands, muted lines in `.m`), each line followed by an `aria-hidden` `<span class="cover">`, and a cursor `<span class="cur" aria-hidden="true">`. On `/about` the screen is followed by the page `<h1>`.
+  - `Studio.astro` props `{ teaser?: { value: string; status: string } | null }` (M1's about teaser): `<div class="studio" data-enhance="1|0">` inside M1's section, with M1's eyebrow and heading (`<span class="t-label">About</span>`, `<h2 id="about-h">Look closer.</h2>`, so the section's `aria-labelledby` still resolves) and the teaser, the laptop (`.laptop > .lid > .face.front > StudioScreen` and `.face.back` with the lens mark, `.base` with keyboard and trackpad), and the link "Read the full story" to `/about` (a real `<a>`, always in the DOM).
 
 Behaviour:
 - Calm (default, reduced motion, JavaScript off, flag off): the section is one viewport tall and shows the screen state directly: the dark studio background with `StudioScreen` centered at full size, all text visible, "Read the full story" visible. No laptop transforms. This is the PRD's "About opening on the screen".
-- Full (`.studio.is-full`, full motion; phones included, see Open question 9): the section is `340vh` (`240vh` under 760 px); `.studio-sticky` is sticky. The enhancer scrubs `state.p` from 0 to 1 over the section (`scrub: 0.5`) and on each update applies `studioFrame(state.p)`:
+- Full (`.studio.is-full`, full motion; phones included, see decision 9): the section is `340vh` (`240vh` under 760 px); `.studio-sticky` is sticky. The enhancer scrubs `state.p` from 0 to 1 over the section (`scrub: 0.5`) and on each update applies `studioFrame(state.p)`:
   - laptop: built at the final zoomed-in size (screen box filling the viewport) and scaled down: `scale = lerp(fitScale, 1, zoom)`, `rotateX = lerp(lerp(-50, -12, open), 0, zoom)`, `rotateY = lerp(lerp(-24, -14, open), 0, zoom)`, `translateY = lerp(-6vh, 0, zoom)`. Scaling down from the final size keeps the text sharp when the camera arrives.
   - lid: `rotateX = lerp(lerp(-89.5, 18, open), 0, zoom)`.
   - base: `opacity = 1 - zoom * 0.9`.
@@ -2779,7 +2816,7 @@ test("screen readers get the whole terminal text at any scroll position", async 
 
 test("/about opens on the same screen", async ({ page }) => {
   await page.goto("/about");
-  const screen = page.locator(".studio-screen").first();
+  const screen = page.locator('[data-setpiece="studio-screen"] .studio-screen');
   await expect(screen).toBeVisible();
   await expect(screen).toContainText("whoami");
   expect(await screen.evaluate((el) => getComputedStyle(el).viewTransitionName)).toBe("studio-screen");
@@ -2789,9 +2826,9 @@ test("the studio reaches its final frame at the end of the section", async ({ pa
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   for (let y = 0; y < 12; y++) await page.mouse.wheel(0, 900);
-  await expect(page.locator("#about")).toHaveClass(/is-full/);
+  await expect(page.locator("#about .studio")).toHaveClass(/is-full/);
   await page.evaluate(() => {
-    const s = document.querySelector<HTMLElement>("#about")!;
+    const s = document.querySelector<HTMLElement>("#about .studio")!;
     window.scrollTo({ top: s.offsetTop + s.offsetHeight - window.innerHeight, behavior: "instant" });
   });
   await page.waitForTimeout(900);
@@ -2807,6 +2844,8 @@ Run: `pnpm --dir site build && pnpm --dir site test:e2e tests/e2e/setpieces-calm
 Expected: the studio tests FAIL.
 
 - [ ] **Step 3: Build the components, CSS, enhancer and view transition as described**
+
+Boot from `Studio.astro`: `const el = document.querySelector<HTMLElement>('[data-setpiece="studio"] .studio'); if (el && el.dataset.enhance === "1") bootPiece(el, () => import("../../../lib/setpieces/studio/studio-enhance"), { guardLayout: true });` (`data-enhance="1"` when `pieceEnabled("studio")`).
 
 The enhancer follows the same shape as `stage-enhance.ts`: `gsap.matchMedia().add("(prefers-reduced-motion: no-preference)", () => { section.classList.add("is-full"); ScrollTrigger.refresh(); ...; return cleanup; })`, where cleanup removes `.is-full`, kills the tween and clears every inline transform and opacity it set. Measure each line's length once from `data-len`. Use `gsap.quickSetter` for the per-frame laptop and lid transforms if a trace shows style recalculation cost; otherwise plain `style.transform` strings.
 
@@ -2951,33 +2990,163 @@ git add site/src/lib/setpieces/letter/machine.ts site/tests/unit/letter-machine.
 git commit -m "feat(site): letter phases for the fold and seal"
 ```
 
-### Task 21: The folding letter, the envelope and Ottie
+### Task 21: The folding letter, the envelope and Ottie's cues
 
 **Files:**
-- Modify: `site/src/components/home/letter/Letter.astro` (envelope markup, a second Ottie mount), `site/src/components/home/letter/letter.css` (full-motion styles under `.letter-section.is-full`)
+- Create: `site/src/components/home/letter/Envelope.astro`, `site/src/components/home/letter/letter.css`
+- Modify: `site/src/pages/index.astro` and `site/src/pages/contact.astro` (wrap M1's `<ContactForm />` in `<Envelope>` when `pieceEnabled("letter")`)
 - Modify: `site/src/lib/setpieces/letter/letter-enhance.ts` (drive the phases)
 - Create: `site/src/lib/setpieces/letter/ottie-bridge.ts`
-- Test: more cases in `site/tests/e2e/letter.spec.ts`
+- Test: `site/tests/unit/ottie-bridge.test.ts`, more cases in `site/tests/e2e/letter.spec.ts`
 
 **Interfaces:**
-- Consumes: `letterReducer`, `phaseClasses`, `FOLD_MS`, `SEAL_MS`, `AWAY_MS` (Task 20); `parseContact` (Task 5); `currentMotion`, `onMotionChange` (Task 1); `pieceEnabled("letter")` (Task 2); M2's `cueOttie`, `prefetchOttie` and `<Ottie instance="letter" />`.
-- Produces: `ottie-bridge.ts` exporting `pointAtLetter(): void`, `prefetchJump(): void`, `celebrateLetter(): void` (the only file that imports `site/src/ottie/events.ts`). Task 7's submit code is first refactored, with its tests still green, into helpers inside `letter-enhance.ts`: `send(data: FormData): Promise<{ ok: boolean; message: string; errors?: Partial<Record<ContactField, string>> }>`, `showStatus(text: string)`, `showErrors(errors)` and `showSentPanel()`; the calm and full paths both use them.
+- Consumes: `letterReducer`, `phaseClasses`, `FOLD_MS`, `SEAL_MS`, `AWAY_MS` (Task 20); `parseContact` (M1); `currentMotion`, `onMotionChange` (Task 1); `canEnhance` (Task 3); `pieceEnabled("letter")` (Task 2); M2's `cueOttie` and `onOttieState`.
+- Produces:
+  - `ottie-bridge.ts` (the only file that imports `site/src/ottie/events.ts`): `pointAtLetter()` is `cueOttie("letter:open")`, `prefetchJump()` is `cueOttie("letter:ready")`, `celebrateLetter()` is `cueOttie("letter:sent")`, and `jumpEnded(subscribe = onOttieState, timeoutMs = 2500): Promise<"idle" | "timeout">`, which resolves when the state reported after `jump` is `idle`, or after the timeout (Quiet Ottie, reduced motion, a failed sheet, or no Ottie on the page all mean no report, and the letter must still fly).
+  - `Envelope.astro`: `<div class="envelope" data-envelope>` around its slot (M1's form): `.env-back`, the slotted form as the sheet, `.env-front` (static `clip-path` shape, never animated), `.env-flap` (`rotateX(180deg)` open, `rotateX(0)` closed), `.wax` (the Ottie seal mark from `brand/logo/seal-light.svg` or `seal-dark.svg`, never recolored). Decorative parts are `aria-hidden`.
+  - Task 7's helpers inside `letter-enhance.ts` (`send`, `showStatus`, `showErrors`, `showSentPanel`) serve both the calm and the full path.
+- M4 mounts no Ottie. M2's Task 15 places `<Ottie context="contact">` in the home `#contact` section and on `/contact`; the envelope's layout leaves room for it on the left (wide screens) or above (phones), and `[data-ottie-avoid]` goes on the form so Ottie never covers a field.
 
-Markup additions (rendered only when `pieceEnabled("letter")`; the calm form from Task 7 is unchanged otherwise):
-- `.envelope` around the form: `.env-back`, the form as `.sheet`, `.env-front` (static `clip-path` shape, never animated), `.env-flap` (rotated `rotateX(180deg)` open, `rotateX(0)` closed), `.wax` (the Ottie seal mark from `brand/logo/seal-light.svg` or `seal-dark.svg`, never recolored), all decorative parts `aria-hidden`.
-- `<Ottie instance="letter" />` beside the envelope (M2's component; decorative, `aria-hidden`).
-
-Motion (all transform and opacity):
-- As the section rises into view (full motion only, guard with `canEnhance`): the sheet rises out of the envelope (`translateY(140px)` to `0`, scrubbed by ScrollTrigger over the section entering; GSAP is already loaded by earlier pieces or loads here).
-- `is-folding`: the sheet `scaleY(0.36)` from `transform-origin: 50% 100%` with the crease overlay `opacity: 1` (650 ms); `is-tucked`: `translateY(236px) scaleY(0.36)` (400 ms); `is-closed`: the flap rotates closed (520 ms); `is-sealed`: the wax seal stamps (`scale(1.8)` and `opacity 0` to `scale(1)` and `opacity 1`, 520 ms spring); `is-away`: the envelope `translateX(80vw) translateY(-60px) rotate(9deg)` and `opacity: 0` (900 ms). While the letter is folded, the form's fields are `inert` so focus cannot land on a squashed field.
-- The "Sent. Thank you." panel fades and rises in (`opacity`, `translateY(20px)` to `0`) and takes focus.
-
-Enhancer flow (extends Task 7's submit handler; the calm path stays exactly as in Task 7):
+- [ ] **Step 1: Write the failing unit test for `jumpEnded`**
 
 ```ts
-// inside letter-enhance.ts, used only when the section has .is-full
+// site/tests/unit/ottie-bridge.test.ts
+import { describe, expect, it, vi } from "vitest";
+import { jumpEnded } from "../../src/lib/setpieces/letter/ottie-bridge";
+
+function fakeStates() {
+  let handler: ((s: string) => void) | undefined;
+  const subscribe = (h: (s: string) => void) => { handler = h; return () => { handler = undefined; }; };
+  return { subscribe, emit: (s: string) => handler?.(s), active: () => handler !== undefined };
+}
+
+describe("jumpEnded", () => {
+  it("resolves idle once Ottie is back to idle after the jump", async () => {
+    const f = fakeStates();
+    const done = jumpEnded(f.subscribe, 5000);
+    f.emit("idle");          // idle before the jump does not count
+    f.emit("jump");
+    f.emit("idle");
+    await expect(done).resolves.toBe("idle");
+    expect(f.active()).toBe(false);
+  });
+  it("gives up after the timeout when Ottie never reports", async () => {
+    vi.useFakeTimers();
+    const f = fakeStates();
+    const done = jumpEnded(f.subscribe, 2500);
+    vi.advanceTimersByTime(2500);
+    await expect(done).resolves.toBe("timeout");
+    expect(f.active()).toBe(false);
+    vi.useRealTimers();
+  });
+});
+```
+
+- [ ] **Step 2: Run it to verify it fails**
+
+Run: `pnpm --dir site exec vitest run tests/unit/ottie-bridge.test.ts`
+Expected: FAIL, module not found.
+
+- [ ] **Step 3: Write the bridge**
+
+```ts
+// site/src/lib/setpieces/letter/ottie-bridge.ts
+// The letter says what happened; M2's director decides what Ottie does (README, Ottie seam).
+import { cueOttie, onOttieState } from "../../../ottie/events";
+
+export const pointAtLetter = (): void => cueOttie("letter:open");
+export const prefetchJump = (): void => cueOttie("letter:ready");
+export const celebrateLetter = (): void => cueOttie("letter:sent");
+
+export function jumpEnded(
+  subscribe: (h: (state: string) => void) => () => void = onOttieState,
+  timeoutMs = 2500,
+): Promise<"idle" | "timeout"> {
+  return new Promise((resolve) => {
+    let jumped = false;
+    const finish = (r: "idle" | "timeout") => { clearTimeout(timer); off(); resolve(r); };
+    const off = subscribe((state) => {
+      if (state === "jump") jumped = true;
+      else if (jumped && state === "idle") finish("idle");
+    });
+    const timer = setTimeout(() => finish("timeout"), timeoutMs);
+  });
+}
+```
+
+Run: `pnpm --dir site exec vitest run tests/unit/ottie-bridge.test.ts`
+Expected: PASS (2 tests).
+
+- [ ] **Step 4: Write the failing e2e tests**
+
+```ts
+// add to site/tests/e2e/letter.spec.ts
+async function fillHome(page: import("@playwright/test").Page, message: string) {
+  const letter = page.locator("#contact");
+  await letter.getByLabel("Message").fill(message);
+  await letter.getByLabel("Your name").fill("Ada");
+  await letter.getByLabel("Your email").fill("ada@example.com");
+}
+
+test("full motion folds, seals, flies off and announces, and focus lands on the result", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.route("**/api/contact", async (r) => { await new Promise((res) => setTimeout(res, 300)); await r.fulfill({ json: { ok: true } }); });
+  await page.goto("/");
+  await page.locator("#contact").scrollIntoViewIfNeeded();
+  await fillHome(page, "Hi Din, folding test.");
+  await page.getByRole("button", { name: "Seal and send" }).click();
+  await expect(page.locator("#contact .envelope")).toHaveClass(/is-folding/);
+  await expect(page.locator("#contact .envelope")).toHaveClass(/is-sealed/);
+  await expect(page.getByRole("heading", { name: "Sent. Thank you." })).toBeFocused({ timeout: 6000 });
+});
+
+test("a refused letter unfolds with the text intact", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.route("**/api/contact", (r) => r.fulfill({ status: 429, json: { ok: false, code: "rate" } }));
+  await page.goto("/");
+  await page.locator("#contact").scrollIntoViewIfNeeded();
+  await fillHome(page, "Hi Din.");
+  await page.getByRole("button", { name: "Seal and send" }).click();
+  await expect(page.locator("#contact .envelope")).not.toHaveClass(/is-folding/, { timeout: 3000 });
+  await expect(page.locator("#contact").getByLabel("Message")).toHaveValue("Hi Din.");
+  await expect(page.locator("#contact").getByLabel("Message")).toBeFocused();
+});
+
+test("the letter cues Ottie: open, ready, sent", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.addInitScript(() => {
+    (window as any).__cues = [];
+    window.addEventListener("ottie:cue", (e) => (window as any).__cues.push((e as CustomEvent).detail.type));
+  });
+  await page.route("**/api/contact", (r) => r.fulfill({ json: { ok: true } }));
+  await page.goto("/");
+  await page.locator("#contact").scrollIntoViewIfNeeded();
+  await expect.poll(() => page.evaluate(() => (window as any).__cues)).toContain("letter:open");
+  await fillHome(page, "Hi Din.");
+  await expect.poll(() => page.evaluate(() => (window as any).__cues)).toContain("letter:ready");
+  await page.getByRole("button", { name: "Seal and send" }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__cues)).toContain("letter:sent");
+});
+```
+
+- [ ] **Step 5: Run them to verify they fail**
+
+Run: `pnpm --dir site build && pnpm --dir site test:e2e tests/e2e/letter.spec.ts`
+Expected: the three new tests FAIL; the five Task 7 tests still PASS.
+
+- [ ] **Step 6: Implement the envelope, the styles and the enhancer flow**
+
+Motion (all transform and opacity, under `.envelope.is-full`, which the enhancer adds when `currentMotion() === "full"`):
+- As the letter rises into view (only if `canEnhance` holds when the enhancer starts): the sheet rises out of the envelope (`translateY(140px)` to `0`, scrubbed by ScrollTrigger as the section enters; GSAP is already loaded by the earlier pieces or loads here).
+- `is-folding`: the sheet `scaleY(0.36)` from `transform-origin: 50% 100%` with the crease overlay `opacity: 1` (650 ms); `is-tucked`: `translateY(236px) scaleY(0.36)` (400 ms); `is-closed`: the flap rotates closed (520 ms); `is-sealed`: the wax seal stamps (`scale(1.8)` and `opacity 0` to `scale(1)` and `opacity 1`, 520 ms spring); `is-away`: the envelope `translateX(80vw) translateY(-60px) rotate(9deg)` and `opacity: 0` (900 ms). While the letter is folded, the form is `inert` so focus cannot land on a squashed field.
+- The "Sent. Thank you." panel fades and rises in (`opacity`, `translateY(20px)` to `0`) and takes focus.
+
+Enhancer flow (the calm path stays exactly as in Task 7):
+
+```ts
+// inside letter-enhance.ts, used only when the envelope has .is-full
 let state = INITIAL;
-const envelope = section.querySelector<HTMLElement>(".envelope")!;
+const envelope = letter.closest<HTMLElement>("[data-envelope]")!;
 const dispatch = (e: LetterEvent) => {
   state = letterReducer(state, e);
   envelope.classList.remove("is-folding", "is-tucked", "is-closed", "is-sealed", "is-away");
@@ -2989,88 +3158,36 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 dispatch({ type: "submit" });
 const [result] = await Promise.all([send(data), wait(FOLD_MS)]);
 if (result.ok) {
-  dispatch({ type: "accepted" });
+  dispatch({ type: "accepted" });   // closes the flap and stamps the seal
   await wait(SEAL_MS);
-  celebrateLetter();          // cueOttie("jump", { instance: "letter" })
-  dispatch({ type: "sealed" });
+  const jumped = jumpEnded();       // subscribe before cueing, so the state report is not missed
+  celebrateLetter();                // letter:sent: M2's director plays jump
+  await jumped;                     // idle after jump, or the 2.5 s timeout
+  dispatch({ type: "sealed" });     // is-away: the envelope flies off
   await wait(AWAY_MS);
-  showSentPanel();            // same as Task 7: hide form, show panel, focus its heading
+  showSentPanel();                  // as in Task 7: hide the form, show the panel, focus its heading
 } else {
   dispatch({ type: "rejected", error: result.message });
-  if (result.errors) showErrors(result.errors); else showStatus(result.message); // the form unfolds with the letter intact
-  (form.elements.namedItem("message") as HTMLElement).focus();
+  if (result.errors) showErrors(result.errors); else showStatus(result.message); // the letter unfolds intact
+  (form.elements.namedItem(F.message) as HTMLElement).focus();
 }
 ```
 
-Ottie cues: an IntersectionObserver (threshold 0.4) on the envelope calls `pointAtLetter()` once per page view; the first time the message is non-empty and the email passes `parseContact`'s check, `prefetchJump()` runs once (PRD section 4: the jump sheet is fetched when the letter is filled in); "Write another" resets the machine (`again`) and calls `pointAtLetter()` again. Ottie is quiet while someone types (M2's rule); the letter never shows a speech bubble of its own. "Carries it off": the envelope flies off while Ottie jumps (see Open question 3).
+On the calm path the letter still calls `celebrateLetter()` after a successful send (M2 shows its reduced-motion pose) and shows the panel at once.
+
+Cues: an IntersectionObserver (threshold 0.4) on the envelope calls `pointAtLetter()` once per page view; the first time the message, name and email all pass `parseContact`, `prefetchJump()` runs once (PRD section 4: the jump sheet is fetched when the letter is filled in); "Write another" resets the machine (`again`) and calls `pointAtLetter()` again. Ottie is quiet while someone types (M2's director); the letter never shows a speech bubble of its own.
 
 `onMotionChange` to calm: remove `.is-full`, clear all phase classes and inline transforms; a send in flight completes on the calm path.
 
-- [ ] **Step 1: Write the failing e2e tests**
-
-```ts
-// add to site/tests/e2e/letter.spec.ts
-test("full motion folds, seals and announces, and focus lands on the result", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.route("**/api/contact", async (r) => { await new Promise((res) => setTimeout(res, 300)); await r.fulfill({ json: { ok: true } }); });
-  await page.goto("/");
-  await page.locator("#contact").scrollIntoViewIfNeeded();
-  await page.getByLabel("Message").fill("Hi Din, folding test.");
-  await page.getByLabel("Your email").fill("ada@example.com");
-  await page.getByRole("button", { name: "Seal and send" }).click();
-  await expect(page.locator(".envelope")).toHaveClass(/is-folding/);
-  await expect(page.locator(".envelope")).toHaveClass(/is-sealed/);
-  await expect(page.getByRole("heading", { name: "Sent. Thank you." })).toBeFocused();
-});
-
-test("a refused letter unfolds with the text intact", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.route("**/api/contact", (r) => r.fulfill({ status: 429, json: { ok: false, code: "rate" } }));
-  await page.goto("/");
-  await page.locator("#contact").scrollIntoViewIfNeeded();
-  await page.getByLabel("Message").fill("Hi Din.");
-  await page.getByLabel("Your email").fill("ada@example.com");
-  await page.getByRole("button", { name: "Seal and send" }).click();
-  await expect(page.locator(".envelope")).not.toHaveClass(/is-folding/, { timeout: 3000 });
-  await expect(page.getByLabel("Message")).toHaveValue("Hi Din.");
-  await expect(page.getByLabel("Message")).toBeFocused();
-});
-
-test("Ottie is cued to point and then jump", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.addInitScript(() => {
-    (window as any).__cues = [];
-    window.addEventListener("ottie:cue", (e) => (window as any).__cues.push((e as CustomEvent).detail.cue));
-  });
-  await page.route("**/api/contact", (r) => r.fulfill({ json: { ok: true } }));
-  await page.goto("/");
-  await page.locator("#contact").scrollIntoViewIfNeeded();
-  await expect.poll(() => page.evaluate(() => (window as any).__cues)).toContain("point");
-  await page.getByLabel("Message").fill("Hi Din.");
-  await page.getByLabel("Your email").fill("ada@example.com");
-  await page.getByRole("button", { name: "Seal and send" }).click();
-  await expect.poll(() => page.evaluate(() => (window as any).__cues)).toContain("jump");
-});
-```
-
-The last test relies on M2's `cueOttie` dispatching `ottie:cue` on `window` (as the M3 notes assume); if M2 picked another event, adjust the listener in the test only.
-
-- [ ] **Step 2: Run them to verify they fail**
-
-Run: `pnpm --dir site build && pnpm --dir site test:e2e tests/e2e/letter.spec.ts`
-Expected: the three new tests FAIL; the five Task 7 tests still PASS.
-
-- [ ] **Step 3: Implement the envelope, the styles, the bridge and the enhancer flow as described**
-
-- [ ] **Step 4: Run everything that touches the letter**
+- [ ] **Step 7: Run everything that touches the letter**
 
 Run: `pnpm --dir site build && pnpm --dir site test:e2e tests/e2e/letter.spec.ts && pnpm --dir site exec vitest run tests/unit tests/worker && pnpm --dir site budget`
 Expected: all PASS (8 e2e).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add site/src/components/home/letter site/src/lib/setpieces/letter site/tests/e2e/letter.spec.ts
+git add site/src/components/home/letter site/src/lib/setpieces/letter site/src/pages/index.astro site/src/pages/contact.astro site/tests/unit/ottie-bridge.test.ts site/tests/e2e/letter.spec.ts
 git commit -m "feat(site): the folding letter with the Ottie seal"
 ```
 
@@ -3108,8 +3225,8 @@ Din's answer to all ten: "Go with your recommendations on the open questions". T
 
 1. **Contact form without JavaScript:** it still submits, and since Turnstile cannot run, the post lands on `/contact/not-sent/` with a `mailto:din@dins.dev` link, plus a `<noscript>` note on the form (Tasks 6 and 7). Unverified posts are never accepted.
 2. **Where the letters go:** the recipient lives in the `CONTACT_TO` Worker secret, never in `wrangler.jsonc`. It is `din@dins.dev` if Cloudflare accepts that address, otherwise Din's verified inbox. Task 7 Step 6 settles it with one real send, recorded in the ledger.
-3. **"Ottie carries it off":** for v1 the envelope flies off while Ottie jumps (Task 21). A carry state is an optional post-launch item, like celebrate.
-4. **A second Ottie at the letter:** mounted beside the envelope on home and `/contact`, only one on screen at a time (Task 21). M2's component must support a second instance (`instance="letter"`).
+3. **"Ottie carries it off":** for v1 Ottie jumps on `letter:sent` and the envelope flies off once `onOttieState` reports `idle` after the jump (or after 2.5 s), as in Task 21. A carry state is an optional post-launch item, like celebrate.
+4. **A second Ottie at the letter:** M2's `<Ottie context="contact">`, which M2's Task 15 places in the home `#contact` section and on `/contact` (the README's Ottie seam). M4 only sends the `letter:*` cues and leaves room for it.
 5. **What counts toward the 100 KB:** the gate covers the JavaScript loaded before any interaction (the initial module graph plus inline scripts), and GSAP must never be in it. Chunks loaded on scroll are reported in CI without a gate (Task 4).
 6. **Gates and the calendar:** while Din reviews a piece, the next piece's pure-logic tasks (tests and math only) may start. Its visual work starts only after the previous piece is approved and merged (see "How a gate works", step 7).
 7. **No blur:** opacity and scale replace the sketch's blur. Din judges the depth in each preview.
@@ -3126,5 +3243,4 @@ Din's answer to all ten: "Go with your recommendations on the open questions". T
 - `docs/site/PLAN.md` (Dependencies on Din): add "Set the `CONTACT_TO` secret in preview and production (with M4's first PR)" and "Confirm one real letter arrives (end of M4's first PR)".
 - `docs/WORK_LEDGER.md`: an entry for this plan's decisions (sticky over pin, blur replaced, Astro plus vanilla enhancers instead of Svelte islands for set pieces, release flags, contact first, intro once per session, transform-only typing) and Din's "go with your recommendations" on the ten open questions (2026-10-21), listed one by one.
 - `docs/site/PRD.md` (approved by Din on 2026-10-21 through decision 1): section 6's failure-mode line becomes "the contact form still submits, and without JavaScript it explains how to email Din directly". Section 6's JavaScript line gains the clarification from decision 5: "(the initial module graph plus inline scripts; set-piece code loaded on scroll is reported, not gated)".
-- For M5's CSP work: the inline scripts from `MotionHead.astro` and `LensIntro.astro` need hashes; Turnstile needs `script-src` and `frame-src https://challenges.cloudflare.com`; the contact form posts to the same origin.
-- For M1's sitemap: exclude `/contact/sent/` and `/contact/not-sent/`.
+- For M5's CSP: nothing new. Astro's `security.csp` hashes M4's inline scripts (`MotionHead`, `LensIntroHead`, `LensIntro`), M4 renders no `style` attributes, Turnstile is already allowed (`challenges.cloudflare.com`), and the form posts to the same origin.
