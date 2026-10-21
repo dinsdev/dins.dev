@@ -6706,8 +6706,8 @@ git commit -m "feat(ask): plain-text answer formatter that never emits HTML"
 If M4's contact work has already created `site/src/lib/turnstile-client.ts` with the contract's signatures (`loadTurnstile(): Promise<TurnstileApi>`, `siteKey()`, `TURNSTILE_TEST_SITEKEY`), extend that file with `createTokenSource` and its test instead of creating it.
 
 **Interfaces:**
-- Consumes: `AskEvent` (Task 24), `Turn` (Task 20), M2's `cueOttie`.
-- Produces: `AskStatus = "idle" | "waiting" | "streaming" | "done" | "error"`; `AskError = "rate_limited" | "turnstile" | "bad_request" | "network" | "internal"`; `AskViewState { status, question, text, mode: AskMode | null, sources: SourceRef[], links: LinkRef[], logId: string | null, searchMode: "hybrid" | "keyword" | "none" | null, model: string | null, timings: Timings | null, truncated: boolean, language: "en" | "fr", error: AskError | null }`; `initialState`; `AskAction = { type: "submit"; question } | { type: "event"; event: AskEvent } | { type: "http_error"; status: number } | { type: "network_error" } | { type: "reset" }`; `reduce(state, action): AskViewState`; `readNdjson(body: ReadableStream<Uint8Array>): AsyncGenerator<AskEvent>`; `runAsk(o: { question; history: Turn[]; project: string | null; getToken(): Promise<string>; dispatch(a: AskAction): void; fetchFn?: typeof fetch; signal?: AbortSignal }): Promise<void>`. Turnstile (`site/src/lib/turnstile-client.ts`, contract names): `TURNSTILE_TEST_SITEKEY = "1x00000000000000000000BB"`; `TurnstileApi`; `loadTurnstile(): Promise<TurnstileApi>`; `siteKey(): string` (`import.meta.env.PUBLIC_TURNSTILE_SITE_KEY`, else the test key); `createTokenSource(container: HTMLElement, sitekey: string, load?: () => Promise<TurnstileApi>): { prepare(): Promise<void>; getToken(): Promise<string>; destroy(): void }`. Cues: `AskUiEvent = "focus" | "typing" | "submit" | "stream" | "answer" | "dont_know" | "declined" | "redirect" | "resting" | "error" | "reset"`; `notifyAsk(event, extra?: { sources?: number }, deps?: { target?: EventTarget; cue?: typeof cueOttie }): void`. UI strings: `UI_COPY` (English UI chrome; answers follow the question's language).
+- Consumes: `AskEvent` (Task 24), `Turn` (Task 20), M2's `cueOttie`, M0's `Deploy` type (`site/src/lib/deploy.ts`) and `DEPLOY` (`site/src/lib/deploy-env.ts`).
+- Produces: `AskStatus = "idle" | "waiting" | "streaming" | "done" | "error"`; `AskError = "rate_limited" | "turnstile" | "bad_request" | "network" | "internal"`; `AskViewState { status, question, text, mode: AskMode | null, sources: SourceRef[], links: LinkRef[], logId: string | null, searchMode: "hybrid" | "keyword" | "none" | null, model: string | null, timings: Timings | null, truncated: boolean, language: "en" | "fr", error: AskError | null }`; `initialState`; `AskAction = { type: "submit"; question } | { type: "event"; event: AskEvent } | { type: "http_error"; status: number } | { type: "network_error" } | { type: "reset" }`; `reduce(state, action): AskViewState`; `readNdjson(body: ReadableStream<Uint8Array>): AsyncGenerator<AskEvent>`; `runAsk(o: { question; history: Turn[]; project: string | null; getToken(): Promise<string>; dispatch(a: AskAction): void; fetchFn?: typeof fetch; signal?: AbortSignal }): Promise<void>`. Turnstile (`site/src/lib/turnstile-client.ts`, contract names): `TURNSTILE_TEST_SITEKEY = "1x00000000000000000000BB"`; `TurnstileApi`; `loadTurnstile(): Promise<TurnstileApi>`; `siteKeyFor(deploy: Deploy, productionKey: string | undefined): string` (the production key only when `deploy` is `production` and the key is set, otherwise the test key); `siteKey(): string` (`siteKeyFor(DEPLOY, import.meta.env.PUBLIC_TURNSTILE_SITE_KEY)`, with `DEPLOY` from M0's `site/src/lib/deploy-env.ts`); `createTokenSource(container: HTMLElement, sitekey: string, load?: () => Promise<TurnstileApi>): { prepare(): Promise<void>; getToken(): Promise<string>; destroy(): void }`. Cues: `AskUiEvent = "focus" | "typing" | "submit" | "stream" | "answer" | "dont_know" | "declined" | "redirect" | "resting" | "error" | "reset"`; `notifyAsk(event, extra?: { sources?: number }, deps?: { target?: EventTarget; cue?: typeof cueOttie }): void`. UI strings: `UI_COPY` (English UI chrome; answers follow the question's language).
 
 Cue mapping (M2's note): submit gives `ask:submit` (think), the first token `ask:stream`, an answer `ask:answer` with the source count (nod, then point when there are sources), don't know, declined and redirect give `ask:unknown` (shrug), resting `ask:resting`, errors `ask:error`, reset `ask:reset`. Phases for M4: submit `retrieving`, first token `streaming`, answer `done`, don't know, declined and redirect `dont-know`, resting `resting`, error `error`, reset `idle`.
 
@@ -6795,7 +6795,7 @@ describe("runAsk", () => {
 
 ```ts
 import { describe, expect, it, vi } from "vitest";
-import { createTokenSource, siteKey, TURNSTILE_TEST_SITEKEY } from "../../src/lib/turnstile-client";
+import { createTokenSource, siteKey, siteKeyFor, TURNSTILE_TEST_SITEKEY } from "../../src/lib/turnstile-client";
 
 function fakeApi() {
   let opts: Record<string, (t?: string) => void> = {};
@@ -6809,7 +6809,18 @@ function fakeApi() {
 }
 
 describe("turnstile client", () => {
-  it("falls back to the invisible test site key", () => {
+  it("uses the production key only on production builds", () => {
+    expect(siteKeyFor("production", "0x4AAAAAAA-production-key")).toBe("0x4AAAAAAA-production-key");
+    expect(siteKeyFor("preview", "0x4AAAAAAA-production-key")).toBe(TURNSTILE_TEST_SITEKEY);
+    expect(siteKeyFor("local", "0x4AAAAAAA-production-key")).toBe(TURNSTILE_TEST_SITEKEY);
+  });
+
+  it("falls back to the test key when production has no key (fails closed at siteverify)", () => {
+    expect(siteKeyFor("production", undefined)).toBe(TURNSTILE_TEST_SITEKEY);
+    expect(siteKeyFor("production", "")).toBe(TURNSTILE_TEST_SITEKEY);
+  });
+
+  it("wires DEPLOY, which Vitest defines as local", () => {
     expect(siteKey()).toBe(TURNSTILE_TEST_SITEKEY);
   });
 
@@ -6993,8 +7004,12 @@ export async function runAsk(o: {
 
 ```ts
 // Loads Turnstile only when someone focuses the question box, and asks for one fresh token per question.
-// Site keys are public. Without PUBLIC_TURNSTILE_SITE_KEY at build time (local, previews) the
-// invisible test key is used; it only works with the test secret, so production fails closed.
+// Site keys are public. Only production builds use PUBLIC_TURNSTILE_SITE_KEY: Workers Builds build
+// variables can reach preview builds too, and the production widget only allows dins.dev. Everything
+// else uses the invisible test key, which only works with the test secret, so production fails closed
+// if its key is missing.
+import type { Deploy } from "./deploy";
+import { DEPLOY } from "./deploy-env";
 
 export const TURNSTILE_TEST_SITEKEY = "1x00000000000000000000BB";
 const SCRIPT_URL = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
@@ -7006,8 +7021,14 @@ export interface TurnstileApi {
   remove(id: string): void;
 }
 
+/** Pure, so every deploy is testable (Vitest always sees DEPLOY = "local"). */
+export function siteKeyFor(deploy: Deploy, productionKey: string | undefined): string {
+  return deploy === "production" && productionKey ? productionKey : TURNSTILE_TEST_SITEKEY;
+}
+
+/** Thin wiring: the build's deploy and the build variable. */
 export function siteKey(): string {
-  return import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || TURNSTILE_TEST_SITEKEY;
+  return siteKeyFor(DEPLOY, import.meta.env.PUBLIC_TURNSTILE_SITE_KEY);
 }
 
 let loading: Promise<TurnstileApi> | null = null;
@@ -7138,7 +7159,7 @@ export const UI_COPY = {
 } as const;
 ```
 
-Unit tests run in Node, where `window` does not exist: the cue tests always pass `target`, and the Turnstile tests never call `loadTurnstile`. `import.meta.env.PUBLIC_TURNSTILE_SITE_KEY` is undefined under Vitest, so `siteKey()` returns the test key.
+Unit tests run in Node, where `window` does not exist: the cue tests always pass `target`, and the Turnstile tests never call `loadTurnstile`. Vitest defines `__DINS_DEPLOY__` as `"local"` (M0), so `siteKey()` returns the test key there; the three deploys are covered through `siteKeyFor`, which is the only CI coverage of production behaviour because GitHub Actions never builds `production`.
 
 - [ ] **Step 4: Run the tests**
 
@@ -7308,7 +7329,7 @@ test("smoke: the real Worker answers on the fake backend", async ({ page }) => {
 
 How this spec runs (contract, Tests section): M0's Playwright web server, `pnpm build && pnpm serve` (wrangler dev on 127.0.0.1:8787, so `/api/ask` is the real Worker), waiting on `/api/health`, with `DINS_SHOW_DRAFTS=1` from M1 so the sample case studies exist for the project-bar test. The spec uses relative paths only (`page.goto("/")`), so it follows M0's `baseURL`; it runs under the default `chromium` project, and its no-JS case sets `javaScriptEnabled: false` locally rather than joining M1's `no-js` project.
 
-`wrangler dev` reads `site/.dev.vars`. Without it the top-level vars apply (`SITE_ENV=production`, `ASK_BACKEND=anthropic`, no key and no Turnstile secret), so the smoke test would see a 403. Locally, copy `site/.dev.vars.example` to `site/.dev.vars` (`ASK_EMBEDDER=off` is fine). In CI, add `cp site/.dev.vars.example site/.dev.vars` before the Playwright step of M0's `e2e` job if that job does not already do it (Task 35 checks). The smoke test also needs network for Turnstile's test siteverify.
+`wrangler dev` reads `site/.dev.vars`. Without it the top-level vars apply (`SITE_ENV=production`, `ASK_BACKEND=anthropic`, no key and no Turnstile secret), so the smoke test would see a 403. Locally, copy `site/.dev.vars.example` to `site/.dev.vars` (`ASK_EMBEDDER=off` is fine). In CI, M0's `e2e` job copies it before Playwright (contract, Tests). The smoke test also needs network for Turnstile's test siteverify.
 
 - [ ] **Step 2: Run them to see them fail**
 
@@ -8397,7 +8418,7 @@ git commit -m "feat(rag): answer judge for faithfulness, refusals and language"
 ### Task 35: CI wiring: retrieval evals on every PR, answer evals on manual trigger
 
 **Files:**
-- Modify: `check.sh` (M0's); `.github/workflows/ci.yml` only if M0's `check` job does not already run `check.sh`, or its `e2e` job does not create `site/.dev.vars` from the example (Task 31's smoke test needs it)
+- Modify: `check.sh` (M0's); `.github/workflows/ci.yml` only if M0's `check` job does not already run `check.sh`
 - Create: `.github/workflows/answer-evals.yml`
 
 **Interfaces:**
@@ -8538,7 +8559,8 @@ From M0 (its plan and note, 2026-10-21):
 - `site/vitest.unit.config.ts` (Node) and `site/vitest.worker.config.ts` (`@cloudflare/vitest-plugin` 1.4 with Vitest 4.1, test entry `tests/worker/entry.ts`, migrations from `site/migrations/` applied by `tests/worker/apply-migrations.ts`). Worker tests may need a binary-fixture import plugin (Task 27).
 - Scripts `dev`, `build`, `serve`, `check`, `test`, `test:unit`, `test:worker`, `test:e2e`; root `./check.sh [--e2e]`; CI jobs `check` and `e2e`; Playwright honours `BASE_URL` and starts the server.
 - `rag/` uv project with package `dins_rag` (`dins_rag.paths.SITE_ASK_DIR`) and a root `pytest.ini` pointing at `rag/tests`. M3 adds the `ottie_rag` package to the same project. `site/public/ask/` is never gitignored.
-- `.dev.vars.example` committed and `.dev.vars` gitignored.
+- `.dev.vars.example` committed and `.dev.vars` gitignored; M0's `e2e` CI job copies `site/.dev.vars.example` to `site/.dev.vars` before Playwright (Task 31's smoke test and every real `/api/ask` call depend on it).
+- The shared build-time deploy: `Deploy` and `deployFromEnv` in `site/src/lib/deploy.ts`, `DEPLOY` in `site/src/lib/deploy-env.ts`, and Vitest defining `__DINS_DEPLOY__` as `"local"` (Task 30's `siteKey()` reads it).
 
 From M1:
 - Library schema (`topic`, `audience`, `sources: [{label, url?}]`, `language`, `approved_on`, `sample`) plus an optional `project` slug that M3 needs for the project filter on library entries (to be added by M1 or by M3 at merge).
@@ -8552,7 +8574,7 @@ From M4:
 - The letter field listens for `ask:state`; the contact form reuses `site/src/lib/turnstile.ts` (`verifyTurnstile({ token, secret, remoteip, action, hostnames, fetcher, timeoutMs })`) and the browser loader `site/src/lib/turnstile-client.ts` (`loadTurnstile`, `siteKey`, `TURNSTILE_TEST_SITEKEY`). Whichever of M3 or M4 reaches Turnstile first creates both files (contract, `docs/site/plans/README.md`).
 
 From M5:
-- Production secrets `ANTHROPIC_API_KEY` and `TURNSTILE_SECRET_KEY`, the build variable `PUBLIC_TURNSTILE_SITE_KEY` for `main`, `TURNSTILE_EXPECTED_HOSTNAMES=dins.dev` once the custom domain exists, the $100 production and $5 eval workspaces, the CSP allowing `https://challenges.cloudflare.com` in `script-src` and `frame-src`, the release gate `ottie-rag check --release`, and the Sonnet-judged release run of `answer-evals`.
+- Production secrets `ANTHROPIC_API_KEY` and `TURNSTILE_SECRET_KEY`, the build variable `PUBLIC_TURNSTILE_SITE_KEY` (used only by `production` builds, so it may be set for all branches), `TURNSTILE_EXPECTED_HOSTNAMES=dins.dev` once the custom domain exists, the $100 production and $5 eval workspaces, the CSP allowing `https://challenges.cloudflare.com` in `script-src` and `frame-src`, the release gate `ottie-rag check --release`, and the Sonnet-judged release run of `answer-evals`.
 
 From the content track (Din):
 - The interview answers that replace the sample golden set, and library entries that arrive through reviewed PRs.
