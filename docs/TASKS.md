@@ -48,7 +48,7 @@ Status vocabulary: Proposed, Planned, In progress, Implemented, Verified, Accept
 
 | ID | Task | Status |
 |---|---|---|
-| 2.1 | Write the site PRD and build plan (earlier concepts in `~/Develop/dins.dev-concepts` are reference only) | In progress |
+| 2.1 | Write the site PRD and build plan (earlier concepts in `~/Develop/dins.dev-concepts` are reference only) | Implemented (2026-10-21): `docs/site/PRD.md`, `docs/site/PLAN.md`, awaiting Din's review |
 | 2.1a | Lock routes, content model and the home page skeleton (sketch in `docs/design/sketches/`) | Accepted (Din, 2026-10-19) |
 | 2.2 | Lock the Ottie puppet route (Blender, mesh deformation, sprite sheets, live eyes; `docs/design/ottie/BRIEF.md`) | Accepted (Din, 2026-10-19) |
 | 2.3 | Build Ottie milestone 1: idle and wave, approved by Din in the preview page | Superseded: the 2D idle and wave were Accepted (Din, 2026-10-19), then Din moved Ottie to a 3D look; the 2D work is in the private `dins-ottie` repo |
@@ -58,6 +58,14 @@ Status vocabulary: Proposed, Planned, In progress, Implemented, Verified, Accept
 | 2.4a | Talk mouth: shape keys on the Tripo mouth cavity (Din chose option A) | Accepted (Din, 2026-10-21) |
 | 2.4b | Lock the 3D look in `docs/BRAND.md`; keep only the sheets, manifest and preview in this repo and move the 3D source to the private `~/Develop/dins-ottie` | Implemented (2026-10-21) |
 | 2.4c | A private GitHub remote for `dins-ottie` (Git LFS for the model, `.blend` files and textures) | Implemented (Din's go, 2026-10-21): `dinsdev/dins-ottie` |
+| 2.10 | M0 Foundation: `site/` and `rag/` set up, checks, CI, Renovate, Workers Builds previews (`docs/site/PLAN.md`) | Planned (Oct 22 to 26) |
+| 2.11 | M1 Pages and content: every route, content collections, SEO files, no-JS and reduced-motion baselines | Planned (Oct 27 to Nov 6) |
+| 2.12 | M2 Ottie on the site: canvas player, loader, triggers, lines, Quiet Ottie | Planned (Nov 2 to 12) |
+| 2.13 | M3 Ask Ottie: RAG build, Worker API, D1, budget, streaming UI, evals | Planned (Nov 6 to 22) |
+| 2.14 | M4 Set pieces: lens, windows, paper, studio, letter, each approved by Din | Planned (Nov 13 to 29) |
+| 2.15 | Content track (Din): interview, library PRs, real projects, resume; freeze Dec 1 | Planned (Nov 1 to Dec 1) |
+| 2.16 | M5 Hardening and launch: release evals, VoiceOver, phone check, keys, Search Console; live by Dec 12 | Planned (Dec 1 to 12) |
+| 2.17 | After launch: performance optimization pass (Lighthouse performance as a gate again) | Planned (after launch) |
 
 ## Phase 3: Games pipeline
 
