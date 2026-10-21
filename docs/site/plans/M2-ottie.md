@@ -54,8 +54,8 @@ These are Claude's calls to make the PRD buildable. Each is cheap to change; the
 3. **The manifest is bundled** (about 10 KB, roughly 1.5 KB gzipped) rather than fetched, so the reserved box is computed at build time and there is no extra request.
 4. **The inline still is aligned by measurement.** `brand/reference/ottie-3d-neutral.webp` is 720 x 880 at 2x the sheet's frame pixels (alpha bounding box 166,89 to 572,849 against idle drawing 0's 9,4 to 212,384), so its ground point is about (371.94, 823.18). It is resized at build time by `astro:assets` to 270 and 360 px wide (about 180 CSS px at size 1).
 5. **First visits hide the still before paint** (a 6-line inline script sets `data-ottie-enter` on `<html>`), so run-in does not start with a duplicate Ottie already standing there. A CSS animation reveals the still after 4 seconds regardless, so a failed script can never hide Ottie for good.
-6. **Greeting is per session:** the first session ever gets run-in, wave and "Hi, I’m Ottie."; a later session gets the wave on its first Ottie page; other pages in the same session start in idle. The 404 page opens with a shrug instead.
-7. **Load order on a first visit is run-in, wave, idle** (the visitor sees nothing move until run-in is ready); otherwise idle, then wave, as the PRD says. Both stay under 0.9 MB (868 KB and 610 KB).
+6. **Greeting is per session:** the first session ever gets run-in, wave and "Hi, I’m Ottie."; a later session gets the wave on its first Ottie page; other pages in the same session start in idle. The 404 page opens with a shrug instead. Only a page with a greeting Ottie (home, project or devlog) marks the visit, so a visit that starts on `/contact` or the 404 page still gets the full greeting on the first greeting page. Decided (Din, 2026-10-21, open questions 2 and 8).
+7. **Load order on a first visit is run-in, wave, idle** (decided by Din, 2026-10-21, open question 1) (the visitor sees nothing move until run-in is ready); otherwise idle, then wave, as the PRD says. Both stay under 0.9 MB (868 KB and 610 KB).
 8. **Prefetch versus decode.** "Prefetch" only fetches bytes into memory; a sheet is decoded (off the main thread with `createImageBitmap`) only when it is about to play, and at most 4 decoded sheets are kept (idle always), so phones do not hold 90 MB of bitmaps.
 9. **Thresholds** (constants, tuned by Din in the preview): tip after 20 s of quiet, talk prefetched at 15 s, nap prefetched at 45 s and played at 60 s, "lots of background clicking" is 6 clicks on non-interactive areas within 4 s, typing silences bubbles for 2 s after the last keystroke, one tip per quiet stretch.
 10. **Reduced motion uses key poses**, one drawing per state (table in `poses.ts`, Din picks the final drawings in the lab): run-in, poke, talk and wake have no pose and are skipped; idle is the still image itself, so reduced motion never loads the idle sheet.
@@ -839,7 +839,7 @@ export const KEY_POSE: Partial<Record<StateName, number>> = {
 };
 
 // Point is drawn toward screen right. Mirroring it for targets on Ottie's left
-// waits for Din's approval (Open questions, item 3).
+// is built but stays off until Din approves it in the lab (Din, 2026-10-21).
 export const MIRROR_POINT_APPROVED = false;
 ```
 
@@ -1698,6 +1698,14 @@ describe("director openers", () => {
     expect(director({ mode: "reduced", visit: "session" }).opener).toEqual([]);
   });
 
+  it("greets first visits on project and devlog pages too", () => {
+    for (const context of ["project", "devlog"] as const) {
+      const { d, opener } = director({ context, visit: "first" });
+      expect(opener).toEqual([prefetch("run-in", "wave", "idle"), play("run-in", "wave")]);
+      expect(says(d.entered("wave", 2300))).toHaveLength(1);
+    }
+  });
+
   it("shrugs on the 404 page", () => {
     const { d, opener } = director({ context: "404", visit: "first" });
     expect(opener).toEqual([prefetch("idle", "shrug"), play("shrug")]);
@@ -1795,6 +1803,7 @@ Expected: FAIL, "Failed to resolve import ../../../src/ottie/director".
 // and time. The player runs the commands; nothing here touches the DOM.
 import { bubbleMs, createBubbleGate } from "./bubble";
 import type { OttieCueDetail } from "./events";
+import { greetsIn } from "./hosts";
 import { pickLine, type Lines, type PageContext } from "./lines";
 import type { StateName } from "./manifest";
 import type { Mode, Visit } from "./prefs";
@@ -1871,7 +1880,7 @@ export function createDirector(env: DirectorEnv, lines: Lines, rng: () => number
         : letter ? []
         : env.visit === "first" ? (reduced ? ["wave"] : ["run-in", "wave"])
         : env.visit === "returning" ? ["wave"] : [];
-      greetingPending = !notFound && !letter && env.visit === "first";
+      greetingPending = greetsIn(env.context) && env.visit === "first";
       notFoundPending = notFound;
       const order: StateName[] = reduced ? [...opener]
         : greetingPending ? ["run-in", "wave", "idle"]
@@ -1955,7 +1964,7 @@ The variables `lastTick`, `quietMs`, `clicks`, `tipsShown`, `tipThisStretch`, `t
 - [ ] **Step 5: Run it to verify it passes**
 
 Run: `pnpm --dir site exec vitest run tests/unit/ottie/director.test.ts`
-Expected: PASS, 16 tests.
+Expected: PASS, 17 tests. (Task 9 imports `greetsIn` from Task 11's `hosts.ts`; if Task 11 is not written yet, write its `GREETING_CONTEXTS` and `greetsIn` lines first, with their test, and finish Task 11 in its turn.)
 
 - [ ] **Step 6: Commit**
 
@@ -2165,7 +2174,7 @@ Delete the "Task 10" note under the director code if one was left in a comment.
 - [ ] **Step 4: Run both director suites**
 
 Run: `pnpm --dir site exec vitest run tests/unit/ottie/director.test.ts tests/unit/ottie/director-quiet.test.ts`
-Expected: PASS, 16 and 12 tests.
+Expected: PASS, 17 and 12 tests.
 
 - [ ] **Step 5: Run the whole unit suite and the type check**
 
@@ -2187,12 +2196,13 @@ git commit -m "feat(ottie): add tips, naps and waking to the director"
 
 **Interfaces:**
 - Consumes: `OttieCueType` (Task 1), `PageContext` (Task 6), `Visit` (Task 8), `Interaction` (Task 9).
-- Produces: `cueTargets(type: OttieCueType, contexts: PageContext[]): number[]`, `interactionTargets(kind: Interaction, count: number, active: number | null, poked: number | null): number[]`, `hostVisit(index: number, visit: Visit): Visit`, `pickActive(ratios: number[], current: number | null): number | null`.
+- Produces: `GREETING_CONTEXTS`, `greetsIn(context: PageContext): boolean`, `marksVisit(contexts: PageContext[]): boolean`, `cueTargets(type: OttieCueType, contexts: PageContext[]): number[]`, `interactionTargets(kind: Interaction, count: number, active: number | null, poked: number | null): number[]`, `hostVisit(index: number, visit: Visit): Visit`, `pickActive(ratios: number[], current: number | null): number | null`.
 
 The contract's multi-host rules (Din, 2026-10-21, M4 decision 4) as pure functions, so the page controller in Task 12 only wires them up:
 - `ask:*` cues reach `home` and `project` hosts; `letter:*` cues reach `contact` hosts.
 - A poke goes to the Ottie that was clicked; a background click to the active host; pointer, key and scroll activity to every host (it resets their quiet timers and wakes them).
-- The page's first host gets the real visit; every other host gets `session`, so only the first host can greet. (A `contact` host never greets anyway, per Task 9.)
+- The page's first host gets the real visit; every other host gets `session`, so only the first host can greet. Only `home`, `project` and `devlog` hosts greet (`greetsIn`); the letter Ottie and the 404 Ottie never do.
+- A page marks the visit (`markVisit`) only if it has a greeting host (`marksVisit`), so landing on `/contact` or a 404 first leaves the visit unmarked and the first greeting page still gets the full first-visit greeting (Din, 2026-10-21, open question 8).
 - The active host is the one with the largest visible share (IntersectionObserver ratio). Ties keep the current host, so two fully visible Otties do not flicker; nothing visible means no active host.
 
 - [ ] **Step 1: Write the failing test**
@@ -2200,7 +2210,8 @@ The contract's multi-host rules (Din, 2026-10-21, M4 decision 4) as pure functio
 ```ts
 // site/tests/unit/ottie/hosts.test.ts
 import { describe, expect, it } from "vitest";
-import { cueTargets, hostVisit, interactionTargets, pickActive } from "../../../src/ottie/hosts";
+import { cueTargets, greetsIn, hostVisit, interactionTargets, marksVisit, pickActive } from "../../../src/ottie/hosts";
+import { markVisit, safe, visitKind, type StorageLike } from "../../../src/ottie/prefs";
 
 describe("cue routing", () => {
   it("sends ask cues to home and project hosts and letter cues to contact hosts", () => {
@@ -2219,6 +2230,39 @@ describe("interaction routing", () => {
     expect(interactionTargets("background-click", 2, null, null)).toEqual([]);
     expect(interactionTargets("pointer", 2, 0, null)).toEqual([0, 1]);
     expect(interactionTargets("scroll", 1, null, null)).toEqual([0]);
+  });
+});
+
+describe("greeting and visits", () => {
+  it("greets only on home, project and devlog Otties", () => {
+    expect(["home", "project", "devlog"].every((c) => greetsIn(c as never))).toBe(true);
+    expect(greetsIn("contact")).toBe(false);
+    expect(greetsIn("404")).toBe(false);
+  });
+
+  it("marks the visit only on pages with a greeting Ottie", () => {
+    expect(marksVisit(["home", "contact"])).toBe(true);
+    expect(marksVisit(["project"])).toBe(true);
+    expect(marksVisit(["contact"])).toBe(false);
+    expect(marksVisit(["404"])).toBe(false);
+    expect(marksVisit([])).toBe(false);
+  });
+
+  it("keeps a first visit first after landing on /contact", () => {
+    const mem = (): StorageLike => {
+      const m = new Map<string, string>();
+      return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => void m.set(k, v), removeItem: (k) => void m.delete(k) };
+    };
+    const ls = safe(() => mem()), ss = safe(() => mem());
+    const visitPage = (contexts: Parameters<typeof marksVisit>[0]) => {
+      const v = visitKind(ls, ss);
+      if (marksVisit(contexts)) markVisit(ls, ss);
+      return v;
+    };
+    expect(visitPage(["contact"])).toBe("first");
+    expect(visitPage(["404"])).toBe("first");
+    expect(visitPage(["home", "contact"])).toBe("first");
+    expect(visitPage(["home", "contact"])).toBe("session");
   });
 });
 
@@ -2247,6 +2291,8 @@ Expected: FAIL, "Failed to resolve import ../../../src/ottie/hosts".
 
 - [ ] **Step 3: Write the implementation**
 
+`hosts.ts` imports only types from `director.ts`, so `director.ts` can import `greetsIn` from it without a runtime cycle.
+
 ```ts
 // site/src/ottie/hosts.ts
 // Rules for pages with more than one Ottie (home: the hero and the letter).
@@ -2257,6 +2303,14 @@ import type { Visit } from "./prefs";
 
 const ASK_HOSTS: readonly PageContext[] = ["home", "project"];
 const LETTER_HOSTS: readonly PageContext[] = ["contact"];
+export const GREETING_CONTEXTS: readonly PageContext[] = ["home", "project", "devlog"];
+
+// The letter Ottie and the 404 Ottie never greet.
+export const greetsIn = (context: PageContext): boolean => GREETING_CONTEXTS.includes(context);
+
+// Only a page with a greeting Ottie marks the visit, so the first greeting page
+// still gets the full first-visit greeting (Din, 2026-10-21).
+export const marksVisit = (contexts: PageContext[]): boolean => contexts.some(greetsIn);
 
 export function cueTargets(type: OttieCueType, contexts: PageContext[]): number[] {
   const wanted = type.startsWith("ask:") ? ASK_HOSTS : LETTER_HOSTS;
@@ -2283,7 +2337,7 @@ export function pickActive(ratios: number[], current: number | null): number | n
 - [ ] **Step 4: Run it to verify it passes**
 
 Run: `pnpm --dir site exec vitest run tests/unit/ottie/hosts.test.ts`
-Expected: PASS, 4 tests.
+Expected: PASS, 7 tests.
 
 - [ ] **Step 5: Commit**
 
@@ -2305,7 +2359,7 @@ git commit -m "feat(ottie): route cues between several Otties and pick the one t
 DOM contract (rendered by Task 13): each `[data-ottie-host]` (with `data-ottie-context`, and `data-ottie-greets` on greeting contexts) holds `[data-ottie-still]`, `[data-ottie-canvas]` and `[data-ottie-bubble]`; the page has at most one `[data-ottie-quiet]` button. Each host gets `is-live` while its canvas shows Ottie, `data-ottie-mode`, and `data-ottie-running="true|false"` (true only for the active host); the e2e tests read these.
 
 What the shell does:
-1. **Page controller (`player.ts`)**: reads Quiet Ottie and the device hints once, picks the mode, reads and marks the visit, builds one loader shared by every host, and one actor per host (`hostVisit` gives the first host the real visit). In still mode it shows every still, clears `data-ottie-enter` and stops.
+1. **Page controller (`player.ts`)**: reads Quiet Ottie and the device hints once, picks the mode, reads the visit and marks it only if the page has a greeting Ottie (`marksVisit`), builds one loader shared by every host, and one actor per host (`hostVisit` gives the first host the real visit). In still mode it shows every still, clears `data-ottie-enter` and stops.
 2. After `load` and an idle callback, the first host's actor starts (runs `director.start()`; in full mode it then asks for idle, so the request order is run-in, wave, idle on a first visit and idle, wave otherwise). Any other host starts the first time it becomes the active host, so the letter Ottie's sheets are only requested when the visitor gets there.
 3. The active host comes from `pickActive` over IntersectionObserver ratios; with the tab hidden there is none. Only the active actor runs its frame loop and its 1 s director tick; the others show their still. Clicking an Ottie makes it the active host.
 4. Cues go through `cueTargets`, interactions through `interactionTargets` (pointer, key and scroll listeners are passive and on capture).
@@ -2631,7 +2685,8 @@ import { createActor, type Actor } from "./actor";
 import { sheetUrl, sheetVersion } from "./assets";
 import type { Interaction } from "./director";
 import { isCueType, onOttieCue } from "./events";
-import { cueTargets, hostVisit, interactionTargets, pickActive } from "./hosts";
+import { cueTargets, hostVisit, interactionTargets, marksVisit, pickActive } from "./hosts";
+import type { PageContext } from "./lines";
 import { createLoader } from "./loader";
 import { geometry } from "./manifest";
 import { MANIFEST } from "./manifest-data";
@@ -2657,8 +2712,9 @@ export function startOttie(opts: PlayerOptions): () => void {
   const ls = localStore(), ss = sessionStore();
   const hints = deviceHints();
   const mode = opts.forceMode ?? modeFor(opts.quiet, hints);
+  const contexts = hosts.map((h) => (h.dataset.ottieContext ?? "home") as PageContext);
   const visit = visitKind(ls, ss);
-  markVisit(ls, ss);
+  if (marksVisit(contexts)) markVisit(ls, ss); // /contact or a 404 alone leaves the visit unmarked
   for (const h of hosts) h.dataset.ottieMode = mode;
   if (visit !== "first" || mode !== "full") delete root.dataset.ottieEnter;
   if (mode === "still") {
@@ -2671,7 +2727,6 @@ export function startOttie(opts: PlayerOptions): () => void {
   const loader = createLoader<Sheet>((n) => sheetUrl(MANIFEST, n, version), browserSource);
   const base = { loader, geometry: geometry(MANIFEST), mode, phone: hints.phone, ss, now: () => performance.now() };
   const actors: Actor[] = hosts.map((host, i) => createActor(host, hostVisit(i, visit), { ...base, mirrorPoint: opts.mirrorPoint(host) }));
-  const contexts = actors.map((a) => a.context);
   const ratios = actors.map(() => 0);
   let active: number | null = null, tickTimer = 0, booted = false;
 
@@ -3319,6 +3374,18 @@ test.describe("loading order", () => {
     expect(await states(page)).toEqual([]);
   });
 
+  test("landing on /contact first keeps the full greeting for home", async ({ page }) => {
+    await trackStates(page);
+    await page.goto(`${LAB}/contact`);
+    await page.waitForTimeout(3000);
+    expect(await page.evaluate(() => [localStorage.getItem("dins.ottie.seen"), sessionStorage.getItem("dins.ottie.session")]))
+      .toEqual([null, null]);
+    await page.goto(LAB);
+    expect(await page.evaluate(() => "ottieEnter" in document.documentElement.dataset)).toBe(true);
+    await expect.poll(() => states(page), { timeout: 15_000 }).toEqual(["run-in", "wave", "idle"]);
+    expect(await page.evaluate(() => localStorage.getItem("dins.ottie.seen"))).not.toBeNull();
+  });
+
   test("other sheets load just before their triggers", async ({ page }) => {
     const sheets = trackSheets(page);
     await trackStates(page);
@@ -3855,7 +3922,7 @@ Ottie's lines are copy, and the PRD requires a reviewed file. The drafts in Task
 - 404: "I looked closer. This page isn’t here."
 
 - [ ] Din edits, cuts or approves each line (every line must still pass `pnpm --dir site exec vitest run tests/unit/ottie/lines.test.ts`).
-- [ ] Din decides whether French lines ship in v1 (PRD section 9). If yes, the lines file grows a `fr` block and the director picks by `document.documentElement.lang`; that is a follow-up task, not in this plan.
+- [x] French lines: English only in v1 (Din, 2026-10-21). A `fr` block is a post-launch follow-up.
 - [ ] Claude records "Lines reviewed (Din, date)" in the ledger.
 
 ### Task 18 (Din): Approve Ottie in the preview
@@ -3874,7 +3941,8 @@ Checklist for Din, on the preview's `/lab/ottie` pages and (after Task 16) the r
 - [ ] `?calm` (M4's review switch): Ottie uses the reduced-motion poses.
 - [ ] Reduced motion (system setting, or `?ottie-mode=reduced`): poses with gentle crossfades; pick the key pose for each state (wave, think, nod, point, shrug, jump, nap) and tell Claude the drawing numbers to put in `poses.ts`.
 - [ ] Still overlay: the still and the canvas line up.
-- [ ] Point direction: on the home hero Ottie points toward screen right; decide whether to mirror it toward the answer (Open questions, item 3).
+- [ ] Point direction: in the lab, turn the mirrored point on locally (`MIRROR_POINT_APPROVED = true` in a scratch build) and judge it next to the right-facing point. Only Din's approval turns it on for the site; if Din rejects it, choose between placing Ottie left of what it points at or a left-pointing render (decision 3).
+- [ ] Land on `/lab/ottie/contact` in a fresh window, then open `/lab/ottie`: the full first-visit greeting plays there.
 - [ ] Chrome DevTools, Performance panel, 4x CPU slowdown, record 10 s on the home page: no red long tasks from Ottie, no layout shift. Network panel: sheets in the order run-in, wave, idle on a first visit; each later sheet only when its trigger is near.
 - [ ] Claude records Din's approval (or the changes asked for) in the ledger; Din sets task 2.12 to Accepted.
 
@@ -3930,25 +3998,34 @@ What this plan relies on from the other milestones. If one turns out differently
 - M5's headers integration keeps the `/ottie/*` caching rule from `site/public/_headers` (Task 15) when it merges.
 - The VoiceOver pass and the real-phone check cover Ottie's pages (Ottie should be silent to VoiceOver; the Quiet Ottie toggle should be announced as a toggle button).
 
-## Open questions for Din
+## Open questions for Din (all decided 2026-10-21)
 
-None of these block Tasks 1 to 15; the plan builds the default shown and makes each a constant or a small switch.
+Din answered all eight with "Go with your recommendations" (2026-10-21). Each question is kept as asked, with the decision under it.
 
 1. **First-visit load order.** The PRD says idle loads first, then wave. On a first visit nothing moves until run-in arrives, so this plan loads run-in, wave, then idle (868 KB, inside the 0.6 to 0.9 MB target). Returning visits follow the PRD (idle, then wave, 610 KB). OK to note this in PRD section 4?
+   **Decided (Din, 2026-10-21, "Go with your recommendations"):** run-in, wave, idle on a first visit; it goes into PRD section 4 on merge.
 2. **What counts as a visit.** The plan greets once per browser session: run-in, wave and "Hi, I’m Ottie." the first time ever, just the wave on the first Ottie page of later sessions, and nothing on other pages of the same session. The PRD does not say how often a returning visitor gets the wave.
+   **Decided (Din, 2026-10-21, "Go with your recommendations"):** once per browser session, as planned.
 3. **Point direction.** Point is drawn toward screen right only. On the home hero Ottie sits at the right with the answer and sources to its left, so it would point away from them. Options: mirror point when the target is on the left (built, behind `MIRROR_POINT_APPROVED`; the glasses and lighting flip too), place Ottie to the left of what it points at, or render a left-pointing state in the private `dins-ottie` repo.
+   **Decided (Din, 2026-10-21, "Go with your recommendations"):** build the mirrored point as planned, behind `MIRROR_POINT_APPROVED = false`. Din judges it in the lab (Task 18), and it is turned on only with Din's approval. If Din rejects the mirror, the other two options stay as fallbacks.
 4. **"Lots of background clicking" sends Ottie to nap.** The plan reads it as 6 clicks on non-interactive areas within 4 seconds, and background clicks alone do not wake Ottie. Is that the behaviour you meant?
+   **Decided (Din, 2026-10-21, "Go with your recommendations"):** yes, 6 background clicks within 4 seconds, and background clicks alone do not wake Ottie.
 5. **Talk while streaming.** M3's planning note suggested talk while an answer streams. The PRD keeps talk for speech bubbles and silence while streaming, so this plan keeps think until the answer lands. Confirm.
+   **Decided (Din, 2026-10-21, "Go with your recommendations"):** no talk while streaming; think until the answer lands.
 6. **Quiet Ottie toggle.** Placed as a small mono "Quiet Ottie" button under the page's first Ottie (one per page; it quiets both Otties on home), visible only with JavaScript. Quiet means the still pose with no state changes at all (not even reduced-motion poses). Is that spot and meaning right, or should it live in the footer?
+   **Decided (Din, 2026-10-21, "Go with your recommendations"):** under the page's first Ottie, with that meaning.
 7. **French lines** (PRD section 9): English only in v1 unless you say otherwise.
+   **Decided (Din, 2026-10-21, "Go with your recommendations"):** English only in v1.
 8. **Landing on `/contact` first.** Per the contract the letter Ottie never greets, so a first visit that lands on `/contact` gets no run-in or "Hi, I’m Ottie.", and the visit is still marked, so the home page later just waves. Fine, or should the greeting wait for the first page that has a greeting Ottie?
+   **Decided (Din, 2026-10-21, "Go with your recommendations"):** the greeting waits for the first page that has a greeting Ottie. A page whose Otties never greet (`/contact`, the 404 page) does not mark the visit, so a later home page still gets the full first-visit greeting. Built in Task 11 (`greetsIn`, `marksVisit`, unit tested), used by Task 9's director and Task 12's player, and covered end to end in Task 14 (lab `/contact`, then lab home).
 
 ## Doc updates to apply on merge
 
 For whoever merges this plan (not done here, per the planning rules):
 
 - `docs/TASKS.md`, row 2.12: link this plan (`docs/site/plans/M2-ottie.md`) and add rows 2.12a "Review Ottie's lines (Din)" and 2.12b "Approve Ottie in the preview (Din)", both Planned.
-- `docs/WORK_LEDGER.md`: an entry "M2 plan written (Claude, 2026-10-21)" listing the decisions in "Decisions made in this plan" as Proposed, the public cue interface, and the open questions above.
+- `docs/WORK_LEDGER.md`: an entry "M2 plan written (Claude, 2026-10-21)" listing the decisions in "Decisions made in this plan", the public cue interface, and the eight questions with Din's decisions.
 - `docs/site/PLAN.md`, M2 section: mention the lab page (`/lab/ottie`, never built for production), the cue interface file (`site/src/ottie/events.ts`) that M3 and M4 use, the second (letter) Ottie on home, and that M2's Task 16 waits for M1's pages.
 - `docs/site/plans/README.md`: mark the M2 amendments as applied, and add `detail.context` on `ottie:state` to the "Ottie (owner M2)" section.
-- `docs/site/PRD.md` section 4: only after Din answers open questions 1, 2 and 4 (load order on a first visit, how often the greeting plays, the background-click rule).
+- `docs/site/PRD.md` section 4 (Din decided these on 2026-10-21): a first visit loads run-in, wave, then idle; the greeting plays once per browser session, on the first page with a greeting Ottie (a visit that starts on `/contact` or a 404 still gets it later); 6 background clicks within 4 seconds send Ottie to nap and do not wake it; no talk while an answer streams; Ottie's lines are English only in v1; point is mirrored only if Din approves it in the lab.
+- `docs/WORK_LEDGER.md`: record Din's answers to the eight M2 questions ("Go with your recommendations", 2026-10-21).
