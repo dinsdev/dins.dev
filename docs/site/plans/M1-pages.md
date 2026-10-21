@@ -2608,6 +2608,7 @@ import { site } from "../data/site";
     <label for="c-email">Your email</label>
     <input id="c-email" name={F.email} type="email" required maxlength={L.email} autocomplete="email" />
   </fieldset>
+  <!-- Honeypot: catches scripted posts that do run JavaScript. Posts without JavaScript are refused anyway (no Turnstile token). -->
   <div class="hp" aria-hidden="true">
     <label for="c-website">Leave this field empty</label>
     <input id="c-website" name={F.honeypot} type="text" tabindex="-1" autocomplete="off" />
@@ -4668,6 +4669,12 @@ Ask Din before pushing `feat/m1-pages` (pushing and PRs need Din's go). Once pus
 
 ## Open questions for Din
 
+### Decided
+
+- **Contact without JavaScript versus Turnstile.** Decided (Din, 2026-10-21, through M4's decision 1). The question: PRD 6 says the contact form still submits with JavaScript off, but Turnstile (PRD 5) needs JavaScript. The first version of this plan recommended accepting token-less posts behind the honeypot and a stricter rate limit. Din chose instead: without JavaScript there is no Turnstile token, so the post is never accepted. It lands on `/contact/not-sent/` with a `mailto:din@dins.dev` link, and the form shows a `<noscript>` note pointing to the same address. The honeypot stays as a cheap filter for scripted posts that do run JavaScript, and the "Or email din@dins.dev" line under the button stays for everyone. PRD 6's "the contact form still submits" needs the matching edit (see Doc updates).
+
+### Open
+
 1. **Previews show drafts.** The plan shows drafts (with a "Draft, hidden on dins.dev" badge) on Workers Builds preview deploys and marks those pages `noindex`, so Din can review sample and unpublished content before it ships. Production (`main`) never shows them, and a build that tries is refused. PRD 2 only says "never in production". Recommendation: keep previews showing drafts; the repo is public anyway, so a preview reveals nothing new.
 2. **Work filters as static pages.** Filters are links to `/work/kind/<kind>/` pages (crawlable, no JavaScript, `aria-current`), shown only for kinds with projects. PRD 2 says "filterable" without saying how. This adds a route family to PRD 2. Alternative: one page with a small script. Recommendation: static pages.
 3. **The `devlog` field.** PRD 2 lists both `kind: devlog` and a `devlog` flag (card C). The plan keeps the flag optional and defaults it to `kind === "devlog"`. Should the flag go, so there is one way to say it?
@@ -4679,6 +4686,7 @@ Ask Din before pushing `feat/m1-pages` (pushing and PRs need Din's go). Once pus
 
 - `docs/TASKS.md` row 2.11: status to Implemented when the build lands, Verified after the checks pass, with a link to this plan; add Din tasks D1 to D8 as rows (Done (Din) when each lands).
 - `docs/site/PRD.md` section 2, routes: add `/work/kind/<kind>/` (if open question 2 is accepted), `/contact/sent/` and `/contact/not-sent/` (noindex, never in the sitemap; `/contact/not-sent/` carries a `mailto:din@dins.dev` link, because a post without JavaScript has no Turnstile token and is never accepted, Din 2026-10-21), and state that previews show drafts with `noindex` (if open question 1 is accepted). `sitemap.xml` is written by the site itself.
+- `docs/site/PRD.md` section 6, failure modes: replace "the contact form still submits" with "without JavaScript the contact form points to email (a post has no Turnstile token and is not accepted)" (Din, 2026-10-21).
 - `docs/site/PRD.md` section 2, content model: record the exact fields M1 added or pinned down: projects `capture` (16:10, checked at build), `captureAlt`, `demo` as `{ type, src }` with `src` a site path, `featured` 1 to 4 and unique, `repo` https only, and the reserved id `kind`; writing `motif` (`nodes`, `bars`, `lens`) and `devlog` defaulting from `kind`; library `audience` values (`admissions`, `recruiters`, `visitors`), `approved_on` nullable only with `sample: true`; suggested `order`, `generated_on`, `language`, `sources` as `{ label, href }`; contact message limit 4000 characters.
 - `docs/site/PLAN.md` M1: note the drafts flags (M0's shared deploy plus `DINS_SHOW_DRAFTS`), the `check:drafts` step in `check.sh`, and `pnpm --dir site launch:blockers` (M5 can make it a launch gate).
 - `docs/site/PLAN.md` M5: Lighthouse against production needs real case study and post paths in `site/lighthouserc.cjs` instead of the samples; M5's release scan can reuse `findDraftLeaks`.
