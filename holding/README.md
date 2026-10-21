@@ -19,9 +19,22 @@ Rerun after any change to the tokens, logos, fonts or Ottie sheets.
 ## Preview
 
 ```bash
-python3 -m http.server 8766 --bind 127.0.0.1 --directory holding/public
+npx --yes wrangler@4.151.3 dev --cwd holding --port 8766 --ip 127.0.0.1
 ```
 
-Then open http://127.0.0.1:8766. Also available as the `holding` entry in `.claude/launch.json`.
+Then open http://127.0.0.1:8766. This runs the same asset handling as production, so `_headers` and the fallback for unknown paths apply. Also available as the `holding` entry in `.claude/launch.json`.
 
-The page sets `noindex`, so search engines skip it until launch. Remove this folder when the real site goes live.
+## Deploy
+
+`wrangler.jsonc` defines `dins-holding`, a Worker that serves only static assets. Its one route attaches `dins.dev` as a Custom Domain, so the first deploy creates the DNS record and the certificate. There are no workers.dev or preview URLs.
+
+```bash
+npx --yes wrangler@4.151.3 login
+npx --yes wrangler@4.151.3 deploy --cwd holding
+```
+
+`public/_headers` sets a strict Content Security Policy (no scripts, same-origin styles, fonts and images), `X-Robots-Tag: noindex` and a week of caching on the fonts. Every unknown path shows the holding page.
+
+## At launch
+
+The `dins-site` Worker takes over `dins.dev`. Detach the domain from `dins-holding` first (or the site deploy fails on a domain already in use), then delete the Worker and this folder.

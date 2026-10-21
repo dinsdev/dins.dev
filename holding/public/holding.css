@@ -129,7 +129,15 @@ a:focus-visible {
 @media (prefers-reduced-motion: no-preference) {
   .reveal {
     animation: rise 700ms var(--motion-ease) both;
-    animation-delay: calc(var(--i, 0) * 90ms + 60ms);
+    animation-delay: 60ms;
+  }
+
+  .reveal-2 {
+    animation-delay: 150ms;
+  }
+
+  .reveal-3 {
+    animation-delay: 240ms;
   }
 
   .ottie {

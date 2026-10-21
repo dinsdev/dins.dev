@@ -17,15 +17,17 @@
     },
     {
       "name": "holding",
-      "runtimeExecutable": "python3",
+      "runtimeExecutable": "npx",
       "runtimeArgs": [
-        "-m",
-        "http.server",
+        "--yes",
+        "wrangler@4.151.3",
+        "dev",
+        "--cwd",
+        "holding",
+        "--port",
         "8766",
-        "--bind",
-        "127.0.0.1",
-        "--directory",
-        "holding/public"
+        "--ip",
+        "127.0.0.1"
       ],
       "port": 8766
     }

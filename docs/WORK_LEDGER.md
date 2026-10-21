@@ -4,6 +4,14 @@ Decisions and why, work done, verification results, approvals, blockers, handoff
 
 ## 2026-10-21
 
+### Holding page deploy setup (Claude, 2026-10-21)
+
+- **Go-ahead (Din):** "Go with Workers static assets: add the wrangler config on a branch, open a PR, and walk me through attaching dins.dev."
+- **Done:** `holding/wrangler.jsonc` defines `dins-holding`, an assets-only Worker (wrangler 4.151.3, the M0 pin). Its route attaches `dins.dev` as a Custom Domain, with workers.dev and preview URLs off. Unknown paths fall back to the page. `holding/public/_headers` sets a strict CSP (no scripts; same-origin styles, fonts, images and manifest), nosniff, a referrer policy, a permissions policy, `X-Robots-Tag: noindex` and a week of caching on the fonts. The inline `style` attributes became classes so the CSP needs no `unsafe-inline`. The `holding` preview now runs `wrangler dev` instead of `http.server`.
+- **Why a separate Worker:** M0's `dins-site` Worker and its Workers Builds setup do not exist yet. A throwaway Worker keeps the holding page out of M0's config, and at launch it is one detach and one delete (task 2.9b).
+- **Verified (wrangler dev and curl):** `deploy --dry-run` reads the assets with no bindings; `/` returns every header; `/some/missing/path` returns the page; `/_headers` is not served; fonts are `font/woff2` with the cache header. In the browser pane: both fonts, the lockup and Ottie load under the CSP with no violations from the page.
+- **Not done:** the real deploy and the domain attach (Din's Cloudflare login).
+
 ### Holding page for dins.dev (Claude, 2026-10-21)
 
 - **Asked (Din):** a simple, calm, professional page that says the site is under construction and will be live soon, built from the brand tokens; preview first, pushing discussed after.
@@ -11,8 +19,8 @@ Decisions and why, work done, verification results, approvals, blockers, handoff
 - **Why this shape:** kept apart from M0's `site/` so it never touches the Astro app and can be deleted at launch. Ottie is the one playful detail, small (about a quarter of the viewport height) and never the headline (BRAND.md). The design skill bans Fraunces and warm paper by default; both are locked brand choices, so the brand wins.
 - **Choices to confirm with Din:** the copy; `noindex` so the holding page never appears in search results; no email address yet because Email Routing (0.8) is not set up; no social card image yet (the cards exist only as an HTML template).
 - **Font download:** Instrument Sans (`InstrumentSans[wdth,wght].ttf`, 194,336 bytes, matches M0's table) and its OFL from github.com/google/fonts, vendored at the M0 Task 4 names (`brand/fonts/InstrumentSans-VF.ttf`, `brand/fonts/OFL-InstrumentSans.txt`). M0 Task 4 Step 1 still needs JetBrains Mono and `brand/fonts/README.md`.
-- **Verification:** served locally (`holding` in `.claude/launch.json`) and checked in the browser pane: both fonts load, no console errors, no horizontal scroll at 375 px, light and dark lockups switch, Ottie's sprite steps through all 24 frames (background positions sampled), Ottie's feet sit on the rule, the text clears Ottie at 375 x 812 and 900 x 480 (the short screen scrolls 48 px instead of overlapping). Reduced motion was not emulated; the CSS only animates under `prefers-reduced-motion: no-preference`, so Ottie shows the first frame still.
-- **Not done:** deploying (needs Din's go).
+- **Verification:** served locally (at the time with `http.server`) and checked in the browser pane: both fonts load, no console errors, no horizontal scroll at 375 px, light and dark lockups switch, Ottie's sprite steps through all 24 frames (background positions sampled), Ottie's feet sit on the rule, the text clears Ottie at 375 x 812 and 900 x 480 (the short screen scrolls 48 px instead of overlapping). Reduced motion was not emulated; the CSS only animates under `prefers-reduced-motion: no-preference`, so Ottie shows the first frame still.
+- **Not done:** deploying (Din's go came next, see the deploy setup entry above).
 
 ### Din's decisions on the plans' open questions (Din, 2026-10-21)
 
