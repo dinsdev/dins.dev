@@ -11,7 +11,7 @@ Decisions and why, work done, verification results, approvals, blockers, handoff
 - **Found already in place:** Email Routing was enabled on the zone (status `ready`, since 05:37 UTC today), with Cloudflare's three MX records, the SPF record (`include:_spf.mx.cloudflare.net ~all`) and the `cf2024-1._domainkey` DKIM record. `dind.dev@gmail.com` was already a verified destination (verified 2025-12-15), so no verification click was needed.
 - **Done:** four literal rules forwarding to `dind.dev@gmail.com`: `din@`, `dinesh@`, `hello@`, `support@`. The catch-all changed from disabled (drop) to enabled (forward to the same inbox). Done with `wrangler email routing` (4.151.2, open beta commands).
 - **Verified:** `rules list` shows the four rules and the catch-all as enabled; public DNS returns the three MX records and the SPF record.
-- **Not verified yet:** an actual message arriving from an outside sender.
+- **Delivery test (20:42 to 20:47 UTC):** Cloudflare's Email Routing log (GraphQL `emailRoutingAdaptive`) shows `din@`, `dinesh@`, `hello@` and `support@` each forwarded with status `delivered`, SPF and DKIM pass, not spam. The `din@` message came from a second outside sender, the other three from Din's other Gmail. Din reports all test messages arrived in `dind.dev@gmail.com`, including the one to a made-up address; that catch-all message had not appeared in the log by 20:49 UTC (the log lags a few minutes). The inbox itself was not checked by Claude (the Gmail connector is not signed in).
 - **Noted for 0.9:** there is no `_dmarc.dins.dev` record yet. The catch-all will collect spam sent to made-up addresses; switching it back to drop is one command if it gets noisy.
 
 ### Holding page live on dins.dev (Claude, 2026-10-21)
