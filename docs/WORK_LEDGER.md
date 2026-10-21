@@ -37,7 +37,17 @@ Decisions and why, work done, verification results, approvals, blockers, handoff
   - PRD changes that depend on open questions (M1's preview drafts and routes, M2's load order and greeting rules, M3's sample entries and project filter, M5's spend limit wording and go-live dates).
   - The `AGENTS.md` commands, which land with the milestone that creates them.
   - The CAA records in `docs/PLAN.md`.
-- **Open questions for Din:** M1 has 8, M2 has 7, M3 has 15 and M5 has 8, 35 still open, since M1's question 2 and M5's questions 3 and 4 were already answered through M4's decisions. Each plan's "Open questions for Din" section has them.
+- **Round 2 (the sessions' review of the contract):** the sessions found real gaps, and they are now in the contract and the plans:
+  - production on `workers.dev` would have been indexed before launch, so `SITE_LAUNCHED = false` keeps it `noindex` until M5's soft go-live;
+  - previews would have rendered the production Turnstile site key, so `siteKey()` now follows the deploy;
+  - the hero Ottie's idle could have set off the envelope, so `ottie:state` carries the host's context;
+  - CI's `serve` would have run on production vars, so the `e2e` job copies `.dev.vars.example`;
+  - a newline in the contact name could reach an email header, so names are collapsed;
+  - the library keeps `approved_on` as its review flag;
+  - `MotionHead` lives in `BaseLayout`.
+
+  Every plan was checked by grep afterwards: none of the retired names (`Base.astro`, `PUBLIC_DEPLOY_ENV`, `instance="letter"`, `detail.cue`, `/contact/error/`, `contact/parse.ts`, `style` attributes and the rest) remain except in sentences saying they are gone.
+- **Open questions for Din (35):** M0 none (all 7 decided), M1 6, M2 8 (number 8 added in round 2), M3 15 (number 7 is settled by the contract), M4 none (all 10 decided), M5 6 (3 and 4 decided through M4, and 9 settled by the contract). Each plan's "Open questions for Din" section has the full text.
 
 ### Domain bought, Wrangler installed, commit rule (Din, Claude, 2026-10-21)
 

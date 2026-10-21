@@ -145,7 +145,7 @@ Each plan session amends its own file; the result is merged here.
 
 **Round 1 (the seams above): done and merged, 2026-10-21.** M0 `e60da69` (Task 3a, the shared deploy), M1 `af5bb59` and `f6db90b`, M2 `fb29a95` (new Task 11 for several Otties on a page; placement is now Task 16), M3 `d873405`, M4 `6432596`, M5 `47f3bfd`.
 
-**Round 2 (what the sessions raised about this contract): pending.**
+**Round 2 (what the sessions raised about this contract): done and merged, 2026-10-21.** M0 `8888a58`, M1 `332112f`, M3 `2969b42`, M4 `50bd284`, M5 `2c47222`; M2 needed none. The list below is kept as the record.
 
 - **M0:**
   - The `e2e` job copies `site/.dev.vars.example` to `site/.dev.vars` before Playwright.
