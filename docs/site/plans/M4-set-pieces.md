@@ -71,7 +71,7 @@ From M1 (Pages and content):
 
 From M2 (Ottie):
 - `site/src/ottie/events.ts`: `cueOttie(type, extra?)` dispatches `ottie:cue` on `window` with `detail.type`; `onOttieState(handler)` reports `detail.state`. The letter's cues are `letter:open` (in view: point), `letter:ready` (filled in: fetch jump) and `letter:sent` (jump). There are no state-named cues and no `prefetchOttie`. Only `site/src/lib/setpieces/letter/ottie-bridge.ts` imports this module.
-- M2's Task 15 places `<Ottie context="contact">` in the home `#contact` section and on `/contact`. That is the letter Ottie; M4 mounts no Ottie of its own. M2 also treats `<html data-motion="calm">` as reduced.
+- M2's Task 16 places `<Ottie context="contact">` in the home `#contact` section and on `/contact`. That is the letter Ottie; M4 mounts no Ottie of its own. M2 also treats `<html data-motion="calm">` as reduced.
 
 From M3 (Ask Ottie):
 - `ask:state` on `window` with `detail.phase` in `idle | retrieving | streaming | done | dont-know | resting | error`. Only `site/src/lib/setpieces/field/ask-bridge.ts` reads it.
@@ -3005,7 +3005,7 @@ git commit -m "feat(site): letter phases for the fold and seal"
   - `ottie-bridge.ts` (the only file that imports `site/src/ottie/events.ts`): `pointAtLetter()` is `cueOttie("letter:open")`, `prefetchJump()` is `cueOttie("letter:ready")`, `celebrateLetter()` is `cueOttie("letter:sent")`, and `jumpEnded(subscribe = onOttieState, timeoutMs = 2500): Promise<"idle" | "timeout">`, which resolves when the state reported after `jump` is `idle`, or after the timeout (Quiet Ottie, reduced motion, a failed sheet, or no Ottie on the page all mean no report, and the letter must still fly).
   - `Envelope.astro`: `<div class="envelope" data-envelope>` around its slot (M1's form): `.env-back`, the slotted form as the sheet, `.env-front` (static `clip-path` shape, never animated), `.env-flap` (`rotateX(180deg)` open, `rotateX(0)` closed), `.wax` (the Ottie seal mark from `brand/logo/seal-light.svg` or `seal-dark.svg`, never recolored). Decorative parts are `aria-hidden`.
   - Task 7's helpers inside `letter-enhance.ts` (`send`, `showStatus`, `showErrors`, `showSentPanel`) serve both the calm and the full path.
-- M4 mounts no Ottie. M2's Task 15 places `<Ottie context="contact">` in the home `#contact` section and on `/contact`; the envelope's layout leaves room for it on the left (wide screens) or above (phones), and `[data-ottie-avoid]` goes on the form so Ottie never covers a field.
+- M4 mounts no Ottie. M2's Task 16 places `<Ottie context="contact">` in the home `#contact` section and on `/contact`; the envelope's layout leaves room for it on the left (wide screens) or above (phones), and `[data-ottie-avoid]` goes on the form so Ottie never covers a field.
 
 - [ ] **Step 1: Write the failing unit test for `jumpEnded`**
 
@@ -3226,7 +3226,7 @@ Din's answer to all ten: "Go with your recommendations on the open questions". T
 1. **Contact form without JavaScript:** it still submits, and since Turnstile cannot run, the post lands on `/contact/not-sent/` with a `mailto:din@dins.dev` link, plus a `<noscript>` note on the form (Tasks 6 and 7). Unverified posts are never accepted.
 2. **Where the letters go:** the recipient lives in the `CONTACT_TO` Worker secret, never in `wrangler.jsonc`. It is `din@dins.dev` if Cloudflare accepts that address, otherwise Din's verified inbox. Task 7 Step 6 settles it with one real send, recorded in the ledger.
 3. **"Ottie carries it off":** for v1 Ottie jumps on `letter:sent` and the envelope flies off once `onOttieState` reports `idle` after the jump (or after 2.5 s), as in Task 21. A carry state is an optional post-launch item, like celebrate.
-4. **A second Ottie at the letter:** M2's `<Ottie context="contact">`, which M2's Task 15 places in the home `#contact` section and on `/contact` (the README's Ottie seam). M4 only sends the `letter:*` cues and leaves room for it.
+4. **A second Ottie at the letter:** M2's `<Ottie context="contact">`, which M2's Task 16 places in the home `#contact` section and on `/contact` (the README's Ottie seam). M4 only sends the `letter:*` cues and leaves room for it.
 5. **What counts toward the 100 KB:** the gate covers the JavaScript loaded before any interaction (the initial module graph plus inline scripts), and GSAP must never be in it. Chunks loaded on scroll are reported in CI without a gate (Task 4).
 6. **Gates and the calendar:** while Din reviews a piece, the next piece's pure-logic tasks (tests and math only) may start. Its visual work starts only after the previous piece is approved and merged (see "How a gate works", step 7).
 7. **No blur:** opacity and scale replace the sketch's blur. Din judges the depth in each preview.
