@@ -179,7 +179,7 @@ Din accepts the site when, on the production URL:
 
 1. **Content, not code.** Real projects are not built yet. If they slip, the stage launches with what is ready and the rest stay drafts; placeholders never ship.
 2. **Set pieces take longer than planned.** Any set piece not approved by December 1 launches as its calm version.
-3. **The domain.** `dins.dev` is not bought yet (task 0.6). Production, the contact form and Email Routing need it; it must be done by about November 12.
+3. **Email Routing.** `dins.dev` is bought (Din, 2026-10-21). Email Routing (task 0.8) still has to be set up before the contact form can deliver, by about November 12.
 
 ## 9. Open questions
 

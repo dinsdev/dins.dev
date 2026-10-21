@@ -106,7 +106,7 @@ In this order, each approved by Din in the preview before the next starts, each 
 |---|---|
 | Authorize Workers Builds in the Cloudflare dashboard | M0 |
 | Role line and suggested questions | M1 |
-| Buy `dins.dev` (task 0.6) and set up Email Routing (task 0.8) | About November 12 |
+| Set up Email Routing (task 0.8; the domain is bought) | About November 12 |
 | Anthropic production key ($100 limit) and eval key (about $5) | M3 |
 | The interview and library reviews | November |
 | Approval of each set piece in the preview | M4 |

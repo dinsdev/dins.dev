@@ -4,13 +4,19 @@ Decisions and why, work done, verification results, approvals, blockers, handoff
 
 ## 2026-10-21
 
+### Domain bought, Wrangler installed, commit rule (Din, Claude, 2026-10-21)
+
+- **Done (Din):** bought `dins.dev` on Cloudflare (task 0.6). This clears the domain risk in the site plan; Email Routing (task 0.8) is next for the contact form.
+- **Done (Claude):** installed Wrangler 4.151.2, Cloudflare's CLI, with Homebrew (independent of the mise-managed Node), and started `wrangler login` in Din's terminal. The site will pin its own Wrangler as a dev dependency in M0.
+- **Changed (Din):** local commits need no approval; pushing, PRs, merges and deploys still do. `AGENTS.md` updated to match, with the no-attribution rule added.
+
 ### Site PRD and plan written (Claude, 2026-10-21)
 
 - **Section 8 agreed (Din):** milestones M0 Foundation (Oct 22 to 26), M1 Pages and content (Oct 27 to Nov 6), M2 Ottie on the site (Nov 2 to 12), M3 Ask Ottie (Nov 6 to 22), M4 Set pieces (Nov 13 to 29), a content track for Din (Nov 1 to Dec 1, freeze Dec 1), M5 Hardening and launch (Dec 1 to 12, live by Dec 12), then the performance pass. Fallbacks: a set piece not approved by Dec 1 ships as its calm version; unready projects stay drafts. Din's dependencies: Workers Builds authorization (M0), the domain and Email Routing by about Nov 12, Anthropic keys before M3, the interview in early November.
 - **Done:** `docs/site/PRD.md` (sections 1 to 8 with acceptance criteria) and `docs/site/PLAN.md` (layout, environments, milestones with verification, dependencies, fallbacks), kept separate from the setup PRD, which says the site gets its own. TASKS rows 2.10 to 2.17.
 - **Reconciled while writing:** section 1's project `placeholder` or `real` status became section 5's `draft` or `published`; library entry fields merge both sections (question or topic, approved text, audience tags, sources, language, `approved_on`).
 - **Open:** Din's review of both files. Nothing is built yet.
-- **Working rule (Din):** "local commits are fine as you go. Only pushing to github requires permission." This conflicts with the line in `AGENTS.md` that asks before committing; flagged to Din.
+- **Working rule (Din):** "local commits are fine as you go. Only pushing to github requires permission." `AGENTS.md` updated to match (see the entry above).
 
 ### Site brainstorm, section 7: testing and CI (Din and Claude, 2026-10-21)
 
