@@ -6,7 +6,7 @@ Status: Proposed (plan only, written 2026-10-21 by the M1 plan session; nothing 
 
 **Goal:** Every route in PRD section 2 as static, accessible, crawlable Astro pages on typed content collections, with the SEO files, build-time social cards, the no-JavaScript and reduced-motion baselines and a drafts guard, so M2, M3 and M4 can enhance a finished, calm site.
 
-**Architecture:** Astro 7.4 prerenders every page (no `prerender = false` anywhere in M1). Content lives in four collections defined in `site/src/content.config.ts` with schemas in `site/src/lib/schemas.ts`. One build flag, resolved in Node from the environment and injected with Vite `define`, decides whether drafts render (dev, previews and the local e2e build) and whether pages carry `noindex` (preview deploys only). Pure logic (schemas, sorting, SEO strings, contact parsing, card layout) lives in `site/src/lib/` and `site/src/og/` and is unit tested with Vitest; pages are tested with Playwright and axe against the built site. Social cards are rendered to PNG after the build by a small Astro integration (Node, satori and resvg) that reads a card spec each page writes into its own head.
+**Architecture:** Astro 7.4 prerenders every page (no `prerender = false` anywhere in M1). Content lives in four collections defined in `site/src/content.config.ts` with schemas in `site/src/lib/schemas.ts`. One pair of build flags, resolved in Node from M0's shared deploy (`site/src/lib/deploy.ts`) plus `DINS_SHOW_DRAFTS` and injected with Vite `define`, decides whether drafts render (dev, previews and the local e2e build) and whether pages carry `noindex` (preview deploys only). Pure logic (schemas, sorting, SEO strings, contact parsing, card layout) lives in `site/src/lib/` and `site/src/og/` and is unit tested with Vitest; pages are tested with Playwright and axe against the built site. Social cards are rendered to PNG after the build by a small Astro integration (Node, satori and resvg) that reads a card spec each page writes into its own head.
 
 **Tech Stack:** Astro 7.4, @astrojs/cloudflare 14.4, @astrojs/mdx 8.1, @astrojs/rss 4.0, satori 0.63, @resvg/resvg-js 2.6, TypeScript 6.0, Vitest 4.1, Playwright 1.64 with @axe-core/playwright 4.14, @lhci/cli 0.15, pnpm, Node 24. Plain CSS on `brand/tokens/tokens.css`. No Svelte islands in M1.
 
@@ -18,13 +18,14 @@ Status: Proposed (plan only, written 2026-10-21 by the M1 plan session; nothing 
 - Zod comes from `astro/zod` (Zod 4). `defineCollection` and `reference` come from `astro:content`, loaders from `astro/loaders`.
 - Astro 7 compiles with the Rust compiler: unclosed tags are errors and `<div>` inside `<p>` is not auto-corrected. `compressHTML` defaults to `'jsx'`, so whitespace between inline elements is dropped: write `{" "}` where a space matters.
 - Prerendering runs in workerd by default (`prerenderEnvironment: 'workerd'`). Page and endpoint code must not use `node:fs`, `process.env` or native modules. Node-only work (env flags, social cards) happens in `astro.config.mjs` and integration hooks.
-- Drafts never render in a production build (PRD 2). Production means: not `astro dev`, and either `WORKERS_CI_BRANCH === "main"` or no override. `DINS_SHOW_DRAFTS=1` is refused on `main`.
+- Drafts never render in a production build (PRD 2). The deploy comes from M0's shared `deployFromEnv` (`local`, `preview`, `production`; production only from Workers Builds on `main`). Drafts show on `preview`, on `local` with `DINS_SHOW_DRAFTS=1`, and in `astro dev`. `DINS_SHOW_DRAFTS=1` on `production` fails the build.
 - Never invent facts about Din. Every sample is `status: draft`, says it is a sample in its own text, and renders with a visible "Draft" badge carrying `data-draft`.
 - Light and dark come only from `brand/tokens/tokens.css` (`prefers-color-scheme`, overridden by `html[data-theme]`). Teal is the only accent; amber never as text on paper.
 - Type: Fraunces only down to H3, H4 and below in Instrument Sans, labels and data in JetBrains Mono, body at most 66 characters per line. Curly apostrophes in display text and headings (I’m).
 - The wordmark is always the SVG from `brand/logo/`, never live text.
 - WCAG 2.2 AA. axe at zero violations with its default rules, on every route, in light and dark. Visible teal focus ring, a skip link, one `h1` per page.
 - Lighthouse accessibility 100 and SEO 100 are gates; performance is a warning only (Din, 2026-10-21).
+- No `style="…"` attributes in server-rendered HTML (M5's CSP drops them): use classes or scoped `<style>` blocks.
 - Ottie is decorative to screen readers (`aria-hidden="true"`, `alt=""`). Ottie appears on home, project pages, contact, 404 and devlog posts only.
 - Privacy: no cookies. The theme choice is the only thing M1 stores, in `localStorage`, and `/privacy` says so.
 - Writing style in UI strings, comments and commit messages: no em dashes, no en dashes as separators, no buzzwords; Conventional Commits; no `Co-Authored-By` or any attribution line.
@@ -46,14 +47,14 @@ Created by M1 unless marked "modify". Paths are relative to the repo root.
 ```
 site/
   astro.config.mjs                      modify: mdx, define flag, social cards integration
-  playwright.config.ts                  modify: light, dark, no-js, reduced-motion, phone projects
+  playwright.config.ts                  modify: drafts on for M0's server; dark, no-js, reduced-motion, phone projects beside chromium
   lighthouserc.cjs                      Lighthouse CI config
   package.json                          modify: deps and scripts (check:drafts, lhci, launch:blockers)
   scripts/
     check-drafts.ts                     drafts guard over a production build
     launch-blockers.ts                  prints copy Din still owes (not part of check.sh)
   src/
-    globals.d.ts                        declares __DINS_BUILD_FLAGS__
+    env.d.ts                            modify (M0's): declare __DINS_BUILD_FLAGS__
     content.config.ts                   the four collections
     content/
       projects/_README.md               how to add a project (ignored by the loader)
@@ -71,7 +72,7 @@ site/
       site.ts                           identity and links (Din fills the nulls)
       profile.ts                        role line, about teaser, bio, timeline, skills, languages
     lib/
-      drafts.ts                         resolveBuildFlags, isVisible (pure)
+      drafts.ts                         resolveBuildFlags(deploy, showDraftsEnv), isVisible (pure)
       build.ts                          BUILD_FLAGS, SHOW_DRAFTS (reads the define)
       schemas.ts                        zod schemas and enums for every collection and profile
       kinds.ts                          labels for project and writing kinds
@@ -94,7 +95,7 @@ site/
     styles/
       site.css                          base layout, focus, skip link, reduced motion, prose, forms
     layouts/
-      Base.astro                        modify: head, skip link, nav, main, footer, theme script
+      BaseLayout.astro                  modify (M0 creates it): SEO head, head slot, nav, footer, theme script
     components/
       Seo.astro  Nav.astro  Footer.astro  ThemeToggle.astro  Wordmark.astro
       Draft.astro  QuickLinks.astro  SuggestedAnswers.astro  AskSlot.astro  OttieSlot.astro
@@ -105,7 +106,7 @@ site/
       work/index.astro  work/[id].astro  work/kind/[kind].astro
       writing/index.astro  writing/[id].astro
       about.astro
-      contact/index.astro  contact/sent.astro  contact/error.astro
+      contact/index.astro  contact/sent.astro  contact/not-sent.astro
       privacy.astro  404.astro
       rss.xml.ts  sitemap.xml.ts  robots.txt.ts  llms.txt.ts  .well-known/security.txt.ts
   tests/
@@ -127,30 +128,31 @@ Responsibilities are split so that pure logic never imports `astro:content`: `co
 
 These names are the contract. They are repeated in the shared notes folder for the M2, M3 and M4 plan sessions.
 
-- **Build flags:** `import { BUILD_FLAGS, SHOW_DRAFTS } from "site/src/lib/build"`. `BUILD_FLAGS: { showDrafts: boolean; noindex: boolean }`. The RAG build (M3) must apply the same rule to the production index: only `status: published` entries, and never library entries with `sample: true`.
+- **Build flags:** `import { BUILD_FLAGS, SHOW_DRAFTS } from "site/src/lib/build"`. `BUILD_FLAGS: { showDrafts: boolean; noindex: boolean }`, from `resolveBuildFlags(deploy, process.env.DINS_SHOW_DRAFTS)` where `deploy` is M0's `Deploy`. Other milestones read the deploy itself from M0's `site/src/lib/deploy-env.ts`, not from these flags. The RAG build (M3) must apply the same rule to the production index: only `status: published` entries, and never library entries with `sample: true`.
 - **Visible content:** `getVisibleProjects()`, `getVisiblePosts()`, `getVisibleSuggested()` in `site/src/lib/collections.ts`, each already sorted. A project's slug is its file name (`entry.id`); its URL is `/work/<id>/`. A post's URL is `/writing/<id>/`.
 - **Ask Ottie slots (M3):** `AskSlot.astro` with props `{ scope: "site" } | { scope: "project"; project: string }` renders `<div class="ask-slot" data-ask-scope data-ask-project>` around a `<slot />`. M3 mounts its island inside. Home suggested answers render as `<details data-suggested-id="<id>">` inside `<section id="suggested">`; M3's island may take them over.
-- **Ottie slot (M2):** `OttieSlot.astro` with props `{ placement: "hero" | "project" | "contact" | "404" | "devlog"; state?: "idle" | "shrug" }` renders `<div class="ottie-slot" data-ottie-placement data-ottie-state aria-hidden="true">` holding the neutral still, sized 180 x 220 in a reserved box. M2 owns this component's internals after M1.
-- **Set pieces (M4):** home sections are `<header id="top" data-setpiece="lens">`, `<section id="work" data-setpiece="windows">`, `<section id="writing" data-setpiece="paper">`, `<section id="about" data-setpiece="studio">`, `<section id="contact" data-setpiece="letter">`. `/about` opens with `<div class="screen-panel" data-setpiece="studio-screen">`. `<html>` has class `no-js`, replaced by `js` by an inline script, so calm and enhanced CSS can branch.
-- **Contact (M4 implements `/api/contact`):** `site/src/lib/contact.ts` exports `CONTACT_FIELDS` (`message`, `reason`, `name`, `email`, honeypot `website`, Turnstile `cf-turnstile-response`), `CONTACT_LIMITS` (`name` 100, `email` 254, `message` 2000), `REASONS` (`role`, `admissions`, `hi`), `CONTACT_REDIRECTS` (`sent: "/contact/sent/"`, `error: "/contact/error/"`) and `parseContact(form: FormData | URLSearchParams): ContactResult`. A plain HTML form post (no JavaScript) expects a `303` to one of the two redirect pages; a fetch with `Accept: application/json` gets JSON. The form holds an empty `<div data-turnstile-slot>` where M4 renders Turnstile.
+- **Ottie slot (M2):** `OttieSlot.astro` with props `{ placement: "hero" | "project" | "contact" | "404" | "devlog"; state?: "idle" | "shrug" }` renders `<div class="ottie-slot" data-ottie-placement data-ottie-state aria-hidden="true">` holding the neutral still, sized 180 x 220 in a reserved box. It is a placeholder: M2's Task 15 replaces every `<OttieSlot placement=…>` with M2's `<Ottie context=…>` (`hero` becomes `home`) and deletes `OttieSlot.astro`.
+- **Set pieces (M4):** home sections are `<header id="top" data-setpiece="lens">`, `<section id="work" data-setpiece="windows">`, `<section id="writing" data-setpiece="paper">`, `<section id="about" data-setpiece="studio">`, `<section id="contact" data-setpiece="letter">`. `/about` opens with `<div class="screen-panel" data-setpiece="studio-screen">`. `<html>` has class `no-js`, replaced by `js` by an inline script, so calm and enhanced CSS can branch. `BaseLayout.astro` has `<slot name="head" />` inside `<head>` for M4's `MotionHead.astro`.
+- **Contact (M4 implements `/api/contact` and extends this module):** `site/src/lib/contact.ts` exports `CONTACT_FIELDS` (`message`, `reason`, `name`, `email`, honeypot `website`, Turnstile `cf-turnstile-response`), `CONTACT_LIMITS` (`name` 100, `email` 254, `message` 4000), `REASONS` (`role`, `admissions`, `hi`), `CONTACT_REDIRECTS` (`sent: "/contact/sent/"`, `notSent: "/contact/not-sent/"`) and `parseContact(form: FormData | URLSearchParams): ContactResult`, which also strips control characters other than newline and tab. A plain form post answers with a `303` to one of the two pages; a fetch with `Accept: application/json` gets JSON. A post without JavaScript has no Turnstile token and is never accepted (Din, 2026-10-21), so it lands on `/contact/not-sent/`, which carries a `mailto:din@dins.dev` link; the form carries a `<noscript>` note saying the same. The form holds an empty `<div data-turnstile-slot>` where M4 renders Turnstile.
 
 ## Assumes
 
 From M0 (Foundation), merged before M1 starts:
 
-- `site/` builds with `pnpm --dir site build`; `astro.config.mjs` sets `site: "https://dins.dev"`, the Cloudflare adapter, `@astrojs/svelte` and `session: false`. Default `output` (static), `build.format: "directory"`, `trailingSlash: "ignore"`.
-- `site/src/layouts/Base.astro` exists and imports `site/src/styles/global.css`, which imports `brand/tokens/tokens.css`, declares the three self-hosted WOFF2 fonts and preloads two. M1 rewrites Base's body and adds to its head, keeping M0's font and token imports.
-- Brand icons (`favicon.ico`, `favicon.svg`, `apple-touch-icon.png`, `site.webmanifest` and the PNG icons) are copied into the served root by M0, and `/ottie/` serves `brand/ottie/dist/`. If the icons are missing, Task 8 copies `brand/logo/icons/*` into `site/public/`.
-- Source fonts are vendored in `brand/fonts/` with their OFL licences: `Fraunces-VF.ttf` (already there) plus Instrument Sans and JetBrains Mono as TTF or WOFF2. If M0 only put subset WOFF2 files under `site/`, Task 17 Step 1 reads them from there instead.
-- Vitest runs `site/tests/unit/**/*.test.ts` in Node (`pnpm --dir site test`); a Workers pool project, if any, is separate.
-- `site/playwright.config.ts` exists with a `webServer` that builds and runs `astro preview`, honours `BASE_URL` (M5 runs it against https://dins.dev), and `@playwright/test` plus Chromium are installed. M1 replaces its `projects` and `webServer` blocks (Task 8).
-- `./check.sh` runs format, lint, `pnpm --dir site check`, unit tests and a build; `.github/workflows/ci.yml` runs `check.sh` and the e2e job.
-- M0 resolves the Vitest question raised by M3 (`@cloudflare/vitest-pool-workers` is deprecated in favour of `@cloudflare/vitest-plugin`); M1 has no Worker tests and is unaffected.
+- The shared contract in `docs/site/plans/README.md` (where it disagrees with this plan, it wins).
+- `site/` builds with `pnpm --dir site build` and serves the built Worker with `pnpm --dir site serve` (wrangler dev on 127.0.0.1:8787, `GET /api/health`); `astro.config.mjs` sets `site: "https://dins.dev"`, the Cloudflare adapter with the custom entry `site/src/worker.ts`, `@astrojs/svelte` and `session: false`. Default `output` (static), `build.format: "directory"`, `trailingSlash: "ignore"`.
+- M0's build-time deploy: `site/src/lib/deploy.ts` (`type Deploy = "local" | "preview" | "production"`, `deployFromEnv(ci, branch)`), the `__DINS_DEPLOY__` define, its declaration in `site/src/env.d.ts`, and `site/src/lib/deploy-env.ts` (`DEPLOY`). M1 adds `__DINS_BUILD_FLAGS__` next to it.
+- `site/src/layouts/BaseLayout.astro` exists (props `{ title, description }`), imports `site/src/styles/global.css` (tokens and `fonts.css`), preloads the Fraunces and Instrument Sans WOFF2 files from `brand/fonts/web/`, links the favicon, writes `<meta name="dins-deploy" content={DEPLOY}>`, and has a skip link and `<main id="main">`. M1 rewrites it with the SEO head, nav and footer, keeping M0's imports, preloads and deploy meta.
+- `/ottie/` serves `brand/ottie/dist/` (M0). M0 links only `favicon.svg`; M1 copies the full icon set (`brand/logo/icons/*` and `favicon.svg`) into `site/public/` in Task 8.
+- Fonts: `brand/fonts/Fraunces-VF.ttf` (already there) and M0's web fonts in `brand/fonts/web/` (WOFF2, with their OFL licences). Task 17's `card_fonts.py` searches both and reads TTF or WOFF2.
+- Vitest runs `site/tests/unit/**/*.test.ts` in Node (`pnpm --dir site test:unit`); Worker tests (`@cloudflare/vitest-plugin`) are a separate project M1 does not use.
+- `site/playwright.config.ts` exists with baseURL `http://127.0.0.1:8787`, a `chromium` project, a `webServer` that runs `pnpm build && pnpm serve` and waits on `/api/health`, and honours `BASE_URL` (M5 runs it against https://dins.dev). M1 adds `DINS_SHOW_DRAFTS=1` to that server and its own projects beside `chromium` (Task 8).
+- `./check.sh [--e2e]` runs format, lint, `pnpm --dir site check`, unit tests and a build; `.github/workflows/ci.yml` has the jobs `check` and `e2e`.
 
 From M2, M3, M4 and M5:
 
-- M2 takes over `OttieSlot.astro`'s internals; M3 mounts the Ask island inside `AskSlot.astro` and fills `suggested.yaml` with reviewed answers; M4 implements `/api/contact`, Turnstile and the set pieces on the hooks above; M5 owns the CSP and security headers, the release scan and the `security.txt` expiry test (M1 owns the file).
-- M3 asked for these schema details (shared notes, 2026-10-21) and M1 adopts them: library `topic`, `audience`, `sources`, `language` (`en` or `fr`), `approved_on` (date or null) and `sample` (boolean); suggested `question`, `answer`, `sources`, `language`, `generated_on`. M3 also proposed `reviewed_by_din` for suggested entries: M1 expresses that as `status: published` instead, so one drafts rule covers every collection. M3 adapts its script at merge.
+- M2's Task 15 replaces `OttieSlot.astro` with `<Ottie context=…>` and deletes it; M3 mounts the Ask island inside `AskSlot.astro` and fills `suggested.yaml` with reviewed answers; M4 implements `/api/contact` on M1's `contact.ts`, Turnstile and the set pieces on the hooks above, and adjusts M1's contact landing pages; M5 owns the CSP and security headers, the release scan and the `security.txt` expiry test (M1 owns the file).
+- M3 asked for these schema details (shared notes, 2026-10-21) and M1 adopts them: library `topic`, `audience`, `sources`, `language` (`en` or `fr`), `approved_on` (date or null) and `sample` (boolean); suggested `question`, `answer`, `sources`, `language`, `generated_on`. `status: published` is the only "reviewed by Din" flag for every collection (contract), so suggested entries have no `reviewed_by_din` field.
 
 ## Din tasks (copy and facts only Din can provide)
 
@@ -173,13 +175,13 @@ These are Din's to write or confirm. Claude can interview Din and draft from Din
 ## Task 1: Build flags and the drafts rule
 
 **Files:**
-- Create: `site/src/lib/drafts.ts`, `site/src/lib/build.ts`, `site/src/globals.d.ts`
-- Modify: `site/astro.config.mjs`
+- Create: `site/src/lib/drafts.ts`, `site/src/lib/build.ts`
+- Modify: `site/astro.config.mjs`, `site/src/env.d.ts`
 - Test: `site/tests/unit/drafts.test.ts`
 
 **Interfaces:**
-- Consumes: nothing.
-- Produces: `type BuildFlags = { showDrafts: boolean; noindex: boolean }`, `resolveBuildFlags(env: BuildEnv): BuildFlags`, `isVisible(status: Status, showDrafts: boolean): boolean`, `type Status = "draft" | "published"`, `PRODUCTION_BRANCH = "main"`; `BUILD_FLAGS` and `SHOW_DRAFTS` from `build.ts`.
+- Consumes: M0's `type Deploy` and `deployFromEnv(ci, branch)` from `site/src/lib/deploy.ts`.
+- Produces: `type BuildFlags = { showDrafts: boolean; noindex: boolean }`, `resolveBuildFlags(deploy: Deploy, showDraftsEnv: string | undefined): BuildFlags`, `isVisible(status: Status, showDrafts: boolean): boolean`, `type Status = "draft" | "published"`; `BUILD_FLAGS` and `SHOW_DRAFTS` from `build.ts`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -189,23 +191,23 @@ import { describe, expect, it } from "vitest";
 import { isVisible, resolveBuildFlags } from "../../src/lib/drafts";
 
 describe("resolveBuildFlags", () => {
-  it("hides drafts and allows indexing in a plain local build", () => {
-    expect(resolveBuildFlags({})).toEqual({ showDrafts: false, noindex: false });
+  it("hides drafts and allows indexing in a plain local build (check.sh, CI)", () => {
+    expect(resolveBuildFlags("local", undefined)).toEqual({ showDrafts: false, noindex: false });
   });
-  it("shows drafts without noindex when DINS_SHOW_DRAFTS=1 locally (e2e and Lighthouse builds)", () => {
-    expect(resolveBuildFlags({ DINS_SHOW_DRAFTS: "1" })).toEqual({ showDrafts: true, noindex: false });
+  it("shows drafts without noindex locally with DINS_SHOW_DRAFTS=1 (e2e and Lighthouse builds)", () => {
+    expect(resolveBuildFlags("local", "1")).toEqual({ showDrafts: true, noindex: false });
   });
   it("treats any other DINS_SHOW_DRAFTS value as off", () => {
-    expect(resolveBuildFlags({ DINS_SHOW_DRAFTS: "true" }).showDrafts).toBe(false);
+    expect(resolveBuildFlags("local", "true").showDrafts).toBe(false);
   });
-  it("shows drafts and sets noindex on Workers Builds preview branches", () => {
-    expect(resolveBuildFlags({ WORKERS_CI_BRANCH: "feat/m1-pages" })).toEqual({ showDrafts: true, noindex: true });
+  it("shows drafts and sets noindex on preview deploys", () => {
+    expect(resolveBuildFlags("preview", undefined)).toEqual({ showDrafts: true, noindex: true });
   });
-  it("hides drafts on the production branch", () => {
-    expect(resolveBuildFlags({ WORKERS_CI_BRANCH: "main" })).toEqual({ showDrafts: false, noindex: false });
+  it("hides drafts in production", () => {
+    expect(resolveBuildFlags("production", undefined)).toEqual({ showDrafts: false, noindex: false });
   });
-  it("refuses to show drafts on the production branch", () => {
-    expect(() => resolveBuildFlags({ WORKERS_CI_BRANCH: "main", DINS_SHOW_DRAFTS: "1" })).toThrow(/production branch/);
+  it("refuses DINS_SHOW_DRAFTS=1 in production", () => {
+    expect(() => resolveBuildFlags("production", "1")).toThrow(/production/);
   });
 });
 
@@ -230,24 +232,21 @@ Expected: FAIL, cannot resolve `../../src/lib/drafts`.
 ```ts
 // site/src/lib/drafts.ts
 // Decides at build time whether drafts render and whether pages say noindex.
-// Pure on purpose: astro.config.mjs (Node) calls it and injects the result with Vite define.
+// Pure on purpose: astro.config.mjs (Node) calls it with M0's deploy and injects the result with Vite define.
+import type { Deploy } from "./deploy";
 
 export type Status = "draft" | "published";
 export type BuildFlags = { showDrafts: boolean; noindex: boolean };
-export type BuildEnv = { DINS_SHOW_DRAFTS?: string; WORKERS_CI_BRANCH?: string };
 
-export const PRODUCTION_BRANCH = "main";
-
-export function resolveBuildFlags(env: BuildEnv): BuildFlags {
-  const branch = env.WORKERS_CI_BRANCH;
-  const forced = env.DINS_SHOW_DRAFTS === "1";
-  if (branch === PRODUCTION_BRANCH) {
-    if (forced) throw new Error("DINS_SHOW_DRAFTS=1 is not allowed on the production branch");
+export function resolveBuildFlags(deploy: Deploy, showDraftsEnv: string | undefined): BuildFlags {
+  const forced = showDraftsEnv === "1";
+  if (deploy === "production") {
+    if (forced) throw new Error("DINS_SHOW_DRAFTS=1 is not allowed in a production build");
     return { showDrafts: false, noindex: false };
   }
-  // Workers Builds preview deploys: drafts on so Din can review them, never indexed.
-  if (branch) return { showDrafts: true, noindex: true };
-  // Local builds: drafts only when asked (e2e and Lighthouse), never public, so no noindex.
+  // Preview deploys: drafts on so Din can review them, never indexed.
+  if (deploy === "preview") return { showDrafts: true, noindex: true };
+  // Local builds (laptop, GitHub Actions): drafts only when asked, never public, so no noindex.
   return { showDrafts: forced, noindex: false };
 }
 
@@ -265,22 +264,28 @@ export const BUILD_FLAGS: BuildFlags = __DINS_BUILD_FLAGS__;
 export const SHOW_DRAFTS: boolean = import.meta.env.DEV || BUILD_FLAGS.showDrafts;
 ```
 
+Add one line to M0's `site/src/env.d.ts`, next to its `__DINS_DEPLOY__` declaration:
+
 ```ts
-// site/src/globals.d.ts
 declare const __DINS_BUILD_FLAGS__: import("./lib/drafts").BuildFlags;
 ```
 
-In `site/astro.config.mjs`, add the import and the `vite.define` entry (merge with M0's existing `vite` block if there is one):
+In `site/astro.config.mjs`, reuse M0's deploy value and add the flags to M0's `vite.define` block:
 
 ```js
+import { deployFromEnv } from "./src/lib/deploy.ts"; // M0
 import { resolveBuildFlags } from "./src/lib/drafts.ts";
 
-const buildFlags = resolveBuildFlags(process.env);
+const deploy = deployFromEnv(process.env.WORKERS_CI, process.env.WORKERS_CI_BRANCH); // M0
+const buildFlags = resolveBuildFlags(deploy, process.env.DINS_SHOW_DRAFTS);
 
 export default defineConfig({
   // ...M0's existing settings...
   vite: {
-    define: { __DINS_BUILD_FLAGS__: JSON.stringify(buildFlags) },
+    define: {
+      __DINS_DEPLOY__: JSON.stringify(deploy), // M0
+      __DINS_BUILD_FLAGS__: JSON.stringify(buildFlags),
+    },
   },
 });
 ```
@@ -290,8 +295,8 @@ export default defineConfig({
 Run: `pnpm --dir site exec vitest run tests/unit/drafts.test.ts`
 Expected: PASS, 8 tests.
 
-Run: `WORKERS_CI_BRANCH=main DINS_SHOW_DRAFTS=1 pnpm --dir site build`
-Expected: FAIL with "DINS_SHOW_DRAFTS=1 is not allowed on the production branch".
+Run: `WORKERS_CI=1 WORKERS_CI_BRANCH=main DINS_SHOW_DRAFTS=1 pnpm --dir site build`
+Expected: FAIL with "DINS_SHOW_DRAFTS=1 is not allowed in a production build".
 
 Run: `pnpm --dir site build && pnpm --dir site check`
 Expected: both PASS.
@@ -299,7 +304,7 @@ Expected: both PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add site/src/lib/drafts.ts site/src/lib/build.ts site/src/globals.d.ts site/astro.config.mjs site/tests/unit/drafts.test.ts
+git add site/src/lib/drafts.ts site/src/lib/build.ts site/src/env.d.ts site/astro.config.mjs site/tests/unit/drafts.test.ts
 git commit -m "feat(site): build flags that decide drafts and noindex"
 ```
 
@@ -1541,7 +1546,7 @@ git commit -m "feat(site): canonical URLs, titles, structured data and card path
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: `CONTACT_FIELDS`, `CONTACT_LIMITS`, `REASONS`, `type Reason = "role" | "admissions" | "hi"`, `CONTACT_REDIRECTS`, `type ContactInput`, `type ContactResult = { ok: true; value: ContactInput } | { ok: false; spam: boolean; errors: Partial<Record<"message" | "name" | "email", string>> }`, `parseContact(form: FormData | URLSearchParams): ContactResult`. M4's `/api/contact` must use `parseContact` so the form and the endpoint cannot drift.
+- Produces: `CONTACT_FIELDS`, `CONTACT_LIMITS` (`message` 4000), `REASONS`, `type Reason = "role" | "admissions" | "hi"`, `CONTACT_REDIRECTS = { sent: "/contact/sent/", notSent: "/contact/not-sent/" }`, `type ContactInput`, `type ContactResult = { ok: true; value: ContactInput } | { ok: false; spam: boolean; errors: Partial<Record<"message" | "name" | "email", string>> }`, `parseContact(form: FormData | URLSearchParams): ContactResult` (strips control characters other than newline and tab). M4's `/api/contact` imports this module and extends it rather than writing a second parser, so the form and the endpoint cannot drift.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1575,7 +1580,16 @@ describe("parseContact", () => {
   });
   it("rejects text over the limits", () => {
     const r = parseContact(form({ ...good, message: "x".repeat(CONTACT_LIMITS.message + 1) }));
-    expect(!r.ok && r.errors.message).toMatch(/2000/);
+    expect(!r.ok && r.errors.message).toMatch(/4000/);
+  });
+  it("strips control characters but keeps newlines and tabs", () => {
+    const r = parseContact(form({ ...good, message: "a\u0000b\r\nc\td\u001b\u007f", name: "Sam\u0007" }));
+    expect(r.ok && r.value.message).toBe("ab\nc\td");
+    expect(r.ok && r.value.name).toBe("Sam");
+  });
+  it("rejects a message that is only control characters", () => {
+    const r = parseContact(form({ ...good, message: "\u0000\u0001" }));
+    expect(!r.ok && r.errors.message).toBeTruthy();
   });
   it("flags a filled honeypot as spam without saying why", () => {
     expect(parseContact(form({ ...good, website: "http://spam.test" }))).toEqual({ ok: false, spam: true, errors: {} });
@@ -1608,7 +1622,8 @@ export const CONTACT_FIELDS = {
   turnstile: "cf-turnstile-response",
 } as const;
 
-export const CONTACT_LIMITS = { name: 100, email: 254, message: 2000 } as const;
+// Admissions letters run long; the PRD sets no limit (M4).
+export const CONTACT_LIMITS = { name: 100, email: 254, message: 4000 } as const;
 
 export const REASONS = [
   { value: "role", label: "A role" },
@@ -1617,8 +1632,9 @@ export const REASONS = [
 ] as const;
 export type Reason = (typeof REASONS)[number]["value"];
 
-/** Where a plain (no JavaScript) form post is sent back with a 303. */
-export const CONTACT_REDIRECTS = { sent: "/contact/sent/", error: "/contact/error/" } as const;
+/** Where a plain form post is sent back with a 303. A post without JavaScript has no Turnstile
+ * token and is never accepted (Din, 2026-10-21), so it always lands on notSent. */
+export const CONTACT_REDIRECTS = { sent: "/contact/sent/", notSent: "/contact/not-sent/" } as const;
 
 export type ContactInput = { message: string; reason: Reason; name: string; email: string };
 type Field = "message" | "name" | "email";
@@ -1627,9 +1643,11 @@ export type ContactResult =
   | { ok: false; spam: boolean; errors: Partial<Record<Field, string>> };
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// C0 and C1 control characters except tab (09) and newline (0A). CR (0D) goes too, so CRLF becomes LF.
+const CONTROL = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F]/g;
 
 export function parseContact(form: FormData | URLSearchParams): ContactResult {
-  const get = (k: string) => String(form.get(k) ?? "").trim();
+  const get = (k: string) => String(form.get(k) ?? "").replace(CONTROL, "").trim();
   if (get(CONTACT_FIELDS.honeypot)) return { ok: false, spam: true, errors: {} };
 
   const value = {
@@ -1667,12 +1685,12 @@ git commit -m "feat(site): contact form contract shared with the future endpoint
 
 **Files:**
 - Create: `site/src/styles/site.css`, `site/src/lib/theme.ts`, `site/src/lib/page.ts`, `site/src/components/{Seo,Nav,Footer,ThemeToggle,Wordmark,Draft,Prose}.astro`, `site/tests/e2e/{routes.ts,helpers.ts,pages.spec.ts,theme.spec.ts,layout.spec.ts}`
-- Modify: `site/src/layouts/Base.astro`, `site/playwright.config.ts`, `site/src/pages/index.astro` (temporary shell until Task 9)
+- Modify: `site/src/layouts/BaseLayout.astro`, `site/playwright.config.ts`, `site/src/pages/index.astro` (temporary shell until Task 9)
 - Test: `site/tests/unit/theme.test.ts` and the e2e specs above
 
 **Interfaces:**
 - Consumes: `BUILD_FLAGS` (Task 1), `canonicalUrl`, `pageTitle`, `jsonLdScript`, `cardPath`, `cardUrlText`, `SITE_URL` (Task 6), `site` (Task 5).
-- Produces: `Base.astro` props `SeoProps & { current?: NavKey }` from `site/src/lib/page.ts`, i.e. `{ title?: string; description: string; card: CardSpecInput | null; type?: "website" | "article"; noindex?: boolean; jsonLd?: object[]; current?: NavKey }` where `type CardSpecInput = { variant: "A" | "C" | "home"; label: string; title: string; subtitle?: string }` and `type NavKey = "work" | "writing" | "about" | "contact"`; `Draft.astro` props `{ status: Status; as?: "div" | "span" | "li" | "article" }`; `Prose.astro` (a styled wrapper for MDX); e2e `ROUTES`, `NOT_FOUND_PATH`, `expectNoAxeViolations(page)`; `theme.ts` exports `THEME_KEY`, `nextTheme`, `currentTheme`, `saveTheme`, `initThemeToggle`.
+- Produces: `BaseLayout.astro` props `SeoProps & { current?: NavKey }` from `site/src/lib/page.ts`, i.e. `{ title?: string; description: string; card: CardSpecInput | null; type?: "website" | "article"; noindex?: boolean; jsonLd?: object[]; current?: NavKey }` where `type CardSpecInput = { variant: "A" | "C" | "home"; label: string; title: string; subtitle?: string }` and `type NavKey = "work" | "writing" | "about" | "contact"`; `Draft.astro` props `{ status: Status; as?: "div" | "span" | "li" | "article" }`; `Prose.astro` (a styled wrapper for MDX); e2e `ROUTES`, `NOT_FOUND_PATH`, `expectNoAxeViolations(page)`; `theme.ts` exports `THEME_KEY`, `nextTheme`, `currentTheme`, `saveTheme`, `initThemeToggle`.
 
 - [ ] **Step 1: Install axe if M0 did not**
 
@@ -1760,33 +1778,37 @@ Expected: PASS.
 
 - [ ] **Step 4: Replace the Playwright projects and server**
 
-In `site/playwright.config.ts`, keep M0's other settings and set:
+In `site/playwright.config.ts`, keep M0's base URL, reporter and web server, add `DINS_SHOW_DRAFTS=1` to the server, and add M1's projects beside M0's `chromium`. `chromium` (light) stays the default: it runs every spec no other project claims, so the M2 to M5 specs land there without touching this file.
 
 ```ts
 import { defineConfig, devices } from "@playwright/test";
 
-const baseURL = process.env.BASE_URL ?? "http://localhost:4321";
+const baseURL = process.env.BASE_URL ?? "http://127.0.0.1:8787";
 const desktop = devices["Desktop Chrome"];
-const browserSpecs = /(pages|home|work|case-study|writing|about|contact|misc|theme)\.spec\.ts/;
+// Specs that belong to one of M1's special projects; chromium runs everything else.
+const claimed = [/no-js\.spec\.ts/, /reduced-motion\.spec\.ts/, /layout\.spec\.ts/];
 
 export default defineConfig({
-  testDir: "./tests/e2e",
+  testDir: "tests/e2e",
+  forbidOnly: !!process.env.CI,
   fullyParallel: true,
   retries: process.env.CI ? 1 : 0,
-  use: { baseURL },
+  reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
+  use: { baseURL, trace: "retain-on-failure" },
   projects: [
-    { name: "light", use: { ...desktop, colorScheme: "light" }, testMatch: [browserSpecs, /seo\.spec\.ts/] },
+    { name: "chromium", use: { ...desktop, colorScheme: "light" }, testIgnore: claimed },
     { name: "dark", use: { ...desktop, colorScheme: "dark" }, testMatch: /pages\.spec\.ts/ },
     { name: "no-js", use: { ...desktop, javaScriptEnabled: false }, testMatch: /no-js\.spec\.ts/ },
     { name: "reduced-motion", use: { ...desktop, reducedMotion: "reduce" }, testMatch: /reduced-motion\.spec\.ts/ },
     { name: "phone", use: { ...devices["iPhone 13"], defaultBrowserType: "chromium" }, testMatch: /layout\.spec\.ts/ },
   ],
-  // Local runs build with drafts on (indexable, never deployed) so sample pages exist.
+  // M0's server (wrangler dev, so /api/* works). Local runs build with drafts on (indexable, never deployed)
+  // so the sample pages exist. With BASE_URL set (a preview or production), test that site instead.
   webServer: process.env.BASE_URL
     ? undefined
     : {
-        command: "pnpm build && pnpm preview --port 4321",
-        url: "http://localhost:4321",
+        command: "pnpm build && pnpm serve",
+        url: `${baseURL}/api/health`,
         env: { DINS_SHOW_DRAFTS: "1" },
         reuseExistingServer: !process.env.CI,
         timeout: 180_000,
@@ -1842,7 +1864,7 @@ export async function expectNoAxeViolations(page: Page) {
 
 ```ts
 // site/tests/e2e/pages.spec.ts
-// Runs in the light and dark projects: every route renders and axe finds nothing.
+// Runs in the chromium (light) and dark projects: every route renders and axe finds nothing.
 import { expect, test } from "@playwright/test";
 import { expectNoAxeViolations } from "./helpers";
 import { NOT_FOUND_PATH, ROUTES } from "./routes";
@@ -1927,7 +1949,7 @@ for (const path of ROUTES()) {
 }
 ```
 
-Run: `pnpm --dir site exec playwright test --project=light --project=dark tests/e2e/pages.spec.ts tests/e2e/theme.spec.ts`
+Run: `pnpm --dir site exec playwright test --project=chromium --project=dark tests/e2e/pages.spec.ts tests/e2e/theme.spec.ts`
 Expected: FAIL (no skip link, no toggle, M0's starter page).
 
 - [ ] **Step 6: Write the styles**
@@ -2191,26 +2213,28 @@ const fullTitle = pageTitle(title);
 {jsonLd.map((d) => <script type="application/ld+json" set:html={jsonLdScript(d)} />)}
 ```
 
-Replace the body of `site/src/layouts/Base.astro`, keeping M0's token and font imports and preload links in the head:
+Replace the body of `site/src/layouts/BaseLayout.astro`, keeping M0's token and font imports and preload links in the head:
 
 ```astro
 ---
-// site/src/layouts/Base.astro
+// site/src/layouts/BaseLayout.astro (M0 creates it; M1 replaces it with this, keeping M0's imports and preloads)
 import "../styles/global.css"; // M0: tokens and fonts
 import "../styles/site.css";
 import Seo from "../components/Seo.astro";
 import Nav from "../components/Nav.astro";
 import type { NavKey, SeoProps } from "../lib/page";
 import Footer from "../components/Footer.astro";
-import { BUILD_FLAGS } from "../lib/build";
-interface Props extends SeoProps { current?: NavKey }
+import { DEPLOY } from "../lib/deploy-env"; // M0
+type Props = SeoProps & { current?: NavKey };
 const { current, ...seo } = Astro.props;
 ---
 <!doctype html>
-<html lang="en" class="no-js" data-build-mode={BUILD_FLAGS.noindex ? "preview" : "production"}>
+<html lang="en" class="no-js">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="dins-deploy" content={DEPLOY} /><!-- M0 -->
     <script is:inline>
       document.documentElement.classList.replace("no-js", "js");
       try {
@@ -2218,13 +2242,14 @@ const { current, ...seo } = Astro.props;
         if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
       } catch (e) {}
     </script>
-    <!-- M0's font preloads stay here -->
+    <!-- M0's Fraunces and Instrument Sans preloads stay here -->
     <Seo {...seo} />
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <link rel="alternate" type="application/rss+xml" title="dins.dev writing" href="/rss.xml" />
+    <slot name="head" /><!-- M4's MotionHead.astro -->
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -2239,25 +2264,27 @@ Replace `site/src/pages/index.astro` with a temporary shell (Task 9 replaces it)
 
 ```astro
 ---
-import Base from "../layouts/Base.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
 ---
-<Base description="Din’s portfolio." card={null}>
+<BaseLayout description="Din’s portfolio." card={null}>
   <div class="wrap section"><h1 class="t-display">Hi, I’m Din.</h1></div>
-</Base>
+</BaseLayout>
 ```
 
 - [ ] **Step 8: Run the tests**
 
-Run: `pnpm --dir site exec playwright test --project=light --project=dark --project=phone tests/e2e/pages.spec.ts tests/e2e/theme.spec.ts tests/e2e/layout.spec.ts`
+Run: `pnpm --dir site exec playwright test --project=chromium --project=dark --project=phone tests/e2e/pages.spec.ts tests/e2e/theme.spec.ts tests/e2e/layout.spec.ts`
 Expected: PASS (the 404 test is skipped).
 
-Run: `pnpm --dir site check && curl -sI http://localhost:4321/favicon.ico | head -1` (with the preview still running, or after `pnpm --dir site preview --port 4321`)
-Expected: `check` PASS; `HTTP/1.1 200 OK`. If the favicon is 404, copy the icons: `cp brand/logo/icons/* brand/logo/favicon.svg site/public/` and rerun.
+Copy the full icon set (M0 links only `favicon.svg`): `cp brand/logo/icons/* brand/logo/favicon.svg site/public/`.
+
+Run: `pnpm --dir site check && pnpm --dir site build && (pnpm --dir site serve &) && sleep 5 && curl -sI http://127.0.0.1:8787/favicon.ico | head -1 && curl -sI http://127.0.0.1:8787/site.webmanifest | head -1`
+Expected: `check` PASS; two `HTTP/1.1 200 OK` lines. Stop the server afterwards.
 
 - [ ] **Step 9: Commit**
 
 ```bash
-git add site/src/styles/site.css site/src/lib/theme.ts site/src/lib/page.ts site/src/components site/src/layouts/Base.astro site/src/pages/index.astro site/playwright.config.ts site/tests site/package.json pnpm-lock.yaml
+git add site/src/styles/site.css site/src/lib/theme.ts site/src/lib/page.ts site/src/components site/src/layouts/BaseLayout.astro site/src/pages/index.astro site/playwright.config.ts site/public site/tests site/package.json pnpm-lock.yaml
 git commit -m "feat(site): page shell with skip link, nav, footer, theme toggle and e2e harness"
 ```
 
@@ -2268,7 +2295,7 @@ git commit -m "feat(site): page shell with skip link, nav, footer, theme toggle 
 - Modify: `site/src/pages/index.astro`, `site/tests/e2e/routes.ts`
 
 **Interfaces:**
-- Consumes: `getVisibleProjects`, `getVisiblePosts`, `getVisibleSuggested` (Task 4), `featuredProjects`, `latestPosts`, `readingMinutes` (Task 4), `profile`, `site`, `visibleValue` (Task 5), `personJsonLd`, `websiteJsonLd` (Task 6), `CONTACT_*`, `REASONS` (Task 7), `Base`, `Draft` (Task 8), `KIND_LABELS`, `WRITING_KIND_LABELS` (Task 2), `formatDate`, `isoDate` (Task 6).
+- Consumes: `getVisibleProjects`, `getVisiblePosts`, `getVisibleSuggested` (Task 4), `featuredProjects`, `latestPosts`, `readingMinutes` (Task 4), `profile`, `site`, `visibleValue` (Task 5), `personJsonLd`, `websiteJsonLd` (Task 6), `CONTACT_*`, `REASONS` (Task 7), `BaseLayout`, `Draft` (Task 8), `KIND_LABELS`, `WRITING_KIND_LABELS` (Task 2), `formatDate`, `isoDate` (Task 6).
 - Produces: the components listed in "Interfaces other milestones build on"; `ProjectCard` props `{ project: CollectionEntry<"projects">; headingLevel?: 2 | 3 }`; `PostCard` props `{ post: CollectionEntry<"writing">; headingLevel?: 2 | 3 }`; `ProjectWindow` props `{ project: CollectionEntry<"projects">; eager?: boolean }`; `Motif` props `{ name: Motif }`; `ContactForm` props `{ headingId?: string }`.
 
 The plain home page follows the sketch's order (lens hero, windows, paper, studio, letter, footer) as calm, static sections. M4 enhances each section in place.
@@ -2328,7 +2355,7 @@ test("the home page carries Person and WebSite structured data", async ({ page }
 });
 ```
 
-Run: `pnpm --dir site exec playwright test --project=light tests/e2e/home.spec.ts`
+Run: `pnpm --dir site exec playwright test --project=chromium tests/e2e/home.spec.ts`
 Expected: FAIL (the shell has none of this).
 
 - [ ] **Step 2: Write the small components**
@@ -2368,7 +2395,8 @@ const { scope, project } = Astro.props;
 
 ```astro
 ---
-// site/src/components/OttieSlot.astro: a reserved, decorative spot for Ottie. M2 owns the player that replaces the still.
+// site/src/components/OttieSlot.astro: a placeholder, decorative spot for Ottie. M2's Task 15 replaces every use with
+// <Ottie context=…> (hero becomes home) and deletes this file.
 import { Image } from "astro:assets";
 import still from "../../../brand/reference/ottie-3d-neutral.webp";
 interface Props { placement: "hero" | "project" | "contact" | "404" | "devlog"; state?: "idle" | "shrug" }
@@ -2556,8 +2584,8 @@ const H = `h${headingLevel}` as "h2" | "h3";
 
 ```astro
 ---
-// site/src/components/ContactForm.astro: the letter as a plain form. Posts without JavaScript (PRD 6).
-// M4 turns it into the folding letter and adds Turnstile in [data-turnstile-slot].
+// site/src/components/ContactForm.astro: the letter as a plain form. M4 turns it into the folding letter and adds
+// Turnstile in [data-turnstile-slot]. Without JavaScript there is no Turnstile token, so the <noscript> note points to email.
 import { CONTACT_FIELDS as F, CONTACT_LIMITS as L, REASONS } from "../lib/contact";
 import { site } from "../data/site";
 ---
@@ -2585,6 +2613,9 @@ import { site } from "../data/site";
     <input id="c-website" name={F.honeypot} type="text" tabindex="-1" autocomplete="off" />
   </div>
   <div data-turnstile-slot></div>
+  <noscript>
+    <p class="noscript t-small">This form needs JavaScript to check that a person is writing. Without it, please email <a href={`mailto:${site.email}`}>{site.email}</a>.</p>
+  </noscript>
   <div class="foot">
     <button class="btn btn-primary" type="submit">Seal and send</button>
     <p class="t-small">Or email <a href={`mailto:${site.email}`}>{site.email}</a>.</p>
@@ -2604,6 +2635,7 @@ import { site } from "../data/site";
   .reasons legend { width: 100%; }
   .chip { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 44px; padding: 0 var(--space-3); border: 1px solid var(--color-hairline); border-radius: var(--radius-pill); }
   .hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+  .noscript { margin: 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-sm); background: var(--color-accent-soft); color: var(--color-ink); }
   .foot { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: center; }
   .foot p { margin: 0; }
 </style>
@@ -2614,7 +2646,7 @@ import { site } from "../data/site";
 ```astro
 ---
 // site/src/pages/index.astro: the calm home page. M4 layers the set pieces onto the data-setpiece sections.
-import Base from "../layouts/Base.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
 import AskSlot from "../components/AskSlot.astro";
 import ContactForm from "../components/ContactForm.astro";
 import Draft from "../components/Draft.astro";
@@ -2638,7 +2670,7 @@ const posts = latestPosts(await getVisiblePosts());
 const suggested = await getVisibleSuggested();
 const publishedRole = profile.roleLine.status === "published" ? profile.roleLine.value : null;
 ---
-<Base
+<BaseLayout
   description={publishedRole ?? "Din’s portfolio: projects, writing, and Ottie, who answers questions about Din’s work."}
   card={{ variant: "home", label: "Portfolio", title: "Hi, I’m Din.", subtitle: publishedRole ?? undefined }}
   jsonLd={[personJsonLd(site, publishedRole), websiteJsonLd(site)]}
@@ -2689,7 +2721,7 @@ const publishedRole = profile.roleLine.status === "published" ? profile.roleLine
     <p class="t-lead">Roles, admissions questions, or just a hello. It lands in my inbox.</p>
     <ContactForm />
   </section>
-</Base>
+</BaseLayout>
 <style>
   .hero { display: flex; gap: var(--space-7); align-items: flex-end; padding-block: var(--space-8) var(--space-7); flex-wrap: wrap; }
   .hero-text { flex: 1 1 32rem; min-width: 0; }
@@ -2702,12 +2734,12 @@ The home route `/` is already in `STATIC_ROUTES`, so `routes.ts` does not change
 
 - [ ] **Step 4: Run the tests**
 
-Run: `pnpm --dir site exec playwright test --project=light --project=dark --project=phone tests/e2e/home.spec.ts tests/e2e/pages.spec.ts tests/e2e/layout.spec.ts`
+Run: `pnpm --dir site exec playwright test --project=chromium --project=dark --project=phone tests/e2e/home.spec.ts tests/e2e/pages.spec.ts tests/e2e/layout.spec.ts`
 Expected: PASS. The featured project links point to `/work/<id>/`, which 404 until Task 11; only the home route is visited here.
 
 - [ ] **Step 5: Din checks the home page in the preview**
 
-Run: `DINS_SHOW_DRAFTS=1 pnpm --dir site build && pnpm --dir site preview --port 4321`, open http://localhost:4321/ in light and dark and at phone width. Din judges the calm layout against the sketch (not final design). Record Din's notes in the PR description.
+Run: `DINS_SHOW_DRAFTS=1 pnpm --dir site build && pnpm --dir site serve`, open http://127.0.0.1:8787/ in light and dark and at phone width. Din judges the calm layout against the sketch (not final design). Record Din's notes in the PR description.
 
 - [ ] **Step 6: Commit**
 
@@ -2723,7 +2755,7 @@ git commit -m "feat(site): calm home page with hero, suggested answers and secti
 - Modify: `site/tests/e2e/routes.ts`
 
 **Interfaces:**
-- Consumes: `getVisibleProjects`, `kindsWithProjects` (Task 4), `KIND_LABELS` (Task 2), `ProjectCard` (Task 9), `Base` (Task 8).
+- Consumes: `getVisibleProjects`, `kindsWithProjects` (Task 4), `KIND_LABELS` (Task 2), `ProjectCard` (Task 9), `BaseLayout` (Task 8).
 - Produces: routes `/work/` and `/work/kind/<kind>/` (only kinds with at least one visible project); `WorkGrid` props `{ projects: CollectionEntry<"projects">[] }`; `WorkFilters` props `{ kinds: ProjectKind[]; current: ProjectKind | "all" }`.
 
 Filters are links to static pages, so they work without JavaScript, are crawlable, and announce themselves with `aria-current`. This is a plan decision (see Open questions).
@@ -2769,7 +2801,7 @@ export const KIND_ROUTES = KINDS.filter((k) => PROJECTS.some((p) => p.kind === k
 export const CONTENT_ROUTES: string[] = [...KIND_ROUTES];
 ```
 
-Run: `pnpm --dir site exec playwright test --project=light tests/e2e/work.spec.ts`
+Run: `pnpm --dir site exec playwright test --project=chromium tests/e2e/work.spec.ts`
 Expected: FAIL, `/work/` is 404.
 
 - [ ] **Step 2: Write the components and pages**
@@ -2821,27 +2853,27 @@ const { projects } = Astro.props;
 ```astro
 ---
 // site/src/pages/work/index.astro
-import Base from "../../layouts/Base.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
 import WorkFilters from "../../components/WorkFilters.astro";
 import WorkGrid from "../../components/WorkGrid.astro";
 import { getVisibleProjects } from "../../lib/collections";
 import { kindsWithProjects } from "../../lib/content";
 const projects = await getVisibleProjects();
 ---
-<Base title="Work" description="Every project Din has published: ML, data engineering, data science and research." card={{ variant: "A", label: "Work", title: "Work" }} current="work">
+<BaseLayout title="Work" description="Every project Din has published: ML, data engineering, data science and research." card={{ variant: "A", label: "Work", title: "Work" }} current="work">
   <div class="wrap section">
     <h1 class="t-h1">Work</h1>
     <p class="t-lead">Projects in ML, data engineering, data science and research, each with what it does and how it went.</p>
     <WorkFilters kinds={kindsWithProjects(projects)} current="all" />
     <WorkGrid projects={projects} />
   </div>
-</Base>
+</BaseLayout>
 ```
 
 ```astro
 ---
 // site/src/pages/work/kind/[kind].astro
-import Base from "../../../layouts/Base.astro";
+import BaseLayout from "../../../layouts/BaseLayout.astro";
 import WorkFilters from "../../../components/WorkFilters.astro";
 import WorkGrid from "../../../components/WorkGrid.astro";
 import { getVisibleProjects } from "../../../lib/collections";
@@ -2857,18 +2889,18 @@ const kind = Astro.params.kind as ProjectKind;
 const { projects } = Astro.props;
 const label = KIND_LABELS[kind];
 ---
-<Base title={`${label} projects`} description={`Din’s ${label} projects, with what each one does and how it went.`} card={{ variant: "A", label: "Work", title: `${label} projects` }} current="work">
+<BaseLayout title={`${label} projects`} description={`Din’s ${label} projects, with what each one does and how it went.`} card={{ variant: "A", label: "Work", title: `${label} projects` }} current="work">
   <div class="wrap section">
     <h1 class="t-h1">{label} projects</h1>
     <WorkFilters kinds={kindsWithProjects(projects)} current={kind} />
     <WorkGrid projects={projects.filter((p) => p.data.kind === kind)} />
   </div>
-</Base>
+</BaseLayout>
 ```
 
 - [ ] **Step 3: Run the tests**
 
-Run: `pnpm --dir site exec playwright test --project=light --project=dark --project=phone tests/e2e/work.spec.ts tests/e2e/pages.spec.ts tests/e2e/layout.spec.ts`
+Run: `pnpm --dir site exec playwright test --project=chromium --project=dark --project=phone tests/e2e/work.spec.ts tests/e2e/pages.spec.ts tests/e2e/layout.spec.ts`
 Expected: PASS.
 
 - [ ] **Step 4: Commit**
@@ -2931,7 +2963,7 @@ test("lists writing linked to the project", async ({ page }) => {
 
 In `routes.ts`, add `...PROJECTS.map((p) => `/work/${p.id}/`)` to `CONTENT_ROUTES`.
 
-Run: `pnpm --dir site exec playwright test --project=light tests/e2e/case-study.spec.ts`
+Run: `pnpm --dir site exec playwright test --project=chromium tests/e2e/case-study.spec.ts`
 Expected: FAIL, 404.
 
 - [ ] **Step 2: Write the summary block and the page**
@@ -2964,7 +2996,7 @@ const { summary, role, stack, results, repo } = Astro.props.project.data;
 ---
 // site/src/pages/work/[id].astro: the case study.
 import { render } from "astro:content";
-import Base from "../../layouts/Base.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
 import AskSlot from "../../components/AskSlot.astro";
 import Draft from "../../components/Draft.astro";
 import OttieSlot from "../../components/OttieSlot.astro";
@@ -2986,7 +3018,7 @@ const { project, related } = Astro.props;
 const { Content } = await render(project);
 const { title, summary, kind, status } = project.data;
 ---
-<Base title={title} description={summary} type="article" card={{ variant: "A", label: "Case study", title }} current="work">
+<BaseLayout title={title} description={summary} type="article" card={{ variant: "A", label: "Case study", title }} current="work">
   <Draft status={status} as="article" class="wrap section case">
     <header class="stack">
       <span class="t-label eyebrow">Case study · {KIND_LABELS[kind]}</span>
@@ -3015,7 +3047,7 @@ const { title, summary, kind, status } = project.data;
       </section>
     )}
   </Draft>
-</Base>
+</BaseLayout>
 <style>
   .ask-project { display: flex; gap: var(--space-6); align-items: flex-end; flex-wrap: wrap; margin-block: var(--space-9) var(--space-7); padding-block-start: var(--space-6); border-block-start: 1px solid var(--color-hairline); }
   .ask-text { flex: 1 1 24rem; }
@@ -3025,7 +3057,7 @@ const { title, summary, kind, status } = project.data;
 
 - [ ] **Step 3: Run the tests**
 
-Run: `pnpm --dir site exec playwright test --project=light --project=dark --project=phone tests/e2e/case-study.spec.ts tests/e2e/pages.spec.ts tests/e2e/layout.spec.ts`
+Run: `pnpm --dir site exec playwright test --project=chromium --project=dark --project=phone tests/e2e/case-study.spec.ts tests/e2e/pages.spec.ts tests/e2e/layout.spec.ts`
 Expected: PASS for all three sample projects.
 
 - [ ] **Step 4: Commit**
@@ -3095,7 +3127,7 @@ test("the RSS feed is valid and lists the visible posts", async ({ request }) =>
 
 In `routes.ts`, change `STATIC_ROUTES` to `["/", "/work/", "/writing/"]` and add `...POSTS.map((p) => `/writing/${p.id}/`)` to `CONTENT_ROUTES`.
 
-Run: `pnpm --dir site exec playwright test --project=light tests/e2e/writing.spec.ts`
+Run: `pnpm --dir site exec playwright test --project=chromium tests/e2e/writing.spec.ts`
 Expected: FAIL, 404.
 
 - [ ] **Step 3: Write the pages and the feed**
@@ -3103,12 +3135,12 @@ Expected: FAIL, 404.
 ```astro
 ---
 // site/src/pages/writing/index.astro
-import Base from "../../layouts/Base.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
 import PostCard from "../../components/PostCard.astro";
 import { getVisiblePosts } from "../../lib/collections";
 const posts = await getVisiblePosts();
 ---
-<Base title="Writing" description="Case studies, devlogs and notes from Din." card={{ variant: "A", label: "Writing", title: "Writing" }} current="writing">
+<BaseLayout title="Writing" description="Case studies, devlogs and notes from Din." card={{ variant: "A", label: "Writing", title: "Writing" }} current="writing">
   <div class="wrap section">
     <h1 class="t-h1">Writing</h1>
     <p class="t-lead">Case studies, devlogs and notes. Also as an <a href="/rss.xml">RSS feed</a>.</p>
@@ -3118,7 +3150,7 @@ const posts = await getVisiblePosts();
       <p class="empty" data-empty>The first posts are on their way.</p>
     )}
   </div>
-</Base>
+</BaseLayout>
 <style>
   .list { display: grid; gap: var(--space-5); grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); margin-block-start: var(--space-6); }
 </style>
@@ -3128,7 +3160,7 @@ const posts = await getVisiblePosts();
 ---
 // site/src/pages/writing/[id].astro
 import { render } from "astro:content";
-import Base from "../../layouts/Base.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
 import Draft from "../../components/Draft.astro";
 import Motif from "../../components/Motif.astro";
 import OttieSlot from "../../components/OttieSlot.astro";
@@ -3151,7 +3183,7 @@ const { title, summary, kind, date, motif, status } = post.data;
 const isDevlog = post.data.devlog ?? kind === "devlog";
 const label = WRITING_KIND_LABELS[kind];
 ---
-<Base
+<BaseLayout
   title={title}
   description={summary}
   type="article"
@@ -3172,7 +3204,7 @@ const label = WRITING_KIND_LABELS[kind];
       {isDevlog && <OttieSlot placement="devlog" />}
     </div>
   </Draft>
-</Base>
+</BaseLayout>
 <style>
   .post header { max-width: var(--measure); margin-block-end: var(--space-7); }
   .post :global(.motif) { max-width: 200px; }
@@ -3207,7 +3239,7 @@ export async function GET(context: APIContext) {
 
 - [ ] **Step 4: Run the tests**
 
-Run: `pnpm --dir site exec playwright test --project=light --project=dark --project=phone tests/e2e/writing.spec.ts tests/e2e/pages.spec.ts tests/e2e/layout.spec.ts`
+Run: `pnpm --dir site exec playwright test --project=chromium --project=dark --project=phone tests/e2e/writing.spec.ts tests/e2e/pages.spec.ts tests/e2e/layout.spec.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -3265,7 +3297,7 @@ test("offers the resume only when one is linked", async ({ page }) => {
 
 In `routes.ts`, add `"/about/"` to `STATIC_ROUTES`.
 
-Run: `pnpm --dir site exec playwright test --project=light tests/e2e/about.spec.ts`
+Run: `pnpm --dir site exec playwright test --project=chromium tests/e2e/about.spec.ts`
 Expected: FAIL, 404.
 
 - [ ] **Step 2: Write the timeline and the page**
@@ -3309,7 +3341,7 @@ const sorted = [...entries].sort((a, b) => b.start.localeCompare(a.start));
 ```astro
 ---
 // site/src/pages/about.astro: the calm About. M4 turns the screen panel into the studio's zoom.
-import Base from "../layouts/Base.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
 import Draft from "../components/Draft.astro";
 import Timeline from "../components/Timeline.astro";
 import { getVisibleProjects } from "../lib/collections";
@@ -3327,7 +3359,7 @@ const timeline = profile.timeline.filter((t) => isVisible(t.status, SHOW_DRAFTS)
 const projectIds = (await getVisibleProjects()).map((p) => p.id);
 const publishedRole = profile.roleLine.status === "published" ? profile.roleLine.value : null;
 ---
-<Base title="About" description="Who Din is: bio, education and experience, skills and languages." card={{ variant: "A", label: "About", title: "About Din" }} jsonLd={[profilePageJsonLd(site, publishedRole)]} current="about">
+<BaseLayout title="About" description="Who Din is: bio, education and experience, skills and languages." card={{ variant: "A", label: "About", title: "About Din" }} jsonLd={[profilePageJsonLd(site, publishedRole)]} current="about">
   <div class="wrap section stack">
     <div class="screen-panel" data-setpiece="studio-screen">
       <pre class="t-data"><span aria-hidden="true">$ </span>whoami{"\n"}din</pre>
@@ -3369,7 +3401,7 @@ const publishedRole = profile.roleLine.status === "published" ? profile.roleLine
       </section>
     )}
   </div>
-</Base>
+</BaseLayout>
 <style>
   .screen-panel { background: #1F1E1C; color: #ECE9E2; border-radius: var(--radius-lg); padding: var(--space-6); max-width: 40rem; }
   .screen-panel pre { margin: 0; font-size: var(--text-body); white-space: pre-wrap; }
@@ -3384,7 +3416,7 @@ The screen panel uses the dark palette's fixed values on purpose (it is a screen
 
 - [ ] **Step 3: Run the tests**
 
-Run: `pnpm --dir site exec playwright test --project=light --project=dark --project=phone tests/e2e/about.spec.ts tests/e2e/pages.spec.ts tests/e2e/layout.spec.ts`
+Run: `pnpm --dir site exec playwright test --project=chromium --project=dark --project=phone tests/e2e/about.spec.ts tests/e2e/pages.spec.ts tests/e2e/layout.spec.ts`
 Expected: PASS.
 
 - [ ] **Step 4: Commit**
@@ -3397,12 +3429,12 @@ git commit -m "feat(site): about page with the timeline, skills and languages"
 ## Task 14: /contact as a plain form
 
 **Files:**
-- Create: `site/src/pages/contact/index.astro`, `site/src/pages/contact/sent.astro`, `site/src/pages/contact/error.astro`, `site/tests/e2e/contact.spec.ts`
+- Create: `site/src/pages/contact/index.astro`, `site/src/pages/contact/sent.astro`, `site/src/pages/contact/not-sent.astro`, `site/tests/e2e/contact.spec.ts`
 - Modify: `site/tests/e2e/routes.ts`
 
 **Interfaces:**
 - Consumes: `ContactForm`, `OttieSlot` (Task 9), `CONTACT_FIELDS`, `CONTACT_LIMITS`, `CONTACT_REDIRECTS` (Task 7).
-- Produces: routes `/contact/`, `/contact/sent/`, `/contact/error/` (the last two `noindex`).
+- Produces: routes `/contact/`, `/contact/sent/`, `/contact/not-sent/` (the last two `noindex` and never in the sitemap). M4 adjusts these pages rather than creating its own.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -3416,7 +3448,7 @@ test("the contact page is a real form that posts to /api/contact", async ({ page
   const form = page.locator("form[data-letter-form]");
   await expect(form).toHaveAttribute("method", "post");
   await expect(form).toHaveAttribute("action", "/api/contact");
-  await expect(page.getByLabel("Message")).toHaveAttribute("maxlength", "2000");
+  await expect(page.getByLabel("Message")).toHaveAttribute("maxlength", "4000");
   await expect(page.getByLabel("Your email")).toHaveAttribute("type", "email");
   await expect(page.getByRole("radio", { name: "A role" })).toBeChecked();
 });
@@ -3435,18 +3467,23 @@ test("the browser blocks an empty submit", async ({ page }) => {
   expect(await page.getByLabel("Message").evaluate((el: HTMLTextAreaElement) => el.validity.valueMissing)).toBe(true);
 });
 
-test("the sent and error pages exist and are not indexed", async ({ page }) => {
-  for (const [path, heading] of [["/contact/sent/", "Sent. Thank you."], ["/contact/error/", "That did not go through."]]) {
+test("the sent and not-sent pages exist and are not indexed", async ({ page }) => {
+  for (const [path, heading] of [["/contact/sent/", "Sent. Thank you."], ["/contact/not-sent/", "Not sent."]]) {
     await page.goto(path);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(heading);
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex");
   }
 });
+
+test("the not-sent page offers email instead", async ({ page }) => {
+  await page.goto("/contact/not-sent/");
+  await expect(page.getByRole("main").getByRole("link", { name: "din@dins.dev" })).toHaveAttribute("href", "mailto:din@dins.dev");
+});
 ```
 
-In `routes.ts`, add `"/contact/"` to `STATIC_ROUTES` and set `UTILITY_ROUTES` to `["/contact/sent/", "/contact/error/"]`.
+In `routes.ts`, add `"/contact/"` to `STATIC_ROUTES` and set `UTILITY_ROUTES` to `["/contact/sent/", "/contact/not-sent/"]`.
 
-Run: `pnpm --dir site exec playwright test --project=light tests/e2e/contact.spec.ts`
+Run: `pnpm --dir site exec playwright test --project=chromium tests/e2e/contact.spec.ts`
 Expected: FAIL, 404.
 
 - [ ] **Step 2: Write the pages**
@@ -3454,11 +3491,11 @@ Expected: FAIL, 404.
 ```astro
 ---
 // site/src/pages/contact/index.astro
-import Base from "../../layouts/Base.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
 import ContactForm from "../../components/ContactForm.astro";
 import OttieSlot from "../../components/OttieSlot.astro";
 ---
-<Base title="Contact" description="Write to Din about a role, admissions, or just to say hello." card={{ variant: "A", label: "Contact", title: "Write to Din" }} current="contact">
+<BaseLayout title="Contact" description="Write to Din about a role, admissions, or just to say hello." card={{ variant: "A", label: "Contact", title: "Write to Din" }} current="contact">
   <div class="wrap section layout">
     <div class="stack">
       <h1 class="t-h1">Write to me.</h1>
@@ -3467,7 +3504,7 @@ import OttieSlot from "../../components/OttieSlot.astro";
     </div>
     <OttieSlot placement="contact" />
   </div>
-</Base>
+</BaseLayout>
 <style>
   .layout { display: flex; gap: var(--space-7); align-items: flex-end; flex-wrap: wrap; }
   .layout > .stack { flex: 1 1 32rem; }
@@ -3477,15 +3514,15 @@ import OttieSlot from "../../components/OttieSlot.astro";
 ```astro
 ---
 // site/src/pages/contact/sent.astro: where a no-JavaScript submit lands after a 303 (CONTACT_REDIRECTS.sent).
-import Base from "../../layouts/Base.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
 ---
-<Base title="Message sent" description="Your message to Din was sent." card={null} noindex>
+<BaseLayout title="Message sent" description="Your message to Din was sent." card={null} noindex>
   <div class="wrap section stack">
     <h1 class="t-h1">Sent. Thank you.</h1>
     <p class="t-lead">I’ll reply to the email you gave.</p>
     <div class="actions"><a class="btn" href="/contact/">Write another</a><a class="btn" href="/">Back to the home page</a></div>
   </div>
-</Base>
+</BaseLayout>
 <style>
   .actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 </style>
@@ -3493,23 +3530,28 @@ import Base from "../../layouts/Base.astro";
 
 ```astro
 ---
-// site/src/pages/contact/error.astro: where a failed no-JavaScript submit lands (CONTACT_REDIRECTS.error).
-import Base from "../../layouts/Base.astro";
+// site/src/pages/contact/not-sent.astro: where a post that was not accepted lands (CONTACT_REDIRECTS.notSent).
+// Every post without JavaScript lands here, because it carries no Turnstile token (Din, 2026-10-21).
+import BaseLayout from "../../layouts/BaseLayout.astro";
 import { site } from "../../data/site";
 ---
-<Base title="Message not sent" description="Your message could not be sent." card={null} noindex>
+<BaseLayout title="Message not sent" description="Your message could not be sent from the form." card={null} noindex>
   <div class="wrap section stack">
-    <h1 class="t-h1">That did not go through.</h1>
-    <p class="t-lead">Something stopped the message on the way. Please try again, or email <a href={`mailto:${site.email}`}>{site.email}</a> directly.</p>
-    <p><a class="btn" href="/contact/">Try again</a></p>
+    <h1 class="t-h1">Not sent.</h1>
+    <p class="t-lead">The form could not send your message. It needs JavaScript to check that a person is writing, and something stopped that check.</p>
+    <p>Your message is not lost if you still have it: email it to <a href={`mailto:${site.email}`}>{site.email}</a> and it reaches the same inbox.</p>
+    <div class="actions"><a class="btn" href="/contact/">Back to the form</a></div>
   </div>
-</Base>
+</BaseLayout>
+<style>
+  .actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+</style>
 ```
 
 - [ ] **Step 3: Run the tests**
 
-Run: `pnpm --dir site exec playwright test --project=light --project=dark --project=phone tests/e2e/contact.spec.ts tests/e2e/pages.spec.ts tests/e2e/layout.spec.ts`
-Expected: PASS. A real submit returns 404 until M4 builds `/api/contact`; that is expected in M1 and listed under handoff.
+Run: `pnpm --dir site exec playwright test --project=chromium --project=dark --project=phone tests/e2e/contact.spec.ts tests/e2e/pages.spec.ts tests/e2e/layout.spec.ts`
+Expected: PASS. A real submit returns 404 until M4 builds `/api/contact`; that is expected in M1. M4 answers no-JavaScript posts with a 303 to `/contact/not-sent/`.
 
 - [ ] **Step 4: Commit**
 
@@ -3525,7 +3567,7 @@ git commit -m "feat(site): contact page as a plain form, with sent and error pag
 - Modify: `site/tests/e2e/routes.ts`, `site/tests/e2e/pages.spec.ts` (enable the 404 test), possibly `site/wrangler.jsonc`
 
 **Interfaces:**
-- Consumes: `Base`, `OttieSlot`, `site`.
+- Consumes: `BaseLayout`, `OttieSlot`, `site`.
 - Produces: routes `/privacy/` and the 404 page.
 
 - [ ] **Step 1: Write the failing tests**
@@ -3561,7 +3603,7 @@ test("slashless paths reach the same page", async ({ page }) => {
 
 In `pages.spec.ts`, delete the `test.skip(true, ...)` line in the "not found" block, and in `routes.ts` add `"/privacy/"` to `STATIC_ROUTES`.
 
-Run: `pnpm --dir site exec playwright test --project=light tests/e2e/misc.spec.ts`
+Run: `pnpm --dir site exec playwright test --project=chromium tests/e2e/misc.spec.ts`
 Expected: FAIL.
 
 - [ ] **Step 2: Write the pages**
@@ -3569,11 +3611,11 @@ Expected: FAIL.
 ```astro
 ---
 // site/src/pages/privacy.astro: plain words (PRD 2 and 6). Din reviews this text (Din task D8).
-import Base from "../layouts/Base.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
 import { site } from "../data/site";
 const updated = "2026-10-27";
 ---
-<Base title="Privacy" description="What dins.dev collects (very little) and why." card={{ variant: "A", label: "Privacy", title: "Privacy" }}>
+<BaseLayout title="Privacy" description="What dins.dev collects (very little) and why." card={{ variant: "A", label: "Privacy", title: "Privacy" }}>
   <div class="wrap section">
     <article class="prose-page stack">
       <h1 class="t-h1">Privacy</h1>
@@ -3594,7 +3636,7 @@ const updated = "2026-10-27";
       <p class="t-small">Last updated <time datetime={updated}>27 October 2026</time>.</p>
     </article>
   </div>
-</Base>
+</BaseLayout>
 <style>
   .prose-page { max-width: var(--measure); }
 </style>
@@ -3603,10 +3645,10 @@ const updated = "2026-10-27";
 ```astro
 ---
 // site/src/pages/404.astro: Ottie shrugs (PRD 2 and 4). M2 plays the shrug state on this slot.
-import Base from "../layouts/Base.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
 import OttieSlot from "../components/OttieSlot.astro";
 ---
-<Base title="Page not found" description="This page is not on dins.dev." card={null} noindex>
+<BaseLayout title="Page not found" description="This page is not on dins.dev." card={null} noindex>
   <div class="wrap section layout">
     <div class="stack">
       <h1 class="t-h1">This page is not here.</h1>
@@ -3620,7 +3662,7 @@ import OttieSlot from "../components/OttieSlot.astro";
     </div>
     <OttieSlot placement="404" state="shrug" />
   </div>
-</Base>
+</BaseLayout>
 <style>
   .layout { display: flex; gap: var(--space-7); align-items: flex-end; flex-wrap: wrap; }
   .layout > .stack { flex: 1 1 28rem; }
@@ -3630,7 +3672,7 @@ import OttieSlot from "../components/OttieSlot.astro";
 
 - [ ] **Step 3: Run the tests**
 
-Run: `pnpm --dir site exec playwright test --project=light --project=dark tests/e2e/misc.spec.ts tests/e2e/pages.spec.ts`
+Run: `pnpm --dir site exec playwright test --project=chromium --project=dark tests/e2e/misc.spec.ts tests/e2e/pages.spec.ts`
 Expected: PASS. If the unknown-path test gets status 200 or the plain Workers 404 instead of the page, add `"not_found_handling": "404-page"` to the `assets` block in `site/wrangler.jsonc`, rebuild and rerun; expected PASS. If `/work` does not redirect to `/work/`, check that `assets.html_handling` is the default `"auto-trailing-slash"`.
 
 - [ ] **Step 4: Commit**
@@ -3857,7 +3899,7 @@ export function GET() {
 - [ ] **Step 4: Write the SEO e2e spec**
 
 ```ts
-// site/tests/e2e/seo.spec.ts (light project only)
+// site/tests/e2e/seo.spec.ts (chromium project)
 import { expect, test } from "@playwright/test";
 import { CONTENT_ROUTES, ROUTES, STATIC_ROUTES, UTILITY_ROUTES } from "./routes";
 
@@ -3906,7 +3948,7 @@ test("JSON-LD on every route parses", async ({ page }) => {
 Run: `pnpm --dir site exec vitest run tests/unit/sitemap.test.ts tests/unit/textfiles.test.ts`
 Expected: PASS.
 
-Run: `pnpm --dir site exec playwright test --project=light tests/e2e/seo.spec.ts`
+Run: `pnpm --dir site exec playwright test --project=chromium tests/e2e/seo.spec.ts`
 Expected: PASS. If `/.well-known/security.txt` is 404 because the dot folder was skipped, move the endpoint to `site/src/pages/[wellKnown]/security.txt.ts`, add `export function getStaticPaths() { return [{ params: { wellKnown: ".well-known" } }]; }`, fix the import path to `../../lib/textfiles`, rebuild and rerun; expected PASS.
 
 - [ ] **Step 6: Commit**
@@ -3948,13 +3990,13 @@ from fontTools.varLib.instancer import instantiateVariableFont
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "brand" / "fonts" / "cards"
-SEARCH = [ROOT / "brand" / "fonts", ROOT / "site" / "public" / "fonts", ROOT / "site" / "src" / "fonts"]
+SEARCH = [ROOT / "brand" / "fonts", ROOT / "brand" / "fonts" / "web"]
 
 JOBS = [
-    ("Fraunces*", "Fraunces-Card-500.ttf", {"wght": 500, "opsz": 96, "SOFT": 50, "WONK": 0}),
-    ("InstrumentSans*", "InstrumentSans-Card-400.ttf", {"wght": 400, "wdth": 100}),
-    ("JetBrainsMono*", "JetBrainsMono-Card-400.ttf", {"wght": 400}),
-    ("JetBrainsMono*", "JetBrainsMono-Card-500.ttf", {"wght": 500}),
+    ("[Ff]raunces*", "Fraunces-Card-500.ttf", {"wght": 500, "opsz": 96, "SOFT": 50, "WONK": 0}),
+    ("[Ii]nstrument*", "InstrumentSans-Card-400.ttf", {"wght": 400, "wdth": 100}),
+    ("[Jj]et[Bb]rains*", "JetBrainsMono-Card-400.ttf", {"wght": 400}),
+    ("[Jj]et[Bb]rains*", "JetBrainsMono-Card-500.ttf", {"wght": 500}),
 ]
 
 
@@ -3980,7 +4022,7 @@ shutil.copy(ROOT / "brand" / "fonts" / "OFL.txt", OUT / "OFL.txt")
 ```
 
 Run: `uv run --with "fonttools>=4.67,<5" --with "brotli>=1.2,<2" python brand/tools/card_fonts.py`
-Expected: four lines `... -> Fraunces-Card-500.ttf` and so on, and four TTFs in `brand/fonts/cards/`. If it exits with "No source font", M0 vendored the fonts somewhere else: add that folder to `SEARCH` and rerun. Check that each TTF keeps its OFL licence text (copied as `OFL.txt`; if M0 vendored separate licences for Instrument Sans and JetBrains Mono, copy those too).
+Expected: four lines `... -> Fraunces-Card-500.ttf` and so on, and four TTFs in `brand/fonts/cards/`. Check that each source was a variable font or the right static weight (the script prints the source name); if M0's subset WOFF2 files are static instances at another weight, point `JOBS` at the matching file instead. Check that each TTF keeps its OFL licence text (copied as `OFL.txt`; if M0 vendored separate licences for Instrument Sans and JetBrains Mono, copy those too).
 
 - [ ] **Step 2: Install the renderer**
 
@@ -4257,7 +4299,7 @@ test("every page's og:image is a real PNG and the card meta is gone", async ({ p
 Run: `DINS_SHOW_DRAFTS=1 pnpm --dir site build`
 Expected: the log ends with "N social cards written" where N equals the number of routes with a card (every route except the 404, sent and error pages).
 
-Run: `pnpm --dir site exec playwright test --project=light tests/e2e/seo.spec.ts`
+Run: `pnpm --dir site exec playwright test --project=chromium tests/e2e/seo.spec.ts`
 Expected: PASS.
 
 - [ ] **Step 7: Din checks the cards**
@@ -4374,7 +4416,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const site = fileURLToPath(new URL("..", import.meta.url));
   const dist = existsSync(path.join(site, "dist/client")) ? path.join(site, "dist/client") : path.join(site, "dist");
   const html = readFileSync(path.join(dist, "index.html"), "utf8");
-  if (html.includes('data-build-mode="preview"')) {
+  if (html.includes('name="dins-deploy" content="preview"')) {
     console.error("check:drafts needs a production build (DINS_SHOW_DRAFTS unset)");
     process.exit(2);
   }
@@ -4394,7 +4436,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 }
 ```
 
-Note: `data-build-mode="preview"` only marks preview deploys. A local `DINS_SHOW_DRAFTS=1` build is caught instead by the `data-draft` scan (every sample is a draft), which is the case `check.sh` must never miss.
+Note: the `dins-deploy` meta (M0) only says `preview` on preview deploys. A local `DINS_SHOW_DRAFTS=1` build reports `local` and is caught instead by the `data-draft` scan (every sample is a draft), which is the case `check.sh` must never miss.
 
 Add to `site/package.json` scripts: `"check:drafts": "node scripts/check-drafts.ts"`.
 
@@ -4463,10 +4505,12 @@ test("suggested answers open without JavaScript", async ({ page }) => {
   await expect(first.locator(".answer")).toBeVisible();
 });
 
-test("the contact form is a real form without JavaScript", async ({ page }) => {
+test("without JavaScript the contact form says to email instead", async ({ page }) => {
   await page.goto("/contact/");
   await expect(page.locator("form[data-letter-form]")).toHaveAttribute("action", "/api/contact");
-  await expect(page.getByRole("button", { name: "Seal and send" })).toBeEnabled();
+  const note = page.locator("form[data-letter-form] .noscript");
+  await expect(note).toBeVisible();
+  await expect(note.getByRole("link", { name: "din@dins.dev" })).toHaveAttribute("href", "mailto:din@dins.dev");
 });
 
 test("work filters navigate without JavaScript", async ({ page }) => {
@@ -4529,7 +4573,7 @@ Why: Lighthouse accessibility and SEO 100 are M1 gates.
 // site/lighthouserc.cjs
 // Accessibility and SEO are gates at 100; performance is a warning until the post-launch pass (Din, 2026-10-21).
 // Local and CI runs use the DINS_SHOW_DRAFTS=1 build (indexable, never deployed); M5 sets BASE_URL for production.
-const base = process.env.BASE_URL ?? "http://localhost:4322";
+const base = process.env.BASE_URL ?? "http://127.0.0.1:8787";
 const paths = ["/", "/work/", "/work/passfx/", "/writing/", "/writing/sample-case-study/", "/about/", "/contact/", "/privacy/"];
 
 module.exports = {
@@ -4537,7 +4581,7 @@ module.exports = {
     collect: {
       url: paths.map((p) => new URL(p, base).href),
       numberOfRuns: 1,
-      ...(process.env.BASE_URL ? {} : { startServerCommand: "pnpm preview --port 4322", startServerReadyPattern: "4322" }),
+      ...(process.env.BASE_URL ? {} : { startServerCommand: "pnpm serve", startServerReadyPattern: "Ready on" }),
       settings: { preset: "desktop" },
     },
     assert: {
@@ -4625,20 +4669,18 @@ Ask Din before pushing `feat/m1-pages` (pushing and PRs need Din's go). Once pus
 ## Open questions for Din
 
 1. **Previews show drafts.** The plan shows drafts (with a "Draft, hidden on dins.dev" badge) on Workers Builds preview deploys and marks those pages `noindex`, so Din can review sample and unpublished content before it ships. Production (`main`) never shows them, and a build that tries is refused. PRD 2 only says "never in production". Recommendation: keep previews showing drafts; the repo is public anyway, so a preview reveals nothing new.
-2. **Contact without JavaScript versus Turnstile.** PRD 6 says the contact form still submits with JavaScript off, but Turnstile (PRD 5) needs JavaScript. M1 adds a honeypot and an email fallback line under the button. M4 must decide how `/api/contact` treats a post with no Turnstile token. Recommendation: accept it with the honeypot and a stricter rate limit (for example 3 an hour per visitor), so the promise in PRD 6 holds.
-3. **Work filters as static pages.** Filters are links to `/work/kind/<kind>/` pages (crawlable, no JavaScript, `aria-current`), shown only for kinds with projects. PRD 2 says "filterable" without saying how. This adds a route family to PRD 2. Alternative: one page with a small script. Recommendation: static pages.
-4. **The `devlog` field.** PRD 2 lists both `kind: devlog` and a `devlog` flag (card C). The plan keeps the flag optional and defaults it to `kind === "devlog"`. Should the flag go, so there is one way to say it?
-5. **Name in structured data.** "Din" or the full name (with "Din" as `alternateName`)? Ranking for Din's name depends on it (ledger, SEO and analytics). And should Person data carry a photo? The plan leaves out `image`, since the seal and avatar are Ottie, not Din.
-6. **Theme toggle.** The sketch has one; the PRD does not mention it. The plan keeps a small one (system theme by default, choice saved in `localStorage` and listed on `/privacy`). Keep it for v1?
-7. **Library samples.** M3 asked for `sample: true` entries without `approved_on`. The schema makes `approved_on` required for every non-sample entry, so the build fails on an unapproved entry (PRD 2's CI rule), and samples never reach the production index (M3). Is that the rule Din wants?
-8. **Suggested answers approval.** M3 proposed a `reviewed_by_din` field; the plan uses `status: published` for the same meaning, so there is one drafts rule. Fine?
+2. **Work filters as static pages.** Filters are links to `/work/kind/<kind>/` pages (crawlable, no JavaScript, `aria-current`), shown only for kinds with projects. PRD 2 says "filterable" without saying how. This adds a route family to PRD 2. Alternative: one page with a small script. Recommendation: static pages.
+3. **The `devlog` field.** PRD 2 lists both `kind: devlog` and a `devlog` flag (card C). The plan keeps the flag optional and defaults it to `kind === "devlog"`. Should the flag go, so there is one way to say it?
+4. **Name in structured data.** "Din" or the full name (with "Din" as `alternateName`)? Ranking for Din's name depends on it (ledger, SEO and analytics). And should Person data carry a photo? The plan leaves out `image`, since the seal and avatar are Ottie, not Din.
+5. **Theme toggle.** The sketch has one; the PRD does not mention it. The plan keeps a small one (system theme by default, choice saved in `localStorage` and listed on `/privacy`). Keep it for v1?
+6. **Library samples.** M3 asked for `sample: true` entries without `approved_on`. The schema makes `approved_on` required for every non-sample entry, so the build fails on an unapproved entry (PRD 2's CI rule), and samples never reach the production index (M3). Is that the rule Din wants?
 
 ## Doc updates to apply on merge
 
 - `docs/TASKS.md` row 2.11: status to Implemented when the build lands, Verified after the checks pass, with a link to this plan; add Din tasks D1 to D8 as rows (Done (Din) when each lands).
-- `docs/site/PRD.md` section 2, routes: add `/work/kind/<kind>/` (if open question 3 is accepted), `/contact/sent/` and `/contact/error/` (noindex, the no-JavaScript landing pages), and state that previews show drafts with `noindex` (if open question 1 is accepted). `sitemap.xml` is written by the site itself.
-- `docs/site/PRD.md` section 2, content model: record the exact fields M1 added or pinned down: projects `capture` (16:10, checked at build), `captureAlt`, `demo` as `{ type, src }` with `src` a site path, `featured` 1 to 4 and unique, `repo` https only, and the reserved id `kind`; writing `motif` (`nodes`, `bars`, `lens`) and `devlog` defaulting from `kind`; library `audience` values (`admissions`, `recruiters`, `visitors`), `approved_on` nullable only with `sample: true`; suggested `order`, `generated_on`, `language`, `sources` as `{ label, href }`.
-- `docs/site/PLAN.md` M1: note the build flag (`DINS_SHOW_DRAFTS`, `WORKERS_CI_BRANCH`), the `check:drafts` step in `check.sh`, and `pnpm --dir site launch:blockers` (M5 can make it a launch gate).
+- `docs/site/PRD.md` section 2, routes: add `/work/kind/<kind>/` (if open question 2 is accepted), `/contact/sent/` and `/contact/not-sent/` (noindex, never in the sitemap; `/contact/not-sent/` carries a `mailto:din@dins.dev` link, because a post without JavaScript has no Turnstile token and is never accepted, Din 2026-10-21), and state that previews show drafts with `noindex` (if open question 1 is accepted). `sitemap.xml` is written by the site itself.
+- `docs/site/PRD.md` section 2, content model: record the exact fields M1 added or pinned down: projects `capture` (16:10, checked at build), `captureAlt`, `demo` as `{ type, src }` with `src` a site path, `featured` 1 to 4 and unique, `repo` https only, and the reserved id `kind`; writing `motif` (`nodes`, `bars`, `lens`) and `devlog` defaulting from `kind`; library `audience` values (`admissions`, `recruiters`, `visitors`), `approved_on` nullable only with `sample: true`; suggested `order`, `generated_on`, `language`, `sources` as `{ label, href }`; contact message limit 4000 characters.
+- `docs/site/PLAN.md` M1: note the drafts flags (M0's shared deploy plus `DINS_SHOW_DRAFTS`), the `check:drafts` step in `check.sh`, and `pnpm --dir site launch:blockers` (M5 can make it a launch gate).
 - `docs/site/PLAN.md` M5: Lighthouse against production needs real case study and post paths in `site/lighthouserc.cjs` instead of the samples; M5's release scan can reuse `findDraftLeaks`.
-- `docs/WORK_LEDGER.md`: an entry for the M1 decisions (previews show drafts, static filter pages, own sitemap instead of `@astrojs/sitemap`, social cards via satori with static font instances in `brand/fonts/cards/`, the contact contract and redirect pages), with the verification results and Din's preview verdict.
+- `docs/WORK_LEDGER.md`: an entry for the M1 decisions (previews show drafts, static filter pages, own sitemap instead of `@astrojs/sitemap`, social cards via satori with static font instances in `brand/fonts/cards/`, the contact contract with the sent and not-sent pages), with the verification results and Din's preview verdict.
 - `brand/tools/` README or `docs/BRAND.md` "Social preview cards": mention `card_fonts.py` and that the site renders the cards with satori from the same rules as `social-cards.template.html`.
