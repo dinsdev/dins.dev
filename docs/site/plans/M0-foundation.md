@@ -25,6 +25,7 @@ Status: Proposed (plan only, written 2026-10-21 for Din's review). Nothing here 
 - Contract commands other plans rely on (defined exactly in Task 2 and Task 11): `pnpm --dir site dev|build|test|test:e2e|check`, `./check.sh` at the root (under 2 minutes without e2e), `uv run --project rag pytest`.
 - Repo contract paths: `site/astro.config.mjs`, `site/wrangler.jsonc`, `site/src/{layouts,components,styles,ottie,lib}/`, `site/src/pages/api/`, `site/migrations/`, `site/tests/{unit,worker,e2e}/`, Ottie sheets served under `/ottie/`, `site/public/ask/` owned by M3 (never gitignored).
 - Bindings are read with `import { env } from "cloudflare:workers"` (Astro 6+ removed `Astro.locals.runtime`).
+- One build-time deploy flag for every milestone (shared contract, "Build-time deploy"): `deployFromEnv(ci, branch)` in `site/src/lib/deploy.ts` and `DEPLOY` in `site/src/lib/deploy-env.ts` (Task 3a). Worker code reads `SITE_ENV` at runtime.
 - No cookies: Astro sessions are turned off (`session: false`), which also stops the adapter from provisioning a `SESSION` KV namespace.
 - Fonts: WOFF2, subset to Latin plus French, self-hosted, two preloaded (Fraunces and Instrument Sans), metric-matched fallbacks (PRD section 6). All three are OFL.
 - This repo is public: no secrets, tokens or account inventories. D1 database IDs are not secrets.
@@ -58,6 +59,8 @@ Status: Proposed (plan only, written 2026-10-21 for Din's review). Nothing here 
 | `site/tests/unit/health.test.ts`, `site/tests/worker/health.test.ts`, `site/tests/worker/d1.test.ts` | Harness proofs | 3 |
 | `site/tests/worker/entry.ts`, `site/tests/worker/apply-migrations.ts`, `site/tests/worker/tsconfig.json` | Worker test entry, D1 migrations setup, test types | 3 |
 | `site/migrations/.gitkeep` | D1 migrations folder (M3 adds files) | 3 |
+| `site/src/lib/deploy.ts`, `site/src/lib/deploy-env.ts`, `site/tests/unit/deploy.test.ts` | Build-time deploy flag (`local`, `preview`, `production`) for M1, M2, M4, M5 | 3a |
+| `site/astro.config.mjs`, `site/src/env.d.ts` (modified) | `__DINS_DEPLOY__` define and its declaration | 3a |
 | `brand/tools/fonts.py`, `brand/tools/test_fonts.py` | Font subsetting, fallback metrics, `fonts.css` generation, tests | 4 |
 | `brand/fonts/InstrumentSans-VF.ttf`, `brand/fonts/JetBrainsMono-VF.ttf`, `brand/fonts/OFL-InstrumentSans.txt`, `brand/fonts/OFL-JetBrainsMono.txt`, `brand/fonts/README.md` | Vendored font sources with licences | 4 |
 | `brand/fonts/web/*.woff2`, `brand/fonts/web/fonts.css` | Generated web fonts (committed, like the other brand outputs) | 4 |
@@ -213,7 +216,7 @@ git commit -m "build: add the pnpm workspace root and mise toolchain"
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
     "test:worker": "vitest run --project worker",
-    "test:e2e": "pnpm build && playwright test"
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@astrojs/cloudflare": "~14.4.1",
@@ -623,6 +626,132 @@ git commit -m "test(site): add unit and Workers runtime harnesses with a health 
 
 ---
 
+### Task 3a: Build-time deploy flag (shared contract, "Build-time deploy")
+
+One build-time answer to "is this a production, preview or local build?", so M1, M2, M4 and M5 never invent their own. Only Workers Builds sets `WORKERS_CI=1` and `WORKERS_CI_BRANCH` (Cloudflare docs, Workers Builds configuration, "Default variables": https://developers.cloudflare.com/workers/ci-cd/builds/configuration/, checked 2026-10-21: `CI=true`, `WORKERS_CI=1`, `WORKERS_CI_BRANCH=<branch name from the push event>`), so a production build can only come from Workers Builds on `main`. GitHub Actions and Din's machine always build `local`. Worker code reads `SITE_ENV` at runtime instead; this flag is build time only.
+
+**Files:**
+- Create: `site/src/lib/deploy.ts`, `site/src/lib/deploy-env.ts`
+- Modify: `site/astro.config.mjs`, `site/src/env.d.ts`, `site/vitest.unit.config.ts`, `site/vitest.worker.config.ts`
+- Test: `site/tests/unit/deploy.test.ts`
+
+**Interfaces:**
+- Produces: `type Deploy = "local" | "preview" | "production"` and `deployFromEnv(ci: string | undefined, branch: string | undefined): Deploy` in `site/src/lib/deploy.ts` (pure; `astro.config.mjs` and tests import it).
+- Produces: the build-time constant `__DINS_DEPLOY__` (a `Deploy` string, set by `vite.define` in `astro.config.mjs`, declared in `site/src/env.d.ts`) and `DEPLOY: Deploy` exported from `site/src/lib/deploy-env.ts` for site code. Vitest defines it as `"local"`, so modules that import `deploy-env.ts` load in unit and Worker tests.
+- Produces: `<meta name="dins-deploy" content={DEPLOY}>` in `BaseLayout.astro` (written in Task 6), checked on the first preview in Task 13.
+- For **M1**: the drafts flags read `DEPLOY` (`showDrafts` on `preview`, or on `local` with `DINS_SHOW_DRAFTS=1`; `noindex` on `preview`; `DINS_SHOW_DRAFTS=1` on `production` throws).
+- For **M2**: the lab pages are built unless `DEPLOY === "production"` (the `DINS_LABS` override stays M2's).
+- For **M4**: the release flags in `site/src/lib/setpieces/flags.ts` read `DEPLOY` (`preview` releases are full on `local` and `preview`, calm on `production`).
+- For **M5**: headers, CSP and the analytics beacon read `DEPLOY`; `deployFromEnv` lives here, not in `headers.ts`.
+
+- [ ] **Step 1: Write the failing test**
+
+`site/tests/unit/deploy.test.ts`:
+
+```ts
+import { describe, expect, it } from "vitest";
+import { deployFromEnv } from "../../src/lib/deploy";
+
+describe("deployFromEnv", () => {
+  it("is local outside Workers Builds, even on main", () => {
+    expect(deployFromEnv(undefined, "main")).toBe("local");
+  });
+
+  it("is local when WORKERS_CI is anything but 1 (GitHub Actions sets CI, not WORKERS_CI)", () => {
+    expect(deployFromEnv("true", "main")).toBe("local");
+  });
+
+  it("is production on Workers Builds from main", () => {
+    expect(deployFromEnv("1", "main")).toBe("production");
+  });
+
+  it("is preview on Workers Builds from any other branch, or with no branch", () => {
+    expect(deployFromEnv("1", "feat/m1-pages")).toBe("preview");
+    expect(deployFromEnv("1", undefined)).toBe("preview");
+  });
+});
+```
+
+- [ ] **Step 2: Run it to verify it fails**
+
+Run: `pnpm --dir site test:unit`
+Expected: FAIL, cannot resolve `../../src/lib/deploy`.
+
+- [ ] **Step 3: Implement `site/src/lib/deploy.ts`** (exactly as the shared contract)
+
+```ts
+export type Deploy = "local" | "preview" | "production";
+
+/** Only Workers Builds sets WORKERS_CI, so a production build can only come from there. */
+export function deployFromEnv(ci: string | undefined, branch: string | undefined): Deploy {
+  if (ci !== "1") return "local";
+  return branch === "main" ? "production" : "preview";
+}
+```
+
+- [ ] **Step 4: Run it to verify it passes**
+
+Run: `pnpm --dir site test:unit`
+Expected: 7 passed (3 health, 4 deploy).
+
+- [ ] **Step 5: Wire the constant**
+
+`site/src/lib/deploy-env.ts`:
+
+```ts
+import type { Deploy } from "./deploy";
+
+/** Which build this is, fixed at build time. Worker code reads SITE_ENV instead. */
+export const DEPLOY: Deploy = __DINS_DEPLOY__;
+```
+
+Replace `site/src/env.d.ts` with:
+
+```ts
+/// <reference types="astro/client" />
+
+/** Set by vite.define in astro.config.mjs (and as "local" in the Vitest configs). */
+declare const __DINS_DEPLOY__: import("./lib/deploy").Deploy;
+```
+
+In `site/astro.config.mjs`, add the import and the `vite` key (the rest of the file stays as in Task 2):
+
+```js
+import { deployFromEnv } from "./src/lib/deploy.ts";
+```
+
+```js
+  vite: {
+    define: {
+      __DINS_DEPLOY__: JSON.stringify(
+        deployFromEnv(process.env.WORKERS_CI, process.env.WORKERS_CI_BRANCH),
+      ),
+    },
+  },
+```
+
+Astro loads its config through Vite, so the `.ts` import works from the `.mjs` config. In both `site/vitest.unit.config.ts` and `site/vitest.worker.config.ts`, add at the top level of the object passed to `defineProject`:
+
+```ts
+  define: { __DINS_DEPLOY__: JSON.stringify("local") },
+```
+
+- [ ] **Step 6: Check types and tests**
+
+Task 6 adds the meta tag that shows the value; until then, check the constant reaches the build:
+
+Run: `pnpm --dir site check && pnpm --dir site test`
+Expected: no type errors; 9 passed (7 unit, 2 worker). The build-level check (`local`, `preview`, `production` in the page) is Task 6 Step 5.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add site/src/lib/deploy.ts site/src/lib/deploy-env.ts site/src/env.d.ts site/astro.config.mjs site/vitest.unit.config.ts site/vitest.worker.config.ts site/tests/unit/deploy.test.ts
+git commit -m "feat(site): add the shared build-time deploy flag"
+```
+
+---
+
 ### Task 4: Self-hosted fonts (WOFF2, Latin plus French, metric-matched fallbacks)
 
 Where the fonts come from (all SIL Open Font License 1.1, which allows bundling and subsetting; the licence text must travel with the files):
@@ -983,7 +1112,7 @@ Add `"allowJs": true` to `compilerOptions` in `site/tsconfig.json` only if `astr
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `pnpm --dir site test:unit`
-Expected: 6 passed (3 health, 3 sync).
+Expected: 10 passed (3 health, 4 deploy, 3 sync).
 
 - [ ] **Step 5: Check the sheets are served by the built Worker**
 
@@ -1006,7 +1135,7 @@ git commit -m "feat(site): serve the Ottie sheets under /ottie/"
 - Modify: `site/src/pages/index.astro`
 
 **Interfaces:**
-- Produces: `BaseLayout` with props `{ title: string; description: string }` and a default slot inside `<main id="main">`. It loads tokens.css and fonts.css, preloads the Fraunces and Instrument Sans WOFF2 files, links the favicon, sets `lang="en"` and a skip link. M1 extends it (SEO head, nav, footer); M5 adds CSP.
+- Produces: `BaseLayout` with props `{ title: string; description: string }` and a default slot inside `<main id="main">`. It loads tokens.css and fonts.css, preloads the Fraunces and Instrument Sans WOFF2 files, links the favicon, sets `lang="en"` and a skip link, and writes `<meta name="dins-deploy" content={DEPLOY}>` (Task 3a). M1 extends it (SEO head, `<slot name="head" />`, nav, footer); M5 adds CSP.
 - Produces: `.skip-link` class and the teal `:focus-visible` ring in `global.css`.
 
 - [ ] **Step 1: Write `site/src/styles/global.css`**
@@ -1076,6 +1205,7 @@ a {
 import fraunces from "../../../brand/fonts/web/fraunces.woff2?url";
 import instrumentSans from "../../../brand/fonts/web/instrument-sans.woff2?url";
 import favicon from "../../../brand/logo/favicon.svg?url";
+import { DEPLOY } from "../lib/deploy-env";
 import "../styles/global.css";
 
 interface Props {
@@ -1092,6 +1222,7 @@ const { title, description } = Astro.props;
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
+    <meta name="dins-deploy" content={DEPLOY} />
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="icon" href={favicon} type="image/svg+xml" />
@@ -1144,12 +1275,26 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 </style>
 ```
 
-- [ ] **Step 5: Build and look**
+- [ ] **Step 5: Check the deploy meta in all three builds**
+
+Run:
+
+```bash
+meta() { grep -o 'name="dins-deploy" content="[a-z]*"' site/dist/client/index.html; }
+pnpm --dir site build >/dev/null && meta
+WORKERS_CI=1 WORKERS_CI_BRANCH=feat/m0-foundation pnpm --dir site build >/dev/null && meta
+WORKERS_CI=1 WORKERS_CI_BRANCH=main pnpm --dir site build >/dev/null && meta
+pnpm --dir site build >/dev/null
+```
+
+Expected, in order: `content="local"`, `content="preview"`, `content="production"`. The last build puts the normal `local` output back.
+
+- [ ] **Step 6: Build and look**
 
 Run: `pnpm --dir site build && pnpm --dir site serve`, open http://127.0.0.1:8787/ in light and dark
 Expected: paper (light) or charcoal (dark) background, the Fraunces headline, the Instrument Sans lead in muted ink, the mono label "BUILT ON M0", the teal focus ring on Tab with the skip link appearing. Network panel: two preloaded WOFF2 files, JetBrains Mono fetched only when used, no JavaScript from the page. Din checks the look in the preview (Task 13); this step only confirms it renders. Stop the server.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add site/src
@@ -1166,7 +1311,7 @@ git commit -m "feat(site): add the base layout and a starter page on the brand t
 
 **Interfaces:**
 - Consumes: `pnpm --dir site serve` (Task 2), the starter page (Task 6), `/api/health` (Task 3), `/ottie/` (Task 5).
-- Produces for M1 to M5: `BASE_URL` env var points Playwright at any deployed site (no local server is started then); projects `chromium` only in M0 (M1 adds more if needed); the axe pattern in `starter.spec.ts` with tags `wcag2a`, `wcag2aa`, `wcag21aa`, `wcag22aa`.
+- Produces for M1 to M5: the web server `pnpm build && pnpm serve` (wrangler dev on 127.0.0.1:8787, waiting on `/api/health`); `BASE_URL` points Playwright at any deployed site (no local server is started then) and `EXPECT_DEPLOY` sets the expected `dins-deploy` value; the `chromium` project, the default for every spec no other project claims (M1 adds `dark`, `no-js`, `reduced-motion`, `phone`); the axe pattern in `starter.spec.ts` with tags `wcag2a`, `wcag2aa`, `wcag21aa`, `wcag22aa`.
 
 - [ ] **Step 1: Write `site/playwright.config.ts`**
 
@@ -1186,10 +1331,11 @@ export default defineConfig({
   webServer: process.env.BASE_URL
     ? undefined
     : {
-        command: "pnpm serve",
+        // Build first, then the real Worker (wrangler dev), so /api/* works.
+        command: "pnpm build && pnpm serve",
         url: `${baseURL}/api/health`,
         reuseExistingServer: !process.env.CI,
-        timeout: 60_000,
+        timeout: 180_000,
       },
 });
 ```
@@ -1241,6 +1387,15 @@ test("skip link moves focus to the main content", async ({ page }) => {
   await expect(page).toHaveURL(/#main$/);
 });
 
+// Local and CI builds report "local"; Task 13 runs this against a preview with EXPECT_DEPLOY=preview.
+test("the page reports which build it is", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator('meta[name="dins-deploy"]')).toHaveAttribute(
+    "content",
+    process.env.EXPECT_DEPLOY ?? "local",
+  );
+});
+
 test("Ottie sheets and the health route are served", async ({ request }) => {
   const manifest = await request.get("/ottie/manifest.json");
   expect(manifest.ok()).toBe(true);
@@ -1255,7 +1410,7 @@ test("Ottie sheets and the health route are served", async ({ request }) => {
 - [ ] **Step 3: Install the browser and run**
 
 Run: `pnpm --dir site exec playwright install chromium && pnpm --dir site test:e2e`
-Expected: 6 passed. A failure here is a real defect in Tasks 2 to 6 (fix it there, then rerun); do not loosen the assertions.
+Expected: 7 passed. A failure here is a real defect in Tasks 2 to 6 (fix it there, then rerun); do not loosen the assertions.
 
 - [ ] **Step 4: Commit**
 
@@ -1468,7 +1623,7 @@ Expected: Prettier rewrites some files from earlier tasks (formatting only); ESL
 - [ ] **Step 6: Run the site tests again** (formatting must not change behaviour)
 
 Run: `pnpm --dir site test`
-Expected: 8 passed.
+Expected: 12 passed (10 unit, 2 worker).
 
 - [ ] **Step 7: Commit**
 
@@ -1642,7 +1797,7 @@ Expected: every step prints `ok`, the last line is `All checks passed in N s.` w
 - [ ] **Step 3: Run with e2e**
 
 Run: `./check.sh --e2e`
-Expected: also `e2e (playwright, axe)` ok, 6 tests passed.
+Expected: also `e2e (playwright, axe)` ok, 7 tests passed. The web server builds again before the tests (about 30 s more); that is the price of one server definition for local, CI and M1.
 
 - [ ] **Step 4: Run from another folder**
 
@@ -1858,8 +2013,16 @@ Expected: the Workers Builds log shows Node 24 and pnpm 12.14.0, `astro build` s
 
 - [ ] **Step 7: Verify the preview**
 
-Run: `curl -s https://feat-m0-foundation-dins-site.<subdomain>.workers.dev/api/health` (use the exact URL from the build log; branch names with `/` are normalized by Cloudflare) and `BASE_URL=<that URL> pnpm --dir site exec playwright test`
-Expected: `{"ok":true,"service":"dins-site","env":"preview"}` and 6 Playwright tests pass against the preview. Din opens the link and checks the starter page in light and dark (the only visual sign-off in M0).
+Run, with the exact Preview URL from the build log (branch names with `/` are normalized by Cloudflare):
+
+```bash
+url=https://feat-m0-foundation-dins-site.<subdomain>.workers.dev
+curl -s "$url/api/health"
+curl -s "$url/" | grep -o 'name="dins-deploy" content="[a-z]*"'
+EXPECT_DEPLOY=preview BASE_URL="$url" pnpm --dir site exec playwright test
+```
+
+Expected: `{"ok":true,"service":"dins-site","env":"preview"}` (runtime, from the `previews` vars), `name="dins-deploy" content="preview"` (build time, from `WORKERS_CI=1` and `WORKERS_CI_BRANCH`, which Workers Builds sets: https://developers.cloudflare.com/workers/ci-cd/builds/configuration/, "Default variables"), and 7 Playwright tests pass against the preview. If the meta says `local`, Workers Builds did not pass the variables to the build: stop and check the build log before going on. Din opens the link and checks the starter page in light and dark (the only visual sign-off in M0).
 
 - [ ] **Step 8: Renovate**
 
@@ -1867,18 +2030,21 @@ Ask Din to install the Renovate GitHub app (Mend) on `dinsdev/dins.dev`. Expecte
 
 - [ ] **Step 9: Record the evidence**
 
-Add a ledger entry (see "Doc updates to apply on merge") with: `check.sh` time, CI run links, the gitleaks result (rule id, exit 1), the preview URL and `/api/health` output, and anything that differed from this plan.
+After the PR merges and `main` deploys, check `curl -s https://dins-site.<subdomain>.workers.dev/ | grep -o 'name="dins-deploy" content="[a-z]*"'` shows `content="production"`.
+
+Add a ledger entry (see "Doc updates to apply on merge") with: `check.sh` time, CI run links, the gitleaks result (rule id, exit 1), the preview URL, the `/api/health` output and both `dins-deploy` values, and anything that differed from this plan.
 
 ---
 
 ## Assumes (from other milestones)
 
+- **M1** keeps M0's Playwright web server (`pnpm build && pnpm serve`, waiting on `/api/health`, adding `DINS_SHOW_DRAFTS=1`) and the `chromium` project as the default catch-all for every spec no other project claims; M1's `light` project is `chromium`. M1 modifies `BaseLayout.astro` (M0 creates it) and reads `DEPLOY` for its drafts and `noindex` flags.
 - **M1** creates `site/src/content.config.ts` and the collections, the full SEO head in `BaseLayout` (canonical, social cards, structured data), nav and footer, the full icon set (`brand/logo/icons/*` into `public/`), `robots.txt`, `llms.txt`, `security.txt`, the 404, and replaces the starter copy. M0's starter text never reaches production after M1.
 - **M2** reads `/ottie/manifest.json` and `/ottie/<state>.webp` as copied by `sync-brand.mjs` and owns the player in `site/src/ottie/`. If M2 needs the neutral still (`brand/reference/ottie-3d-neutral.webp`) under `/ottie/` too, M2 adds it to the `wanted` filter in `sync-brand.mjs` with a test. Long-term cache headers for `/ottie/*` are M2's or M5's (M0 adds no `_headers`).
 - **M3** adds `scheduled` to `site/src/worker.ts`, D1 migrations in `site/migrations/` (the worker test setup already applies them), its vars and bindings in both the top level and `previews` of `wrangler.jsonc` (AI, rate limiting, `ASK_BACKEND`), `@anthropic-ai/sdk`, `rag/` modules and dependencies, and its steps in `check.sh` and CI. M3 writes `site/public/ask/`, which M0 leaves tracked.
 - **M4** adds GSAP and the home JavaScript budget step (`pnpm --dir site budget`, per the M5 notes) to `check.sh`.
 - **M5** owns security headers and CSP (`site/src/lib/security/headers.ts`, `_headers`), the custom domain, production secrets, required status checks on `main` and the uptime monitor (which can poll `/api/health`).
-- Names other plans can rely on: Worker `dins-site`; D1 binding `DB`, databases `dins-site` and `dins-site-preview`; var `SITE_ENV`; CI jobs `check` and `e2e`; Playwright honours `BASE_URL`; Python package `dins_rag` with `dins_rag.paths.SITE_ASK_DIR`.
+- Names other plans can rely on: `deployFromEnv` and `Deploy` in `site/src/lib/deploy.ts`, `DEPLOY` in `site/src/lib/deploy-env.ts`, the `dins-deploy` meta; Worker `dins-site`; D1 binding `DB`, databases `dins-site` and `dins-site-preview`; var `SITE_ENV`; CI jobs `check` and `e2e`; Playwright honours `BASE_URL`; Python package `dins_rag` with `dins_rag.paths.SITE_ASK_DIR`.
 
 ## Open questions for Din
 
