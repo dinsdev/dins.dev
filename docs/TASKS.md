@@ -8,7 +8,8 @@ Status vocabulary: Proposed, Planned, In progress, Implemented, Verified, Accept
 |---|---|---|
 | 0.1 | Account security baseline (details in the private handbook) | Done (Din, 2026-10-19) |
 | 0.5 | Cloudflare account | Done (Din) |
-| 0.6 | Buy `dins.dev` on Cloudflare: 4 years, auto-renew on | Done (Din, 2026-10-21); RDAP shows expiry 2027-10-21 (1 year), so check auto-renew or extend |
+| 0.6 | Buy `dins.dev` on Cloudflare: 4 years, auto-renew on | Done (Din, 2026-10-21), bought for 1 year by mistake (expires 2027-10-21) |
+| 0.6a | **To do (Din):** extend `dins.dev` to 4 years and confirm auto-renew is on | Planned (Din) |
 | 0.7 | Turn on DNSSEC, add CAA records | Planned |
 | 0.8 | Email Routing: `din@`, `dinesh@`, `hello@`, `support@`, catch-all to the personal inbox | Planned |
 | 0.9 | "Send mail as" with an outgoing mail provider, SPF, DKIM, DMARC | Planned |
