@@ -1,6 +1,6 @@
 # dins brand guide
 
-Status: Personality, color, dark mode, Ottie, voice and names are locked (Din, 2026-10-19). Typography is locked (Din, 2026-10-19). The wordmark, lens, lockup, app icon and favicon are approved (Din, 2026-10-19). The Ottie seal is approved (Din, 2026-10-19). All brand files are done. Changing anything locked needs Din's approval and a ledger entry.
+Status: Personality, color, dark mode, Ottie, voice and names are locked (Din, 2026-10-19). Typography is locked (Din, 2026-10-19). The wordmark, lens, lockup, app icon and favicon are approved (Din, 2026-10-19). The Ottie seal is approved (Din, 2026-10-19). All brand files are done. The full Ottie changed from the 2D storybook look to the 3D character (Din, 2026-10-21). Changing anything locked needs Din's approval and a ledger entry.
 
 ## Personality
 
@@ -115,13 +115,13 @@ Locked by Din on 2026-10-19. Designs: `brand/social/social-cards.html` (built fr
 
 ## Ottie
 
-Ottie is a cheerful brown otter with big round black glasses, drawn in a clean-outline storybook style. Reference: `brand/reference/ottie-canonical-2d.png` (canonical style) and `brand/reference/ottie-ref.jpg` (original character).
+Ottie is a cheerful brown otter with big round black glasses. The full Ottie is a 3D character with soft fur and big brown eyes, built and animated in Blender. Reference: `brand/reference/ottie-3d-neutral.webp` (the final look, neutral pose). The earlier 2D art, `brand/reference/ottie-canonical-2d.png` (storybook style) and `brand/reference/ottie-ref.jpg` (original character), stays as the character reference and the source of the seal.
 
 Tiers by size:
 
 | Tier | Looks like | Used for |
 |---|---|---|
-| Full Ottie | Storybook illustration | dins.dev hero, game art, devlog thumbnails |
+| Full Ottie | 3D render | The animated mascot on dins.dev, devlog thumbnails, game art |
 | Ottie seal | Flat face in a ring | Social avatars, stickers, game page footers |
 | Lens | Just the glasses | Favicon, icon corner mark, AI feature mark, anything tiny |
 
@@ -135,7 +135,7 @@ Never:
 - Ottie on formal documents: resume, application PDFs, statements of purpose, email signature, invoices, contracts. These get the wordmark and at most the lens.
 - Sketchy or watercolor variants, unreviewed off-model AI redraws, Ottie inside other people's logos or diagrams.
 
-Expressions: the pose sheet `brand/concepts/ottie-poses.png` (wave, thinking, celebrating, shrug, sleeping; prompt beside it) is the reference for every later appearance. Cutouts are made at site-build time for the poses the site uses.
+Expressions: the twelve animated states in `brand/ottie/dist/` (play them in `brand/ottie/preview/index.html`) are the reference for every later appearance. Stills come from those states or are rendered from the private model. The 2D pose sheet `brand/concepts/ottie-poses.png` is kept as history.
 
 Ottie's voice: first person, short sentences, warm, a little nerdy, honest. For example: "I'm not sure about that one. Din would know, here's how to reach Din." No exclamation spam, no pun in every line.
 
