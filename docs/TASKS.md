@@ -49,7 +49,7 @@ Status vocabulary: Proposed, Planned, In progress, Implemented, Verified, Accept
 
 | ID | Task | Status |
 |---|---|---|
-| 2.1 | Write the site PRD and build plan (earlier concepts in `~/Develop/dins.dev-concepts` are reference only) | Implemented (2026-10-21): `docs/site/PRD.md`, `docs/site/PLAN.md`, awaiting Din's review |
+| 2.1 | Write the site PRD and build plan (earlier concepts in `~/Develop/dins.dev-concepts` are reference only) | Implemented (2026-10-21): `docs/site/PRD.md`, `docs/site/PLAN.md`; Din started the build on them ("Now let's start on the plans") |
 | 2.1a | Lock routes, content model and the home page skeleton (sketch in `docs/design/sketches/`) | Accepted (Din, 2026-10-19) |
 | 2.2 | Lock the Ottie puppet route (Blender, mesh deformation, sprite sheets, live eyes; `docs/design/ottie/BRIEF.md`) | Accepted (Din, 2026-10-19) |
 | 2.3 | Build Ottie milestone 1: idle and wave, approved by Din in the preview page | Superseded: the 2D idle and wave were Accepted (Din, 2026-10-19), then Din moved Ottie to a 3D look; the 2D work is in the private `dins-ottie` repo |
