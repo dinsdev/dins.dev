@@ -61,6 +61,6 @@ Din accepts each area when:
 
 ## 6. Open questions
 
-- Outgoing mail provider for "Send mail as" (free tier to start).
+- ~~Outgoing mail provider for "Send mail as"~~ Decided 2026-10-21: Resend, free plan (see the work ledger).
 - Whether to use `@dins.dev` as a Bluesky handle.
 - When to register the business name "dins" in Ontario (details in the private handbook).

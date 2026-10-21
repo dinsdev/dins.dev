@@ -4,6 +4,26 @@ Decisions and why, work done, verification results, approvals, blockers, handoff
 
 ## 2026-10-21
 
+### Sending as din@dins.dev through Resend (Claude, 2026-10-21)
+
+- **Asked (Din):** pick a free outgoing mail provider for Gmail "Send mail as" on dins.dev, and drop the old `info@dineshd.dev` (its domain expired).
+- **Decided (Din):** Resend, free plan (3,000 a month, 100 a day, SMTP included, logs kept 30 days). Compared on 2026-10-21 against Brevo (300 a day, marketing-first, branding reported on the free plan), SMTP2GO (1,000 a month) and Cloudflare Email Sending (beta, and sending to outside recipients needs Workers Paid at $5 a month, which would be a paid service).
+- **Done (Din):** Resend account on the personal address; dins.dev added with Resend's one-click Cloudflare setup (DKIM TXT `resend._domainkey`, CNAMEs `send` and `rsend` to `forge.rmta.net`, which carry the bounce MX and SPF on subdomains, so the apex Email Routing SPF is untouched); DMARC through Cloudflare DMARC Management (`p=none`, aggregate reports to Cloudflare); a sending-only API key for dins.dev used as the SMTP password in Gmail (`smtp.resend.com:587`, TLS). The key lives only in Gmail and Resend.
+- **Verified (Claude):** the records answer from Cloudflare's nameserver, 1.1.1.1 and 8.8.8.8. Din's test from `din@dins.dev` to Din's other Gmail: `spf=pass` (return path on `rsend.dins.dev`, relaxed alignment), `dkim=pass` for `d=dins.dev` (aligned) and for `amazonses.com`, `dmarc=pass`. Sent through Amazon SES (54.240.11.151).
+- **Problem:** Gmail put the test in Spam with "similar to messages that were identified as spam in the past". Authentication is clean, so this is reputation, not setup: the domain is a day old, has no sending history, and the message was a one-word "Test". No DNS change helps; marking it Not spam, adding the contact and real correspondence over the next weeks do (task 0.10a). DMARC stays at `p=none` until the reports show clean weeks.
+- **Follow-up (Din):** after Din marked the first test Not spam, a second message with a normal subject and a few sentences landed in the Inbox. The warm-up in task 0.10a continues.
+- **Done (Din):** deleted `info@dineshd.dev` from Gmail "Send mail as" (task 0.10b). Email setup is closed except the warm-up and the DMARC review (task 0.10a).
+
+### Email Routing rules for dins.dev (Claude, 2026-10-21)
+
+- **Asked (Din):** set up the agreed addresses, everything to `dind.dev@gmail.com` (task 0.8).
+- **Access:** the earlier `wrangler login` had no Email Routing scope. Din logged in again with the same scopes plus `email_routing:write` and `email_sending:write` (the second one is for task 0.9).
+- **Found already in place:** Email Routing was enabled on the zone (status `ready`, since 05:37 UTC today), with Cloudflare's three MX records, the SPF record (`include:_spf.mx.cloudflare.net ~all`) and the `cf2024-1._domainkey` DKIM record. `dind.dev@gmail.com` was already a verified destination (verified 2025-12-15), so no verification click was needed.
+- **Done:** four literal rules forwarding to `dind.dev@gmail.com`: `din@`, `dinesh@`, `hello@`, `support@`. The catch-all changed from disabled (drop) to enabled (forward to the same inbox). Done with `wrangler email routing` (4.151.2, open beta commands).
+- **Verified:** `rules list` shows the four rules and the catch-all as enabled; public DNS returns the three MX records and the SPF record.
+- **Delivery test (20:42 to 20:47 UTC):** Cloudflare's Email Routing log (GraphQL `emailRoutingAdaptive`) shows `din@`, `dinesh@`, `hello@` and `support@` each forwarded with status `delivered`, SPF and DKIM pass, not spam. The `din@` message came from a second outside sender, the other three from Din's other Gmail. Din reports all test messages arrived in `dind.dev@gmail.com`, including the one to a made-up address; that catch-all message had not appeared in the log by 20:49 UTC (the log lags a few minutes). The inbox itself was not checked by Claude (the Gmail connector is not signed in).
+- **Noted for 0.9:** there is no `_dmarc.dins.dev` record yet. The catch-all will collect spam sent to made-up addresses; switching it back to drop is one command if it gets noisy.
+
 ### Holding page live on dins.dev (Claude, 2026-10-21)
 
 - **Go-ahead (Din):** PR 5 merged (bc05a86), then "Yes, deploy the holding page to dins.dev from here and verify it's live."
