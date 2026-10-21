@@ -8,6 +8,7 @@ Decisions and why, work done, verification results, approvals, blockers, handoff
 
 - **Done (Din):** bought `dins.dev` on Cloudflare (task 0.6). Verified: the .dev RDAP record shows Cloudflare as registrar, registered 2026-10-21, expiring 2027-10-21, so the term is 1 year rather than the planned 4; auto-renew is not visible from outside. Nameservers are Cloudflare's (`tom`, `paloma`). `wrangler login` succeeded. This clears the domain risk in the site plan; Email Routing (task 0.8) is next for the contact form.
 - **Done (Claude):** installed Wrangler 4.151.2, Cloudflare's CLI, with Homebrew (independent of the mise-managed Node), and started `wrangler login` in Din's terminal. The site will pin its own Wrangler as a dev dependency in M0.
+- **Done (Claude, Din's request):** followed Cloudflare's agent setup (`developers.cloudflare.com/agent-setup/prompt.md`) for Claude Code: the official `cloudflare@cloudflare` plugin 1.0.2 (user scope) with Cloudflare's skills (Workers best practices, Wrangler, Turnstile, email, web performance and more) and the Cloudflare MCP server (`mcp.cloudflare.com/mcp`, OAuth on first use). Skipped: the optional `cf` CLI (beta; Wrangler covers it) and the other-agent sections.
 - **Changed (Din):** local commits need no approval; pushing, PRs, merges and deploys still do. `AGENTS.md` updated to match, with the no-attribution rule added.
 
 ### Site PRD and plan written (Claude, 2026-10-21)
