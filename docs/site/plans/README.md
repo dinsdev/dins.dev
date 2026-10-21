@@ -167,3 +167,5 @@ Each plan session amends its own file; the result is merged here.
   - The soft go-live PR flips `SITE_LAUNCHED` to `true`, and the headers integration sends `X-Robots-Tag: noindex` on production while it is false.
   - The runbook says production deploys only through Workers Builds, never a manual `wrangler deploy`.
   - Mark open question 9 (the Turnstile site key on previews) as solved by `siteKey()` above.
+
+**Round 3 (Din's answers to the open questions, "Go with your recommendations"): done and merged, 2026-10-21.** M1 `6b35ed1` (no `devlog` flag, library `project` field), M2 `f0fc8f6` (the greeting waits for the first page with a greeting Ottie), M3 `fd8ac47` (injection resistance as a release bar), M5 `dd915ae`. Every plan's open questions are now decided.
