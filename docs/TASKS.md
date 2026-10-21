@@ -48,7 +48,11 @@ Status vocabulary: Proposed, Planned, In progress, Implemented, Verified, Accept
 
 | ID | Task | Status |
 |---|---|---|
-| 2.1 | Write the site PRD (earlier concepts in `~/Develop/dins.dev-concepts` are reference only) | Planned |
+| 2.1 | Write the site PRD and build plan (earlier concepts in `~/Develop/dins.dev-concepts` are reference only) | In progress |
+| 2.1a | Lock routes, content model and the home page skeleton (sketch in `docs/design/sketches/`) | Accepted (Din, 2026-10-19) |
+| 2.2 | Lock the Ottie puppet route (Blender, mesh deformation, sprite sheets, live eyes; `docs/design/ottie/BRIEF.md`) | Accepted (Din, 2026-10-19) |
+| 2.3 | Build Ottie milestone 1: idle and wave, approved by Din in the preview page | Planned (separate session, branch `feat/ottie-puppet`) |
+| 2.4 | Build Ottie milestone 2: the remaining states | Planned |
 
 ## Phase 3: Games pipeline
 
