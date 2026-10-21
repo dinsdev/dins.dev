@@ -5798,7 +5798,7 @@ git commit -m "feat(ask): Haiku pricing in nano-dollars and backend selection"
 **Interfaces:**
 - Consumes: everything in Tasks 15 to 26.
 - Produces: `AskDeps { now(): number; clientIp: string | null; origin: string; rateLimit(key: string): Promise<boolean>; verifyTurnstile(token: string, ip: string | null): Promise<TurnstileOutcome>; loadIndex(): Promise<AskIndex>; embed(text: string, dim: number): Promise<Float32Array>; provider(): AnswerProvider | null; db: D1Database; budgetLimitNano: number; waitUntil(p: Promise<unknown>): void; newId(): string }`; `handleAsk(request: Request, deps: AskDeps): Promise<Response>`; `handleFeedback(request: Request, deps: Pick<AskDeps, "now" | "clientIp" | "rateLimit" | "db">): Promise<Response>`.
-- HTTP contract: errors before the stream are JSON `{ error, message? }` with status 405 (`allow: POST`), 403 (`forbidden_origin` when the `Origin` header is missing or differs from the request's origin; `turnstile_failed`), 415, 413, 400 (`bad_json`, `bad_request`), 429 (`retry-after: 60`). Everything else is `200` NDJSON: `meta`, zero or more `delta`, `done`. Feedback: 204, 400, 403, 404, 409, 429.
+- HTTP contract: errors before the stream are JSON `{ error, message? }` with status 405 (`allow: POST`), 403 (`forbidden_origin` when the `Origin` header is missing or differs from the request's origin; `turnstile_failed`), 415, 413, 400 (`bad_json`, `bad_request`; an unknown project is not an error, it gets the don't-know line), 429 (`retry-after: 60`). Everything else is `200` NDJSON: `meta`, zero or more `delta`, `done`. Feedback: 204, 400, 403, 404, 409, 429.
 
 Order of checks (cheapest first, nothing paid before Turnstile): method, origin, content type, size, JSON, validation, rate limit, Turnstile, index, deny-list, embed (skipped for declined questions; failure means keyword-only), plan, budget reservation, model.
 
@@ -5871,7 +5871,6 @@ describe("rejections before any work", () => {
     ["too large", post("x".repeat(9000)), 413],
     ["bad json", post("{"), 400],
     ["301 characters", ask("a".repeat(301)), 400],
-    ["unknown project", ask("pipeline", { project: "nope" }), 400],
   ])("%s", async (_name, req, status) => {
     const d = deps();
     const res = await handleAsk(req, d);
@@ -5915,6 +5914,13 @@ describe("canned paths never call the model", () => {
     expect(meta(evs).links.map((l) => l.href)).toContain("mailto:din@dins.dev");
     expect(d.fake.calls).toHaveLength(0);
     expect(await spentNano(env.DB, utcDay(NOW))).toBe(0);
+  });
+
+  it("an unknown project (a draft page in a preview) gets don't know, not an error", async () => {
+    const d = deps();
+    const evs = await events(await handleAsk(ask("What does it do?", { project: "not-in-the-index" }), d), d);
+    expect(done(evs).mode).toBe("dont_know");
+    expect(d.fake.calls).toHaveLength(0);
   });
 
   it("redirects an unrelated question", async () => {
@@ -6132,8 +6138,8 @@ export async function handleAsk(request: Request, deps: AskDeps): Promise<Respon
   const turnstile = await deps.verifyTurnstile(req.turnstileToken, deps.clientIp);
   if (!turnstile.ok) return json(403, { error: "turnstile_failed", codes: turnstile.codes });
 
+  // An unknown project has no candidates, so the plan below says "don't know" (draft project pages in previews).
   const index = await deps.loadIndex();
-  if (req.project !== null && !index.projects.includes(req.project)) return json(400, { error: "bad_request", message: "unknown project" });
 
   let qvec: Float32Array | null = null;
   let embedMs: number | null = null;
@@ -6512,5 +6518,1423 @@ Expected: three or more NDJSON lines: a `meta` line with `"searchMode":"keyword"
 git add site/src/lib/ask/deps.ts site/src/pages/api/ask.ts site/src/pages/api/ask-feedback.ts site/wrangler.jsonc site/.dev.vars.example site/tests/unit/ask/deps.test.ts
 git commit -m "feat(ask): /api/ask and /api/ask-feedback routes with bindings"
 ```
+
+---
+
+## Phase C: the Ask Ottie island
+
+Interfaces from sibling plans (their notes, 2026-10-21): M1 renders `AskSlot.astro` (`<div class="ask-slot" data-ask-scope data-ask-project>` around a slot that holds the no-JavaScript fallback) on the home hero and on case studies, and renders the reviewed suggested answers itself as `<section id="suggested">` with `<details data-suggested-id>`. M2 exports `cueOttie(type, extra?)` from `site/src/ottie/events.ts` with the types `ask:focus`, `ask:typing`, `ask:submit`, `ask:stream`, `ask:answer` (`{ sources: n }`), `ask:unknown`, `ask:resting`, `ask:error`, `ask:reset`, and keeps bubbles off elements marked `data-ottie-avoid`. M4's letter field listens for `ask:state` on `window` with `detail.phase` in `idle | retrieving | streaming | done | dont-know | resting | error`. M1's `<html>` carries `no-js` until an inline script swaps it to `js`.
+
+### Task 29: Answer formatter (plain text in, safe blocks out)
+
+**Files:**
+- Create: `site/src/lib/ask/format.ts`
+- Test: `site/tests/unit/ask/format.test.ts`
+
+**Interfaces:**
+- Produces: `Inline = { t: "text"; v: string } | { t: "strong"; v: string } | { t: "code"; v: string } | { t: "cite"; n: number } | { t: "link"; v: string; href: string }`; `Block = { t: "p"; c: Inline[] } | { t: "ul"; items: Inline[][] } | { t: "ol"; items: Inline[][] }`; `formatAnswer(text: string, sourceCount: number): Block[]`; `citedNumbers(text: string, sourceCount: number): number[]` (sorted, unique).
+- Rules: blank lines split paragraphs; lines starting with `- `, `* ` or `• ` make a bullet list, `1. ` or `1) ` a numbered list; inline `**bold**`, `` `code` ``, `[n]` citations only for 1 to `sourceCount`; links only for `din@dins.dev` (mailto) and site paths under `/work`, `/writing`, `/about`, `/contact` or `/privacy`. Everything else, HTML and Markdown links included, stays literal text. The Svelte side renders `Inline.v` as text nodes, never `{@html}`.
+
+- [ ] **Step 1: Write the failing tests**
+
+`site/tests/unit/ask/format.test.ts`:
+
+```ts
+import { describe, expect, it } from "vitest";
+import { citedNumbers, formatAnswer } from "../../../src/lib/ask/format";
+
+describe("formatAnswer", () => {
+  it("splits paragraphs and lists", () => {
+    expect(formatAnswer("First line.\n\n- one\n- two\n\n1. a\n2) b\nAfter", 0)).toEqual([
+      { t: "p", c: [{ t: "text", v: "First line." }] },
+      { t: "ul", items: [[{ t: "text", v: "one" }], [{ t: "text", v: "two" }]] },
+      { t: "ol", items: [[{ t: "text", v: "a" }], [{ t: "text", v: "b" }]] },
+      { t: "p", c: [{ t: "text", v: "After" }] },
+    ]);
+  });
+
+  it("joins wrapped lines of one paragraph with a space", () => {
+    expect(formatAnswer("Din built\nthe pipeline.", 0)).toEqual([{ t: "p", c: [{ t: "text", v: "Din built the pipeline." }] }]);
+  });
+
+  it("formats bold, code, citations, the email and site paths", () => {
+    expect(formatAnswer("**Ask Ottie** uses `bge-m3` [1][2]. Write to din@dins.dev or see /work/demo-project/.", 2)[0]).toEqual({
+      t: "p",
+      c: [
+        { t: "strong", v: "Ask Ottie" }, { t: "text", v: " uses " }, { t: "code", v: "bge-m3" }, { t: "text", v: " " },
+        { t: "cite", n: 1 }, { t: "cite", n: 2 }, { t: "text", v: ". Write to " },
+        { t: "link", v: "din@dins.dev", href: "mailto:din@dins.dev" }, { t: "text", v: " or see " },
+        { t: "link", v: "/work/demo-project/", href: "/work/demo-project/" }, { t: "text", v: "." },
+      ],
+    });
+  });
+
+  it("keeps HTML, Markdown links, other emails, outside URLs and out-of-range citations as text", () => {
+    const blocks = formatAnswer('<script>alert(1)</script> [click](https://evil.example/work/x) other@example.com https://evil.example/work/x [9] [0]', 6);
+    const inline = (blocks[0] as { c: { t: string; v?: string }[] }).c;
+    expect(inline.every((i) => i.t === "text")).toBe(true);
+    expect(inline.map((i) => i.v).join("")).toBe('<script>alert(1)</script> [click](https://evil.example/work/x) other@example.com https://evil.example/work/x [9] [0]');
+  });
+
+  it("handles empty and whitespace-only text", () => {
+    expect(formatAnswer("", 0)).toEqual([]);
+    expect(formatAnswer(" \n\n ", 0)).toEqual([]);
+  });
+
+  it("lists cited sources once, in order", () => {
+    expect(citedNumbers("A [2]. B [1][2]. C [7].", 6)).toEqual([1, 2]);
+  });
+});
+```
+
+- [ ] **Step 2: Run them to see them fail**
+
+Run: `pnpm --dir site test:unit -- tests/unit/ask/format.test.ts`
+Expected: FAIL with an unresolved import.
+
+- [ ] **Step 3: Implement**
+
+`site/src/lib/ask/format.ts`:
+
+```ts
+// Turns the model's plain text into a small, safe structure. No HTML is ever produced:
+// the Svelte components render every string as a text node.
+
+export type Inline =
+  | { t: "text"; v: string }
+  | { t: "strong"; v: string }
+  | { t: "code"; v: string }
+  | { t: "cite"; n: number }
+  | { t: "link"; v: string; href: string };
+export type Block = { t: "p"; c: Inline[] } | { t: "ul"; items: Inline[][] } | { t: "ol"; items: Inline[][] };
+
+const EMAIL = "din@dins.dev";
+const TOKEN = /\*\*([^*\n]+)\*\*|`([^`\n]+)`|\[(\d{1,2})\]|(?<![\w.@/:-])(din@dins\.dev)(?![\w.-]*@)|(?<![\w/:.-])(\/(?:work|writing|about|contact|privacy)(?:\/[a-z0-9-]+)*\/?)(?=$|[\s.,;:!?)])/g;
+
+function pushText(out: Inline[], v: string) {
+  if (!v) return;
+  const last = out[out.length - 1];
+  if (last?.t === "text") last.v += v;
+  else out.push({ t: "text", v });
+}
+
+export function formatInline(s: string, sourceCount: number): Inline[] {
+  const out: Inline[] = [];
+  let at = 0;
+  for (const m of s.matchAll(TOKEN)) {
+    pushText(out, s.slice(at, m.index));
+    at = m.index! + m[0].length;
+    if (m[1] !== undefined) out.push({ t: "strong", v: m[1] });
+    else if (m[2] !== undefined) out.push({ t: "code", v: m[2] });
+    else if (m[3] !== undefined) {
+      const n = Number(m[3]);
+      if (n >= 1 && n <= sourceCount) out.push({ t: "cite", n });
+      else pushText(out, m[0]);
+    } else if (m[4] !== undefined) out.push({ t: "link", v: EMAIL, href: `mailto:${EMAIL}` });
+    else out.push({ t: "link", v: m[5], href: m[5] });
+  }
+  pushText(out, s.slice(at));
+  return out;
+}
+
+export function formatAnswer(text: string, sourceCount: number): Block[] {
+  const blocks: Block[] = [];
+  let para: string[] = [];
+  let list: { t: "ul" | "ol"; items: string[] } | null = null;
+  const flushPara = () => {
+    if (para.length) blocks.push({ t: "p", c: formatInline(para.join(" "), sourceCount) });
+    para = [];
+  };
+  const flushList = () => {
+    if (list) blocks.push({ t: list.t, items: list.items.map((i) => formatInline(i, sourceCount)) });
+    list = null;
+  };
+  for (const raw of text.replace(/\r\n?/g, "\n").split("\n")) {
+    const line = raw.trim();
+    if (!line) {
+      flushPara();
+      flushList();
+      continue;
+    }
+    const ul = /^[-*•]\s+(.*)$/.exec(line);
+    const ol = /^\d+[.)]\s+(.*)$/.exec(line);
+    if (ul || ol) {
+      flushPara();
+      const kind = ul ? "ul" : "ol";
+      if (list && list.t !== kind) flushList();
+      list ??= { t: kind, items: [] };
+      list.items.push((ul ?? ol)![1]);
+      continue;
+    }
+    flushList();
+    para.push(line);
+  }
+  flushPara();
+  flushList();
+  return blocks;
+}
+
+export function citedNumbers(text: string, sourceCount: number): number[] {
+  const seen = new Set<number>();
+  for (const m of text.matchAll(/\[(\d{1,2})\]/g)) {
+    const n = Number(m[1]);
+    if (n >= 1 && n <= sourceCount) seen.add(n);
+  }
+  return [...seen].sort((a, b) => a - b);
+}
+```
+
+- [ ] **Step 4: Run the tests**
+
+Run: `pnpm --dir site test:unit -- tests/unit/ask/format.test.ts`
+Expected: 6 passed. If the outside-URL case produces a link, tighten the lookbehind so a path preceded by a host never matches.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add site/src/lib/ask/format.ts site/tests/unit/ask/format.test.ts
+git commit -m "feat(ask): plain-text answer formatter that never emits HTML"
+```
+
+### Task 30: Browser client, Turnstile loader and Ottie cues
+
+**Files:**
+- Create: `site/src/lib/ask/client.ts`, `site/src/lib/ask/turnstile-client.ts`, `site/src/lib/ask/ottie-cues.ts`, `site/src/lib/ask/ui-copy.ts`
+- Test: `site/tests/unit/ask/client.test.ts`, `site/tests/unit/ask/turnstile-client.test.ts`, `site/tests/unit/ask/ottie-cues.test.ts`
+
+**Interfaces:**
+- Consumes: `AskEvent` (Task 24), `Turn` (Task 20), M2's `cueOttie`.
+- Produces: `AskStatus = "idle" | "waiting" | "streaming" | "done" | "error"`; `AskError = "rate_limited" | "turnstile" | "bad_request" | "network" | "internal"`; `AskViewState { status, question, text, mode: AskMode | null, sources: SourceRef[], links: LinkRef[], logId: string | null, searchMode: "hybrid" | "keyword" | "none" | null, model: string | null, timings: Timings | null, truncated: boolean, language: "en" | "fr", error: AskError | null }`; `initialState`; `AskAction = { type: "submit"; question } | { type: "event"; event: AskEvent } | { type: "http_error"; status: number } | { type: "network_error" } | { type: "reset" }`; `reduce(state, action): AskViewState`; `readNdjson(body: ReadableStream<Uint8Array>): AsyncGenerator<AskEvent>`; `runAsk(o: { question; history: Turn[]; project: string | null; getToken(): Promise<string>; dispatch(a: AskAction): void; fetchFn?: typeof fetch; signal?: AbortSignal }): Promise<void>`. Turnstile: `TURNSTILE_TEST_SITEKEY = "1x00000000000000000000BB"`; `siteKey(): string` (`import.meta.env.PUBLIC_TURNSTILE_SITE_KEY`, else the test key); `createTokenSource(container: HTMLElement, sitekey: string, load?: () => Promise<TurnstileApi>): { prepare(): Promise<void>; getToken(): Promise<string>; destroy(): void }`. Cues: `AskUiEvent = "focus" | "typing" | "submit" | "stream" | "answer" | "dont_know" | "declined" | "redirect" | "resting" | "error" | "reset"`; `notifyAsk(event, extra?: { sources?: number }, deps?: { target?: EventTarget; cue?: typeof cueOttie }): void`. UI strings: `UI_COPY` (English UI chrome; answers follow the question's language).
+
+Cue mapping (M2's note): submit gives `ask:submit` (think), the first token `ask:stream`, an answer `ask:answer` with the source count (nod, then point when there are sources), don't know, declined and redirect give `ask:unknown` (shrug), resting `ask:resting`, errors `ask:error`, reset `ask:reset`. Phases for M4: submit `retrieving`, first token `streaming`, answer `done`, don't know, declined and redirect `dont-know`, resting `resting`, error `error`, reset `idle`.
+
+- [ ] **Step 1: Write the failing tests**
+
+`site/tests/unit/ask/client.test.ts`:
+
+```ts
+import { describe, expect, it, vi } from "vitest";
+import { initialState, readNdjson, reduce, runAsk, type AskAction } from "../../../src/lib/ask/client";
+import type { AskEvent } from "../../../src/lib/ask/events";
+
+const meta: AskEvent = { type: "meta", mode: "answer", searchMode: "hybrid", sources: [{ n: 1, title: "T", heading: "", url: "/work/x/", kind: "project", project: "x", scores: { dense: 0.7, keyword: 2, fused: 0.03 } }], links: [], logId: "id-1", language: "en" };
+const done: AskEvent = { type: "done", mode: "answer", model: "fake", timings: { embedMs: 5, searchMs: 1, firstTokenMs: 40, totalMs: 90 }, truncated: false };
+
+function streamOf(chunks: string[]): ReadableStream<Uint8Array> {
+  const enc = new TextEncoder();
+  return new ReadableStream({ start(c) { chunks.forEach((x) => c.enqueue(enc.encode(x))); c.close(); } });
+}
+
+describe("readNdjson", () => {
+  it("handles lines split across chunks and a missing final newline", async () => {
+    const out: AskEvent[] = [];
+    for await (const e of readNdjson(streamOf(['{"type":"delta","te', 'xt":"a"}\n{"type":"delta",', '"text":"b"}']))) out.push(e);
+    expect(out).toEqual([{ type: "delta", text: "a" }, { type: "delta", text: "b" }]);
+  });
+});
+
+describe("reduce", () => {
+  it("walks submit, meta, deltas and done", () => {
+    let s = reduce(initialState, { type: "submit", question: "q" });
+    expect(s.status).toBe("waiting");
+    s = reduce(s, { type: "event", event: meta });
+    s = reduce(s, { type: "event", event: { type: "delta", text: "Hello " } });
+    expect(s.status).toBe("streaming");
+    s = reduce(s, { type: "event", event: { type: "delta", text: "there [1]." } });
+    s = reduce(s, { type: "event", event: done });
+    expect(s).toMatchObject({ status: "done", text: "Hello there [1].", mode: "answer", logId: "id-1", model: "fake" });
+  });
+
+  it("replaces the text when the server overrides it", () => {
+    let s = reduce(reduce(initialState, { type: "submit", question: "q" }), { type: "event", event: { type: "delta", text: "partial" } });
+    s = reduce(s, { type: "event", event: { ...done, mode: "resting", replaceText: "I'm resting.", links: [{ label: "Contact page", href: "/contact/" }] } });
+    expect(s).toMatchObject({ mode: "resting", text: "I'm resting.", links: [{ href: "/contact/" }] });
+  });
+
+  it.each([[429, "rate_limited"], [403, "turnstile"], [400, "bad_request"], [500, "internal"]])("maps HTTP %i to %s", (status, error) => {
+    expect(reduce(initialState, { type: "http_error", status })).toMatchObject({ status: "error", error });
+  });
+
+  it("starts fresh on submit and on reset", () => {
+    const busy = { ...initialState, status: "done" as const, text: "old", logId: "x" };
+    expect(reduce(busy, { type: "submit", question: "new" })).toMatchObject({ text: "", logId: null, question: "new" });
+    expect(reduce(busy, { type: "reset" })).toEqual(initialState);
+  });
+});
+
+describe("runAsk", () => {
+  it("posts the question with the token and dispatches every event", async () => {
+    const actions: AskAction[] = [];
+    const body = [meta, { type: "delta", text: "Hi" }, done].map((e) => JSON.stringify(e) + "\n");
+    const fetchFn = vi.fn(async () => new Response(streamOf(body), { headers: { "content-type": "application/x-ndjson" } }));
+    await runAsk({ question: "q", history: [], project: "x", getToken: async () => "tok", dispatch: (a) => actions.push(a), fetchFn });
+    const [url, init] = fetchFn.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("/api/ask");
+    expect(JSON.parse(String(init.body))).toEqual({ question: "q", history: [], project: "x", turnstileToken: "tok" });
+    expect(actions.map((a) => a.type)).toEqual(["event", "event", "event"]);
+  });
+
+  it("reports HTTP errors, network errors, a failed token and a stream that ends without done", async () => {
+    const run = async (fetchFn: typeof fetch, getToken = async () => "tok") => {
+      const actions: AskAction[] = [];
+      await runAsk({ question: "q", history: [], project: null, getToken, dispatch: (a) => actions.push(a), fetchFn });
+      return actions.at(-1);
+    };
+    expect(await run(async () => new Response("{}", { status: 429 }))).toEqual({ type: "http_error", status: 429 });
+    expect(await run(async () => { throw new TypeError("offline"); })).toEqual({ type: "network_error" });
+    expect(await run(async () => new Response("x"), async () => { throw new Error("turnstile"); })).toEqual({ type: "http_error", status: 403 });
+    expect(await run(async () => new Response(streamOf([JSON.stringify(meta) + "\n"])))).toEqual({ type: "network_error" });
+  });
+});
+```
+
+`site/tests/unit/ask/turnstile-client.test.ts`:
+
+```ts
+import { describe, expect, it, vi } from "vitest";
+import { createTokenSource, siteKey, TURNSTILE_TEST_SITEKEY } from "../../../src/lib/ask/turnstile-client";
+
+function fakeApi() {
+  let opts: Record<string, (t?: string) => void> = {};
+  return {
+    render: vi.fn((_el: HTMLElement, o: Record<string, unknown>) => { opts = o as typeof opts; return "w1"; }),
+    execute: vi.fn(() => queueMicrotask(() => opts.callback("XXXX.DUMMY.TOKEN.XXXX"))),
+    reset: vi.fn(),
+    remove: vi.fn(),
+    fail: () => opts["error-callback"](),
+  };
+}
+
+describe("turnstile client", () => {
+  it("falls back to the invisible test site key", () => {
+    expect(siteKey()).toBe(TURNSTILE_TEST_SITEKEY);
+  });
+
+  it("renders once, gets a fresh token per question and resets after each", async () => {
+    const api = fakeApi();
+    const src = createTokenSource({} as HTMLElement, "key", async () => api);
+    await src.prepare();
+    await src.prepare();
+    expect(api.render).toHaveBeenCalledOnce();
+    expect(api.render.mock.calls[0][1]).toMatchObject({ sitekey: "key", action: "ask", execution: "execute", appearance: "interaction-only" });
+    expect(await src.getToken()).toBe("XXXX.DUMMY.TOKEN.XXXX");
+    expect(await src.getToken()).toBe("XXXX.DUMMY.TOKEN.XXXX");
+    expect(api.reset).toHaveBeenCalledTimes(2);
+    src.destroy();
+    expect(api.remove).toHaveBeenCalledWith("w1");
+  });
+
+  it("rejects when the widget errors", async () => {
+    const api = fakeApi();
+    api.execute.mockImplementation(() => queueMicrotask(() => api.fail()));
+    const src = createTokenSource({} as HTMLElement, "key", async () => api);
+    await expect(src.getToken()).rejects.toThrow(/turnstile/);
+  });
+});
+```
+
+`site/tests/unit/ask/ottie-cues.test.ts`:
+
+```ts
+import { describe, expect, it, vi } from "vitest";
+import { notifyAsk } from "../../../src/lib/ask/ottie-cues";
+
+describe("notifyAsk", () => {
+  it.each([
+    ["submit", "ask:submit", "retrieving"],
+    ["stream", "ask:stream", "streaming"],
+    ["dont_know", "ask:unknown", "dont-know"],
+    ["declined", "ask:unknown", "dont-know"],
+    ["redirect", "ask:unknown", "dont-know"],
+    ["resting", "ask:resting", "resting"],
+    ["error", "ask:error", "error"],
+    ["reset", "ask:reset", "idle"],
+    ["focus", "ask:focus", null],
+    ["typing", "ask:typing", null],
+  ] as const)("%s cues %s and phase %s", (event, cueType, phase) => {
+    const cue = vi.fn();
+    const target = new EventTarget();
+    const phases: string[] = [];
+    target.addEventListener("ask:state", (e) => phases.push((e as CustomEvent).detail.phase));
+    notifyAsk(event, {}, { cue, target });
+    expect(cue).toHaveBeenCalledWith(cueType, undefined);
+    expect(phases).toEqual(phase ? [phase] : []);
+  });
+
+  it("passes the source count with an answer", () => {
+    const cue = vi.fn();
+    notifyAsk("answer", { sources: 3 }, { cue, target: new EventTarget() });
+    expect(cue).toHaveBeenCalledWith("ask:answer", { sources: 3 });
+  });
+});
+```
+
+- [ ] **Step 2: Run them to see them fail**
+
+Run: `pnpm --dir site test:unit -- tests/unit/ask/client.test.ts tests/unit/ask/turnstile-client.test.ts tests/unit/ask/ottie-cues.test.ts`
+Expected: FAIL with unresolved imports.
+
+- [ ] **Step 3: Implement**
+
+`site/src/lib/ask/client.ts`:
+
+```ts
+// Browser side of Ask Ottie: a pure reducer plus the fetch that feeds it.
+import type { LinkRef } from "./copy";
+import type { AskEvent, SourceRef, Timings } from "./events";
+import type { AskMode } from "./log";
+import type { Turn } from "./validate";
+
+export type AskStatus = "idle" | "waiting" | "streaming" | "done" | "error";
+export type AskError = "rate_limited" | "turnstile" | "bad_request" | "network" | "internal";
+export interface AskViewState {
+  status: AskStatus; question: string; text: string; mode: AskMode | null; sources: SourceRef[]; links: LinkRef[];
+  logId: string | null; searchMode: "hybrid" | "keyword" | "none" | null; model: string | null; timings: Timings | null;
+  truncated: boolean; language: "en" | "fr"; error: AskError | null;
+}
+export const initialState: AskViewState = {
+  status: "idle", question: "", text: "", mode: null, sources: [], links: [], logId: null, searchMode: null, model: null,
+  timings: null, truncated: false, language: "en", error: null,
+};
+export type AskAction =
+  | { type: "submit"; question: string }
+  | { type: "event"; event: AskEvent }
+  | { type: "http_error"; status: number }
+  | { type: "network_error" }
+  | { type: "reset" };
+
+function httpError(status: number): AskError {
+  if (status === 429) return "rate_limited";
+  if (status === 403) return "turnstile";
+  return status >= 400 && status < 500 ? "bad_request" : "internal";
+}
+
+export function reduce(s: AskViewState, a: AskAction): AskViewState {
+  switch (a.type) {
+    case "reset":
+      return initialState;
+    case "submit":
+      return { ...initialState, status: "waiting", question: a.question };
+    case "network_error":
+      return { ...s, status: "error", error: "network" };
+    case "http_error":
+      return { ...s, status: "error", error: httpError(a.status) };
+    case "event": {
+      const e = a.event;
+      if (e.type === "meta") return { ...s, mode: e.mode, searchMode: e.searchMode, sources: e.sources, links: e.links, logId: e.logId, language: e.language };
+      if (e.type === "delta") return { ...s, status: "streaming", text: s.text + e.text };
+      if (e.type === "done") return { ...s, status: "done", mode: e.mode, model: e.model, timings: e.timings, truncated: e.truncated, text: e.replaceText ?? s.text, links: e.links ?? s.links };
+      return { ...s, status: "error", error: "internal" };
+    }
+  }
+}
+
+export async function* readNdjson(body: ReadableStream<Uint8Array>): AsyncGenerator<AskEvent> {
+  const reader = body.pipeThrough(new TextDecoderStream()).getReader();
+  let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += value;
+    let nl: number;
+    while ((nl = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      if (line) yield JSON.parse(line) as AskEvent;
+    }
+  }
+  if (buf.trim()) yield JSON.parse(buf) as AskEvent;
+}
+
+export async function runAsk(o: {
+  question: string; history: Turn[]; project: string | null; getToken(): Promise<string>;
+  dispatch(a: AskAction): void; fetchFn?: typeof fetch; signal?: AbortSignal;
+}): Promise<void> {
+  let token: string;
+  try {
+    token = await o.getToken();
+  } catch {
+    o.dispatch({ type: "http_error", status: 403 });
+    return;
+  }
+  let res: Response;
+  try {
+    res = await (o.fetchFn ?? fetch)("/api/ask", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ question: o.question, history: o.history, project: o.project, turnstileToken: token }),
+      signal: o.signal,
+    });
+  } catch {
+    if (!o.signal?.aborted) o.dispatch({ type: "network_error" });
+    return;
+  }
+  if (!res.ok || !res.body) {
+    o.dispatch({ type: "http_error", status: res.status });
+    return;
+  }
+  let sawDone = false;
+  try {
+    for await (const event of readNdjson(res.body)) {
+      if (event.type === "done") sawDone = true;
+      o.dispatch({ type: "event", event });
+    }
+  } catch {
+    /* falls through to the check below */
+  }
+  if (!sawDone && !o.signal?.aborted) o.dispatch({ type: "network_error" });
+}
+```
+
+`site/src/lib/ask/turnstile-client.ts`:
+
+```ts
+// Loads Turnstile only when someone focuses the question box, and asks for one fresh token per question.
+// Site keys are public. Without PUBLIC_TURNSTILE_SITE_KEY at build time (local, previews) the
+// invisible test key is used; it only works with the test secret, so production fails closed.
+
+export const TURNSTILE_TEST_SITEKEY = "1x00000000000000000000BB";
+const SCRIPT_URL = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+
+export interface TurnstileApi {
+  render(el: HTMLElement, opts: Record<string, unknown>): string;
+  execute(id: string): void;
+  reset(id: string): void;
+  remove(id: string): void;
+}
+
+export function siteKey(): string {
+  return import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || TURNSTILE_TEST_SITEKEY;
+}
+
+let loading: Promise<TurnstileApi> | null = null;
+
+export function loadTurnstile(): Promise<TurnstileApi> {
+  const w = window as unknown as { turnstile?: TurnstileApi };
+  if (w.turnstile) return Promise.resolve(w.turnstile);
+  loading ??= new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = SCRIPT_URL;
+    s.async = true;
+    s.onload = () => (w.turnstile ? resolve(w.turnstile) : reject(new Error("turnstile did not load")));
+    s.onerror = () => {
+      loading = null;
+      reject(new Error("turnstile did not load"));
+    };
+    document.head.append(s);
+  });
+  return loading;
+}
+
+export function createTokenSource(container: HTMLElement, sitekey: string, load: () => Promise<TurnstileApi> = loadTurnstile) {
+  let api: TurnstileApi | null = null;
+  let widgetId: string | null = null;
+  let ready: Promise<void> | null = null;
+  let pending: { resolve(t: string): void; reject(e: Error): void } | null = null;
+
+  const prepare = () =>
+    (ready ??= load().then((a) => {
+      api = a;
+      widgetId = a.render(container, {
+        sitekey,
+        action: "ask",
+        execution: "execute",
+        appearance: "interaction-only",
+        callback: (token: string) => pending?.resolve(token),
+        "error-callback": () => pending?.reject(new Error("turnstile failed")),
+        "expired-callback": () => pending?.reject(new Error("turnstile expired")),
+      });
+    }));
+
+  return {
+    prepare,
+    async getToken(): Promise<string> {
+      await prepare();
+      try {
+        return await new Promise<string>((resolve, reject) => {
+          pending = { resolve, reject };
+          api!.execute(widgetId!);
+        });
+      } finally {
+        pending = null;
+        api!.reset(widgetId!);
+      }
+    },
+    destroy() {
+      if (api && widgetId) api.remove(widgetId);
+    },
+  };
+}
+```
+
+`site/src/lib/ask/ottie-cues.ts`:
+
+```ts
+// The only place Ask Ottie talks to Ottie (M2) and to the letter field (M4). If either
+// interface changes at merge, only this file changes.
+import { cueOttie } from "../../ottie/events";
+
+export type AskUiEvent = "focus" | "typing" | "submit" | "stream" | "answer" | "dont_know" | "declined" | "redirect" | "resting" | "error" | "reset";
+type Phase = "idle" | "retrieving" | "streaming" | "done" | "dont-know" | "resting" | "error";
+type CueType = Parameters<typeof cueOttie>[0];
+
+const MAP: Record<AskUiEvent, { cue: CueType; phase: Phase | null }> = {
+  focus: { cue: "ask:focus", phase: null },
+  typing: { cue: "ask:typing", phase: null },
+  submit: { cue: "ask:submit", phase: "retrieving" },
+  stream: { cue: "ask:stream", phase: "streaming" },
+  answer: { cue: "ask:answer", phase: "done" },
+  dont_know: { cue: "ask:unknown", phase: "dont-know" },
+  declined: { cue: "ask:unknown", phase: "dont-know" },
+  redirect: { cue: "ask:unknown", phase: "dont-know" },
+  resting: { cue: "ask:resting", phase: "resting" },
+  error: { cue: "ask:error", phase: "error" },
+  reset: { cue: "ask:reset", phase: "idle" },
+};
+
+export function notifyAsk(
+  event: AskUiEvent,
+  extra: { sources?: number } = {},
+  deps: { target?: EventTarget; cue?: (type: CueType, extra?: Record<string, unknown>) => void } = {},
+): void {
+  const m = MAP[event];
+  (deps.cue ?? cueOttie)(m.cue, event === "answer" ? { sources: extra.sources ?? 0 } : undefined);
+  if (m.phase) (deps.target ?? window).dispatchEvent(new CustomEvent("ask:state", { detail: { phase: m.phase } }));
+}
+```
+
+`site/src/lib/ask/ui-copy.ts`:
+
+```ts
+// Interface text around the answer (English; the site has no French version in v1).
+export const UI_COPY = {
+  siteLabel: "Ask Ottie about Din",
+  projectLabel: (title: string) => `Ask Ottie about ${title}`,
+  placeholder: "What has Din built?",
+  submit: "Ask",
+  waiting: "Looking through Din's library",
+  youAsked: "You asked",
+  sources: "Sources",
+  fromLibrary: "Din's library",
+  howMade: "How this answer was made",
+  noModel: "No model was called for this answer.",
+  helpful: "Was this helpful?",
+  yes: "Yes",
+  no: "No",
+  thanks: "Thanks, that helps Din improve Ottie.",
+  again: "Ask something else",
+  truncated: "Ottie stopped there to keep the answer short.",
+  noJs: "Ask Ottie needs JavaScript. The answers above work without it, or you can email din@dins.dev.",
+  errors: {
+    rate_limited: "That's a lot of questions at once. Give it a minute and try again.",
+    turnstile: "I couldn't confirm you're a person. Please try again.",
+    bad_request: "I couldn't read that question. Try rephrasing it.",
+    network: "The connection dropped. Please try again.",
+    internal: "Something went wrong on my side. You can still reach Din at din@dins.dev.",
+  },
+} as const;
+```
+
+Unit tests run in Node, where `window` does not exist: the cue tests always pass `target`, and the Turnstile tests never call `loadTurnstile`. `import.meta.env.PUBLIC_TURNSTILE_SITE_KEY` is undefined under Vitest, so `siteKey()` returns the test key.
+
+- [ ] **Step 4: Run the tests**
+
+Run: `pnpm --dir site test:unit -- tests/unit/ask/client.test.ts tests/unit/ask/turnstile-client.test.ts tests/unit/ask/ottie-cues.test.ts`
+Expected: all pass. If `site/src/ottie/events.ts` does not exist yet (M2 not merged), the import fails: stop and merge order matters; do not stub M2's file in M3's branch. Work on Task 32 to 35 meanwhile.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add site/src/lib/ask/client.ts site/src/lib/ask/turnstile-client.ts site/src/lib/ask/ottie-cues.ts site/src/lib/ask/ui-copy.ts site/tests/unit/ask/client.test.ts site/tests/unit/ask/turnstile-client.test.ts site/tests/unit/ask/ottie-cues.test.ts
+git commit -m "feat(ask): browser client, lazy Turnstile and Ottie cues"
+```
+
+### Task 31: The Svelte island on the home hero and the case studies
+
+Visual work: verified by tests for behaviour and accessibility, and by Din in the preview for look and feel.
+
+**Files:**
+- Create: `site/src/components/ask/AskOttie.svelte`, `site/src/components/ask/AnswerBlocks.svelte`, `site/src/components/ask/SourceChips.svelte`, `site/src/components/ask/HowMade.svelte`
+- Modify: `site/src/components/AskSlot.astro` (M1's slot: mount the island, keep M1's fallback for no-JS), `site/src/pages/privacy.astro` (M1's page: the Ask Ottie paragraph)
+- Test: `site/tests/e2e/ask.spec.ts`
+
+**Interfaces:**
+- Consumes: Tasks 29 and 30; M1's `AskSlot.astro` props `{ scope: "site" } | { scope: "project", project: id }`; M1's `#suggested details[data-suggested-id]`.
+- Produces: `<AskOttie scope="site" | "project" project={id | null} projectTitle={string | undefined} />` (Svelte 5 runes; hydrated `client:idle` on the home page and `client:visible` on case studies).
+
+Behaviour:
+- Focus on the box loads Turnstile and cues `ask:focus`; typing cues `ask:typing` at most every 2 seconds.
+- Enter submits, Shift+Enter adds a line. The counter shows `n/300` (code points) and the button is disabled above 300.
+- While waiting: "Looking through Din's library" with `aria-busy="true"` on the answer panel. The answer streams as formatted blocks. On `done`: source chips (cited sources first, then the rest only inside "How this answer was made"), resting or contact links for canned answers, the truncation note, thumbs up or down (one choice, then a thank-you), "Ask something else".
+- The live region announces the full answer once, when it is complete (PRD section 6), never per token.
+- Opening a suggested answer `<details>` cues `ask:answer` with its link count (no API call).
+- The question box, the answer panel and the project bar carry `data-ottie-avoid`.
+- Up to three earlier turns are sent as history; "Ask something else" clears them.
+
+- [ ] **Step 1: Write the end-to-end tests first**
+
+`site/tests/e2e/ask.spec.ts` (API and Turnstile are mocked in the browser so every state is deterministic; one smoke test at the end hits the real Worker on the fake backend):
+
+```ts
+import AxeBuilder from "@axe-core/playwright";
+import { expect, test, type Page } from "@playwright/test";
+
+const TURNSTILE_STUB = `window.turnstile = {
+  render(el, o) { this.o = o; return "w1"; },
+  execute() { setTimeout(() => this.o.callback("XXXX.DUMMY.TOKEN.XXXX"), 0); },
+  reset() {}, remove() {}
+};`;
+
+const meta = { type: "meta", mode: "answer", searchMode: "hybrid", language: "en", logId: "0b6f5c7e-6a2d-4c1b-9a51-3a4c2f1e9d00", links: [],
+  sources: [{ n: 1, title: "Sample: what Ask Ottie is", heading: "", url: null, kind: "library", project: null, scores: { dense: 0.71, keyword: 3.1, fused: 0.033 } }] };
+const done = (extra = {}) => ({ type: "done", mode: "answer", model: "claude-haiku-5-5", truncated: false, timings: { embedMs: 30, searchMs: 1, firstTokenMs: 400, totalMs: 900 }, ...extra });
+const ndjson = (...events: object[]) => events.map((e) => JSON.stringify(e)).join("\n") + "\n";
+
+async function mockAsk(page: Page, body: string, status = 200) {
+  const requests: unknown[] = [];
+  await page.route("https://challenges.cloudflare.com/**", (r) => r.fulfill({ contentType: "text/javascript", body: TURNSTILE_STUB }));
+  await page.route("**/api/ask", async (r) => {
+    requests.push(r.request().postDataJSON());
+    await r.fulfill({ status, contentType: status === 200 ? "application/x-ndjson" : "application/json", body });
+  });
+  return requests;
+}
+
+const box = (page: Page) => page.getByRole("textbox", { name: /Ask Ottie/ });
+
+test("asks a question and shows the answer, sources and how it was made", async ({ page }) => {
+  const requests = await mockAsk(page, ndjson(meta, { type: "delta", text: "Ask Ottie is the **question box** on dins.dev [1]." }, done()));
+  await page.goto("/");
+  await box(page).fill("What is Ask Ottie?");
+  await box(page).press("Enter");
+  const panel = page.locator(".ask-answer");
+  await expect(panel.getByText("question box")).toBeVisible();
+  await expect(panel.locator("strong")).toHaveText("question box");
+  await expect(panel.getByRole("link", { name: /Sample: what Ask Ottie is/ }).or(panel.getByText("Sample: what Ask Ottie is"))).toBeVisible();
+  await panel.getByText("How this answer was made").click();
+  await expect(panel.getByText("claude-haiku-5-5")).toBeVisible();
+  await expect(page.locator("[aria-live=polite]")).toContainText("question box");
+  expect(requests[0]).toMatchObject({ question: "What is Ask Ottie?", project: null, turnstileToken: "XXXX.DUMMY.TOKEN.XXXX", history: [] });
+});
+
+test("sends up to three earlier turns as history", async ({ page }) => {
+  const requests = await mockAsk(page, ndjson(meta, { type: "delta", text: "Claude Haiku [1]." }, done()));
+  await page.goto("/");
+  for (const q of ["One?", "Two?", "Three?", "Four?"]) {
+    await box(page).fill(q);
+    await box(page).press("Enter");
+    await expect(page.locator(".ask-answer").getByText("Claude Haiku")).toBeVisible();
+  }
+  expect((requests[3] as { history: unknown[] }).history).toHaveLength(3);
+});
+
+test("records a thumb once", async ({ page }) => {
+  await mockAsk(page, ndjson(meta, { type: "delta", text: "Yes [1]." }, done()));
+  const feedback: unknown[] = [];
+  await page.route("**/api/ask-feedback", async (r) => { feedback.push(r.request().postDataJSON()); await r.fulfill({ status: 204 }); });
+  await page.goto("/");
+  await box(page).fill("q?");
+  await box(page).press("Enter");
+  await page.getByRole("button", { name: "Yes" }).click();
+  await expect(page.getByText("Thanks, that helps Din improve Ottie.")).toBeVisible();
+  expect(feedback).toEqual([{ id: meta.logId, value: 1 }]);
+});
+
+test("resting shows links instead of an answer", async ({ page }) => {
+  await mockAsk(page, ndjson({ ...meta, mode: "resting", links: [{ label: "Demo Project", href: "/work/demo-project/" }, { label: "Contact page", href: "/contact/" }] }, { type: "delta", text: "I'm resting right now." }, done({ mode: "resting", model: null })));
+  await page.goto("/");
+  await box(page).fill("q?");
+  await box(page).press("Enter");
+  await expect(page.getByRole("link", { name: "Contact page" })).toBeVisible();
+  await expect(page.getByText("No model was called for this answer.", { exact: false })).toBeAttached();
+});
+
+test("rate limiting shows a friendly message", async ({ page }) => {
+  await mockAsk(page, JSON.stringify({ error: "rate_limited" }), 429);
+  await page.goto("/");
+  await box(page).fill("q?");
+  await box(page).press("Enter");
+  await expect(page.getByRole("alert")).toHaveText(/a lot of questions/);
+});
+
+test("the 300-character limit disables the button", async ({ page }) => {
+  await mockAsk(page, "");
+  await page.goto("/");
+  await box(page).fill("a".repeat(301));
+  await expect(page.getByRole("button", { name: "Ask" })).toBeDisabled();
+  await expect(page.getByText("301/300")).toBeVisible();
+});
+
+test("the project bar sends the project", async ({ page }) => {
+  const requests = await mockAsk(page, ndjson(meta, { type: "delta", text: "x [1]." }, done()));
+  await page.goto("/work/");
+  await page.locator("a[href^='/work/']").filter({ hasNotText: /^Work$/ }).first().click();
+  const projectBox = page.getByRole("textbox", { name: /Ask Ottie about/ });
+  await projectBox.fill("What did Din build?");
+  await projectBox.press("Enter");
+  await expect(page.locator(".ask-answer").getByText("x")).toBeVisible();
+  expect((requests[0] as { project: string }).project).toMatch(/^[a-z0-9-]+$/);
+});
+
+test("no accessibility violations with an answer on screen", async ({ page }) => {
+  await mockAsk(page, ndjson(meta, { type: "delta", text: "Ask Ottie is the question box [1]." }, done()));
+  await page.goto("/");
+  await box(page).fill("What is Ask Ottie?");
+  await box(page).press("Enter");
+  await expect(page.locator(".ask-answer").getByText("question box")).toBeVisible();
+  const results = await new AxeBuilder({ page }).include(".ask-slot").analyze();
+  expect(results.violations).toEqual([]);
+});
+
+test.describe("without JavaScript", () => {
+  test.use({ javaScriptEnabled: false });
+  test("suggested answers still read and the box explains itself", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator("#suggested details").first()).toBeAttached();
+    await expect(page.getByText("Ask Ottie needs JavaScript", { exact: false })).toBeVisible();
+  });
+});
+
+test("smoke: the real Worker answers on the fake backend", async ({ page }) => {
+  await page.goto("/");
+  await box(page).fill("What is Ask Ottie?");
+  await box(page).press("Enter");
+  await expect(page.locator(".ask-answer")).toContainText("[fake answer]", { timeout: 15_000 });
+});
+```
+
+The smoke test needs the preview server with `.dev.vars` from the example (fake backend, Turnstile test secret) and network for Turnstile; M0's `test:e2e` starts the server. `ASK_EMBEDDER=off` is fine for it.
+
+- [ ] **Step 2: Run them to see them fail**
+
+Run: `pnpm --dir site test:e2e -- tests/e2e/ask.spec.ts`
+Expected: FAIL: no textbox named "Ask Ottie about Din".
+
+- [ ] **Step 3: Write the components**
+
+`site/src/components/ask/AnswerBlocks.svelte`:
+
+```svelte
+<script lang="ts">
+  import { formatAnswer, type Inline } from "../../lib/ask/format";
+
+  let { text, sourceCount }: { text: string; sourceCount: number } = $props();
+  const blocks = $derived(formatAnswer(text, sourceCount));
+</script>
+
+{#snippet inline(parts: Inline[])}
+  {#each parts as part}
+    {#if part.t === "text"}{part.v}{:else if part.t === "strong"}<strong>{part.v}</strong>{:else if part.t === "code"}<code>{part.v}</code>{:else if part.t === "cite"}<sup><a href={`#ask-source-${part.n}`} aria-label={`Source ${part.n}`}>[{part.n}]</a></sup>{:else}<a href={part.href}>{part.v}</a>{/if}
+  {/each}
+{/snippet}
+
+<div class="answer-text">
+  {#each blocks as block}
+    {#if block.t === "p"}
+      <p>{@render inline(block.c)}</p>
+    {:else if block.t === "ul"}
+      <ul>{#each block.items as item}<li>{@render inline(item)}</li>{/each}</ul>
+    {:else}
+      <ol>{#each block.items as item}<li>{@render inline(item)}</li>{/each}</ol>
+    {/if}
+  {/each}
+</div>
+
+<style>
+  .answer-text p { margin: 0 0 var(--space-3); max-width: var(--measure); }
+  .answer-text ul, .answer-text ol { margin: 0 0 var(--space-3); padding-left: var(--space-5); }
+  code { font-family: var(--font-mono); font-size: 0.92em; }
+  sup a { color: var(--color-accent); text-decoration: none; }
+  sup a:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+</style>
+```
+
+`site/src/components/ask/SourceChips.svelte`:
+
+```svelte
+<script lang="ts">
+  import type { SourceRef } from "../../lib/ask/events";
+  import { UI_COPY } from "../../lib/ask/ui-copy";
+
+  let { sources, cited }: { sources: SourceRef[]; cited: number[] } = $props();
+  const shown = $derived(cited.length ? sources.filter((s) => cited.includes(s.n)) : sources.slice(0, 3));
+</script>
+
+{#if shown.length}
+  <section class="chips" aria-label={UI_COPY.sources}>
+    <h3 class="t-label">{UI_COPY.sources}</h3>
+    <ul>
+      {#each shown as s}
+        <li id={`ask-source-${s.n}`} class="chip">
+          <span class="n t-data">{s.n}</span>
+          {#if s.url}<a href={s.url}>{s.title}</a>{:else}<span>{UI_COPY.fromLibrary}: {s.title.replace(/^Sample: /, "")}</span>{/if}
+        </li>
+      {/each}
+    </ul>
+  </section>
+{/if}
+
+<style>
+  .chips { margin-top: var(--space-4); }
+  ul { display: flex; flex-wrap: wrap; gap: var(--space-2); list-style: none; margin: var(--space-2) 0 0; padding: 0; }
+  .chip { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-3); border: 1px solid var(--color-hairline); border-radius: var(--radius-pill); background: var(--color-surface); }
+  .n { color: var(--color-accent); }
+  a { color: var(--color-ink); }
+  a:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+</style>
+```
+
+`site/src/components/ask/HowMade.svelte`:
+
+```svelte
+<script lang="ts">
+  import type { AskViewState } from "../../lib/ask/client";
+  import { UI_COPY } from "../../lib/ask/ui-copy";
+
+  let { state }: { state: AskViewState } = $props();
+  const fmt = (x: number | null, d = 2) => (x === null ? "none" : x.toFixed(d));
+  const ms = (x: number | null | undefined) => (x === null || x === undefined ? "none" : `${Math.round(x)} ms`);
+</script>
+
+<details class="how">
+  <summary>{UI_COPY.howMade}</summary>
+  <div class="t-small">
+    <p>
+      {#if state.searchMode === "hybrid"}Found with hybrid search: meaning (bge-m3 cosine) and keywords (BM25), merged by rank.
+      {:else if state.searchMode === "keyword"}Found with keyword search only (the embedding service was unavailable).
+      {:else}No search was needed for this question.{/if}
+      {#if state.model}Written by {state.model} from the passages below, capped at about 350 tokens.{:else}{UI_COPY.noModel}{/if}
+    </p>
+    {#if state.sources.length}
+      <table>
+        <thead><tr><th scope="col">#</th><th scope="col">Passage</th><th scope="col">Meaning</th><th scope="col">Keywords</th><th scope="col">Combined</th></tr></thead>
+        <tbody>
+          {#each state.sources as s}
+            <tr><td class="t-data">{s.n}</td><td>{s.title}{s.heading ? `, ${s.heading}` : ""}</td><td class="t-data">{fmt(s.scores.dense)}</td><td class="t-data">{fmt(s.scores.keyword)}</td><td class="t-data">{fmt(s.scores.fused, 4)}</td></tr>
+          {/each}
+        </tbody>
+      </table>
+    {/if}
+    {#if state.timings}
+      <p class="t-data">Embedding {ms(state.timings.embedMs)}, search {ms(state.timings.searchMs)}, first words {ms(state.timings.firstTokenMs)}, total {ms(state.timings.totalMs)}.</p>
+    {/if}
+  </div>
+</details>
+
+<style>
+  .how { margin-top: var(--space-4); }
+  summary { cursor: pointer; color: var(--color-muted); }
+  summary:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+  table { width: 100%; border-collapse: collapse; margin: var(--space-2) 0; }
+  th, td { text-align: left; padding: var(--space-1) var(--space-2); border-bottom: 1px solid var(--color-hairline); }
+  td.t-data, th:nth-child(n + 3) { font-variant-numeric: tabular-nums; }
+</style>
+```
+
+`site/src/components/ask/AskOttie.svelte`:
+
+```svelte
+<script lang="ts">
+  import { onDestroy, onMount } from "svelte";
+  import { initialState, reduce, runAsk, type AskAction } from "../../lib/ask/client";
+  import { MAX_HISTORY_TURNS, MAX_QUESTION_CHARS } from "../../lib/ask/config";
+  import { citedNumbers } from "../../lib/ask/format";
+  import { notifyAsk } from "../../lib/ask/ottie-cues";
+  import { createTokenSource, siteKey } from "../../lib/ask/turnstile-client";
+  import { UI_COPY } from "../../lib/ask/ui-copy";
+  import type { Turn } from "../../lib/ask/validate";
+  import AnswerBlocks from "./AnswerBlocks.svelte";
+  import HowMade from "./HowMade.svelte";
+  import SourceChips from "./SourceChips.svelte";
+
+  let { scope, project = null, projectTitle }: { scope: "site" | "project"; project?: string | null; projectTitle?: string } = $props();
+
+  const id = `ask-${scope}-${project ?? "site"}`;
+  let view = $state(initialState);
+  let question = $state("");
+  let announce = $state("");
+  let thumb = $state<0 | 1 | -1>(0);
+  let widget: HTMLDivElement;
+  let history: Turn[] = [];
+  let tokens: ReturnType<typeof createTokenSource> | null = null;
+  let controller: AbortController | null = null;
+  let lastTyping = 0;
+
+  const chars = $derived([...question].length);
+  const over = $derived(chars > MAX_QUESTION_CHARS);
+  const busy = $derived(view.status === "waiting" || view.status === "streaming");
+  const cited = $derived(citedNumbers(view.text, view.sources.length));
+
+  function dispatch(a: AskAction) {
+    const before = view.status;
+    view = reduce(view, a);
+    if (before !== "streaming" && view.status === "streaming") notifyAsk("stream");
+    if (before !== "done" && view.status === "done") finished();
+    if (before !== "error" && view.status === "error") notifyAsk("error");
+  }
+
+  function finished() {
+    const mode = view.mode ?? "answer";
+    if (mode === "answer") {
+      notifyAsk("answer", { sources: cited.length || view.sources.length });
+      history = [...history, { question: view.question, answer: view.text }].slice(-MAX_HISTORY_TURNS);
+    } else notifyAsk(mode);
+    announce = view.text;
+    thumb = 0;
+  }
+
+  function prepare() {
+    notifyAsk("focus");
+    tokens ??= createTokenSource(widget, siteKey());
+    tokens.prepare().catch(() => {});
+  }
+
+  function typing() {
+    const now = Date.now();
+    if (now - lastTyping > 2000) notifyAsk("typing");
+    lastTyping = now;
+  }
+
+  async function submit(event?: Event) {
+    event?.preventDefault();
+    const q = question.trim();
+    if (!q || busy || over) return;
+    prepare();
+    announce = "";
+    notifyAsk("submit");
+    dispatch({ type: "submit", question: q });
+    question = "";
+    controller = new AbortController();
+    await runAsk({ question: q, history, project, getToken: () => tokens!.getToken(), dispatch, signal: controller.signal });
+  }
+
+  function keydown(e: KeyboardEvent) {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) submit(e);
+  }
+
+  async function sendThumb(value: 1 | -1) {
+    if (!view.logId || thumb) return;
+    thumb = value;
+    await fetch("/api/ask-feedback", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: view.logId, value }) }).catch(() => {});
+  }
+
+  function reset() {
+    controller?.abort();
+    view = initialState;
+    history = [];
+    announce = "";
+    notifyAsk("reset");
+  }
+
+  function onSuggestedToggle(e: Event) {
+    const d = e.target as HTMLDetailsElement;
+    if (d.open) notifyAsk("answer", { sources: d.querySelectorAll("a[href]").length });
+  }
+
+  onMount(() => {
+    if (scope !== "site") return;
+    const list = document.querySelectorAll<HTMLDetailsElement>("#suggested details[data-suggested-id]");
+    list.forEach((d) => d.addEventListener("toggle", onSuggestedToggle));
+    return () => list.forEach((d) => d.removeEventListener("toggle", onSuggestedToggle));
+  });
+  onDestroy(() => {
+    controller?.abort();
+    tokens?.destroy();
+  });
+</script>
+
+<div class="ask" data-scope={scope}>
+  <form class="ask-form" onsubmit={submit} data-ottie-avoid>
+    <label for={id} class="t-label">{scope === "project" && projectTitle ? UI_COPY.projectLabel(projectTitle) : UI_COPY.siteLabel}</label>
+    <div class="row">
+      <textarea id={id} bind:value={question} rows="2" placeholder={UI_COPY.placeholder} aria-describedby={`${id}-count`} onfocus={prepare} oninput={typing} onkeydown={keydown}></textarea>
+      <button type="submit" disabled={busy || over || !question.trim()}>{UI_COPY.submit}</button>
+    </div>
+    <p id={`${id}-count`} class="t-small count" class:over aria-live="off">{chars}/{MAX_QUESTION_CHARS}</p>
+  </form>
+  <p class="no-js-note t-small">{UI_COPY.noJs}</p>
+  <div bind:this={widget} class="turnstile"></div>
+
+  {#if view.status !== "idle"}
+    <section class="ask-answer" aria-busy={busy} aria-labelledby={`${id}-asked`} data-ottie-avoid>
+      <p id={`${id}-asked`} class="t-label">{UI_COPY.youAsked}</p>
+      <p class="asked">{view.question}</p>
+      {#if view.status === "waiting"}<p class="t-small waiting">{UI_COPY.waiting}</p>{/if}
+      {#if view.status === "error" && view.error}
+        <p role="alert">{UI_COPY.errors[view.error]}</p>
+      {:else}
+        <AnswerBlocks text={view.text} sourceCount={view.sources.length} />
+      {/if}
+      {#if view.status === "done"}
+        {#if view.truncated}<p class="t-small">{UI_COPY.truncated}</p>{/if}
+        {#if view.mode === "answer"}<SourceChips sources={view.sources} {cited} />{/if}
+        {#if view.mode !== "answer" && view.links.length}
+          <ul class="links">{#each view.links as link}<li><a href={link.href}>{link.label}</a></li>{/each}</ul>
+        {/if}
+        <HowMade state={view} />
+        {#if view.logId && view.mode === "answer"}
+          {#if thumb}
+            <p class="t-small">{UI_COPY.thanks}</p>
+          {:else}
+            <div class="thumbs" role="group" aria-label={UI_COPY.helpful}>
+              <span class="t-small">{UI_COPY.helpful}</span>
+              <button type="button" onclick={() => sendThumb(1)}>{UI_COPY.yes}</button>
+              <button type="button" onclick={() => sendThumb(-1)}>{UI_COPY.no}</button>
+            </div>
+          {/if}
+        {/if}
+        <button type="button" class="again" onclick={reset}>{UI_COPY.again}</button>
+      {/if}
+    </section>
+  {/if}
+  <div class="sr-only" aria-live="polite">{announce}</div>
+</div>
+
+<style>
+  .ask { display: grid; gap: var(--space-3); }
+  .row { display: flex; gap: var(--space-2); align-items: stretch; }
+  textarea { flex: 1; min-height: 3.2em; resize: vertical; font: inherit; color: var(--color-ink); background: var(--color-surface); border: 1px solid var(--color-line); border-radius: var(--radius-md); padding: var(--space-3); }
+  textarea:focus-visible, button:focus-visible, .ask-answer a:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+  button { font: inherit; border-radius: var(--radius-md); padding: var(--space-2) var(--space-4); border: 1px solid var(--color-accent); background: var(--color-accent); color: var(--color-paper); cursor: pointer; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .thumbs button, .again { background: transparent; color: var(--color-accent); }
+  .count { margin: 0; color: var(--color-muted); }
+  .count.over { color: var(--color-ink); font-weight: 600; }
+  .ask-answer { padding: var(--space-4); border: 1px solid var(--color-hairline); border-radius: var(--radius-lg); background: var(--color-surface); }
+  .asked { font-weight: 600; margin: 0 0 var(--space-3); }
+  .waiting { color: var(--color-muted); }
+  .links { padding-left: var(--space-5); }
+  .thumbs { display: flex; gap: var(--space-2); align-items: center; margin-top: var(--space-3); }
+  .no-js-note { display: none; }
+  :global(html.no-js) .no-js-note { display: block; }
+  :global(html.no-js) .ask-form { display: none; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  @media (prefers-reduced-motion: no-preference) { .ask-answer { transition: opacity var(--motion-fast) var(--motion-ease); } }
+</style>
+```
+
+- [ ] **Step 4: Mount it in M1's slot and add the privacy paragraph**
+
+In `site/src/components/AskSlot.astro`, inside M1's `<div class="ask-slot" …>`, before M1's `<slot />` (which stays as the no-JS fallback):
+
+```astro
+---
+import AskOttie from "./ask/AskOttie.svelte";
+// M1's props: { scope: "site" } | { scope: "project"; project: string }. M3 adds the optional projectTitle.
+const { scope, project = null, projectTitle } = Astro.props;
+---
+{scope === "site"
+  ? <AskOttie client:idle scope="site" />
+  : <AskOttie client:visible scope="project" project={project} projectTitle={projectTitle} />}
+```
+
+Pass `projectTitle={entry.data.title}` where M1's case study page renders `<AskSlot scope="project" project={entry.id}>`.
+
+In `site/src/pages/privacy.astro`, in M1's list of what the site keeps, add (wording for Din to approve in the preview):
+
+> **Ask Ottie.** Questions you ask Ottie are kept for 30 days in an anonymous log: the question, which pages and notes were used, their scores, and your thumbs up or down if you give one. No IP address, no cookies and nothing that identifies you is stored, and older entries are deleted every night. The log helps Din see which questions Ottie answers badly. Ask Ottie uses Cloudflare Turnstile to check that questions come from a person.
+
+- [ ] **Step 5: Run the end-to-end tests**
+
+Run: `pnpm --dir site test:e2e -- tests/e2e/ask.spec.ts`
+Expected: all pass. Then `pnpm --dir site budget` (M0/M4's home JavaScript budget, 100 KB gzipped): it must still pass; the island adds the Svelte runtime and about 10 KB of Ask code, and Turnstile loads only on focus.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add site/src/components/ask site/src/components/AskSlot.astro site/src/pages/privacy.astro site/src/pages/work site/tests/e2e/ask.spec.ts
+git commit -m "feat(ask): Ask Ottie island on the hero and the case studies"
+```
+
+- [ ] **Step 7: Din checks it in the preview**
+
+Push only with Din's go. On the branch preview, Din checks:
+
+1. Home: type "What is Ask Ottie?" and press Enter. Expected: Ottie thinks, the fake answer streams in, chips show the sample source, "How this answer was made" lists six passages with scores. Why: this is the hero of the site.
+2. Ask "Is Din on a work visa?". Expected: the polite decline with din@dins.dev, Ottie shrugs, "No model was called". Why: deny-list topics must never reach the model.
+3. Ask "What is the capital of France?". Expected: the friendly redirect. Why: off-topic handling.
+4. Open a case study and ask there. Expected: only that project's sources (or "don't know" while projects are drafts). Why: the project filter.
+5. Keyboard only: Tab to the box, ask, Tab to the chips and the thumbs. Expected: a visible teal focus ring everywhere, nothing trapped. Why: WCAG 2.2 AA.
+6. VoiceOver: ask a question. Expected: the answer is read once when complete, not word by word. Why: PRD section 6.
+7. Reduced motion and dark mode: the panel looks right and nothing animates beyond a fade. Why: the calm versions.
+8. Ottie never covers the box or the answer while answering. Why: PRD section 4.
+
+Record Din's verdict in the ledger.
+
+### Task 32: Suggested answers script and sample suggested questions
+
+**Files:**
+- Create: `site/scripts/ask/node-assets.ts`, `site/scripts/ask/suggested.ts`
+- Modify: `site/src/content/suggested/suggested.yaml` (M1's file: append two sample entries), `site/package.json` (scripts and dev dependencies)
+- Test: `site/tests/unit/ask/node-assets.test.ts`, `site/tests/unit/ask/suggested.test.ts`
+
+**Interfaces:**
+- Consumes: `planAnswer`, `retrievalQuery` (Task 25), providers (Task 24), the query cache format (Task 7).
+- Produces: `REPO_ROOT`; `questionKey(q: string): string` (hex sha256 of `normalizeQuestion(q)`); `QueryCache { dim: number; get(query: string): Float32Array | null }`; `parseQueryCache(buf: ArrayBuffer): QueryCache`; `readIndexFromDisk(): Promise<AskIndex>`; `readQueryCacheFromDisk(): Promise<QueryCache>`; `collectAnswer(provider, plan): Promise<{ text: string; mode: AskMode; usage: Usage; model: string | null; latencyMs: number }>` (exported from `suggested.ts`, reused by Task 33); `fillSuggested(entries, deps): Promise<SuggestedYamlEntry[]>`.
+
+Rules: the script only fills entries with an empty `answer` (or all with `--force`), writes `status: draft`, `generated_on` (today) and sources as `{ label, href }` (page sources link to their page; library sources link to `/about/` with the label `Din's library: <topic>`), and never touches an entry Din has published. Builds never run it (Global Constraints). It needs `ANTHROPIC_API_KEY` (Din's dev key) and spends a few cents: ask Din before each run.
+
+- [ ] **Step 1: Add the tooling**
+
+Run: `pnpm --dir site add -D tsx@~4.23.15 yaml@~2.9.1`
+Then in `site/package.json` scripts:
+
+```json
+"ask:suggested": "tsx scripts/ask/suggested.ts",
+"ask:eval-answers": "tsx scripts/ask/eval-answers.ts"
+```
+
+(tsx runs the TypeScript scripts in Node; yaml reads and writes the YAML files with their order kept.)
+
+- [ ] **Step 2: Append the sample entries**
+
+At the end of `site/src/content/suggested/suggested.yaml`:
+
+```yaml
+- id: sample-what-is-ask-ottie
+  question: What is Ask Ottie?
+  answer: ""
+  sources: []
+  language: en
+  order: 90
+  generated_on: null
+  status: draft
+- id: sample-contact-din
+  question: How can I contact Din?
+  answer: ""
+  sources: []
+  language: en
+  order: 91
+  generated_on: null
+  status: draft
+```
+
+Drafts never render in production (M1). If M1's schema rejects an empty `answer` or empty `sources` on drafts, ask M1's owner to allow them for drafts rather than writing a placeholder answer.
+
+- [ ] **Step 3: Write the failing tests**
+
+`site/tests/unit/ask/node-assets.test.ts`:
+
+```ts
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+import { parseQueryCache, questionKey } from "../../../scripts/ask/node-assets";
+
+const SHARED = new URL("../../../../rag/tests/fixtures/shared/", import.meta.url);
+
+describe("node assets", () => {
+  it("reads the query cache the Python build wrote", () => {
+    const b = readFileSync(new URL("parity-queries.bin", SHARED));
+    const cache = parseQueryCache(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer);
+    const { cases } = JSON.parse(readFileSync(new URL("parity-cases.json", SHARED), "utf8"));
+    const withVector = cases.filter((c: { qvec: number[] | null }) => c.qvec);
+    for (const c of withVector) expect(Array.from(cache.get(c.question)!)).toEqual(c.qvec.map(Math.fround));
+    expect(cache.get("not cached")).toBeNull();
+  });
+
+  it("keys questions like Python does", () => {
+    const { cases } = JSON.parse(readFileSync(new URL("text-cases.json", SHARED), "utf8"));
+    for (const c of cases) expect(questionKey(c.text)).toBe(c.question_key);
+  });
+});
+```
+
+`site/tests/unit/ask/suggested.test.ts`:
+
+```ts
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+import { parseIndex } from "../../../src/lib/ask/index-format";
+import { createFakeProvider } from "../../../src/lib/ask/providers/fake";
+import { fillSuggested } from "../../../scripts/ask/suggested";
+
+const b = readFileSync(new URL("../../../../rag/tests/fixtures/shared/parity-index.bin", import.meta.url));
+const index = parseIndex(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer);
+const cache = { dim: index.dim, get: () => null };
+
+describe("fillSuggested", () => {
+  it("fills empty drafts, keeps published entries and marks the result as a draft", async () => {
+    const entries = [
+      { id: "a", question: "validation bad rows", answer: "", sources: [], language: "en", order: 1, generated_on: null, status: "draft" },
+      { id: "b", question: "Kept?", answer: "Din's own words.", sources: [{ label: "x", href: "/about/" }], language: "en", order: 2, generated_on: "2026-11-01", status: "published" },
+      { id: "c", question: "Is Din on a work visa?", answer: "", sources: [], language: "en", order: 3, generated_on: null, status: "draft" },
+    ];
+    const out = await fillSuggested(entries, { index, cache, provider: createFakeProvider(), today: "2026-11-20", force: false });
+    expect(out[0]).toMatchObject({ status: "draft", generated_on: "2026-11-20" });
+    expect(out[0].answer).toMatch(/^\[fake answer\]/);
+    expect(out[0].sources[0]).toEqual({ label: expect.any(String), href: "/work/demo-project/" });
+    expect(out[1]).toEqual(entries[1]);
+    expect(out[2]).toMatchObject({ answer: expect.stringContaining("din@dins.dev"), sources: [] });
+  });
+});
+```
+
+The fixture cache returns no vectors, so `fillSuggested` runs keyword search; with the real index the script uses `readQueryCacheFromDisk` and fails with `run pnpm --dir site ask:index` when a question has no cached embedding.
+
+- [ ] **Step 4: Run them to see them fail**
+
+Run: `pnpm --dir site test:unit -- tests/unit/ask/node-assets.test.ts tests/unit/ask/suggested.test.ts`
+Expected: FAIL with unresolved imports.
+
+- [ ] **Step 5: Implement**
+
+`site/scripts/ask/node-assets.ts`:
+
+```ts
+// Node-only helpers for the Ask Ottie scripts: read the committed index and query cache from disk.
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { parseIndex, type AskIndex } from "../../src/lib/ask/index-format";
+import { normalizeQuestion } from "../../src/lib/ask/text";
+
+export const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
+
+export function questionKey(q: string): string {
+  return createHash("sha256").update(normalizeQuestion(q), "utf8").digest("hex");
+}
+
+export interface QueryCache { dim: number; get(query: string): Float32Array | null }
+
+export function parseQueryCache(buf: ArrayBuffer): QueryCache {
+  const v = new DataView(buf);
+  const magic = String.fromCharCode(v.getUint8(0), v.getUint8(1), v.getUint8(2), v.getUint8(3));
+  if (magic !== "OTQE" || v.getUint16(4, true) !== 1) throw new Error("bad query cache header");
+  const dim = v.getUint16(6, true);
+  const count = v.getUint32(8, true);
+  const size = 32 + 4 * dim;
+  if (buf.byteLength !== 16 + count * size) throw new Error("query cache length mismatch");
+  const map = new Map<string, Float32Array>();
+  for (let i = 0; i < count; i++) {
+    const at = 16 + i * size;
+    const key = Array.from(new Uint8Array(buf, at, 32), (b) => b.toString(16).padStart(2, "0")).join("");
+    map.set(key, new Float32Array(buf.slice(at + 32, at + size)));
+  }
+  return { dim, get: (query) => map.get(questionKey(query)) ?? null };
+}
+
+const toArrayBuffer = (b: Buffer) => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
+
+export async function readIndexFromDisk(): Promise<AskIndex> {
+  return parseIndex(toArrayBuffer(await readFile(`${REPO_ROOT}site/public/ask/index-v1.bin`)));
+}
+
+export async function readQueryCacheFromDisk(): Promise<QueryCache> {
+  return parseQueryCache(toArrayBuffer(await readFile(`${REPO_ROOT}rag/evals/query-embeddings.bin`)));
+}
+```
+
+`site/scripts/ask/suggested.ts`:
+
+```ts
+// Generates suggested answers with the real pipeline. Din reviews them in a PR and sets
+// `status: published`. Never run by the build. Usage: pnpm --dir site ask:suggested [--force]
+import { readFile, writeFile } from "node:fs/promises";
+import { parseDocument } from "yaml";
+import { COPY } from "../../src/lib/ask/copy";
+import { chunkMeta, type AskIndex } from "../../src/lib/ask/index-format";
+import type { AskMode } from "../../src/lib/ask/log";
+import { planAnswer, retrievalQuery, type AskPlan } from "../../src/lib/ask/pipeline";
+import { costNanoUsd } from "../../src/lib/ask/pricing";
+import { createAnthropicProvider, makeAnthropicClient } from "../../src/lib/ask/providers/anthropic";
+import { ZERO_USAGE, type AnswerProvider, type Usage } from "../../src/lib/ask/providers/types";
+import { citedNumbers } from "../../src/lib/ask/format";
+import { readIndexFromDisk, readQueryCacheFromDisk, REPO_ROOT, type QueryCache } from "./node-assets";
+
+export interface SuggestedYamlEntry {
+  id: string; question: string; answer: string; sources: { label: string; href: string }[];
+  language: "en" | "fr"; order: number; generated_on: string | null; status: "draft" | "published";
+}
+
+export async function collectAnswer(provider: AnswerProvider, plan: AskPlan) {
+  const started = Date.now();
+  if (plan.kind === "canned") return { text: plan.text, mode: plan.mode as AskMode, usage: ZERO_USAGE as Usage, model: null as string | null, latencyMs: 0 };
+  const gen = provider.stream(plan.request, new AbortController().signal);
+  let text = "";
+  for (;;) {
+    const step = await gen.next();
+    if (step.done) {
+      const refused = step.value.stopReason === "refusal";
+      return { text: refused ? COPY[plan.language].declined : text, mode: (refused ? "declined" : "answer") as AskMode, usage: step.value.usage, model: step.value.model, latencyMs: Date.now() - started };
+    }
+    text += step.value;
+  }
+}
+
+function sourcesFor(index: AskIndex, plan: AskPlan, text: string) {
+  if (plan.kind === "canned") return [];
+  const cited = citedNumbers(text, plan.sources.length);
+  const picked = (cited.length ? cited : [1]).map((n) => plan.search.hits[n - 1]).filter(Boolean);
+  const seen = new Set<string>();
+  const out: { label: string; href: string }[] = [];
+  for (const hit of picked) {
+    const m = chunkMeta(index, hit.chunk);
+    const source = m.url ? { label: m.title, href: m.url } : { label: `Din's library: ${m.title.replace(/^Sample: /, "")}`, href: "/about/" };
+    if (!seen.has(source.label)) out.push(source);
+    seen.add(source.label);
+  }
+  return out;
+}
+
+export async function fillSuggested(
+  entries: SuggestedYamlEntry[],
+  deps: { index: AskIndex; cache: QueryCache; provider: AnswerProvider; today: string; force: boolean },
+): Promise<SuggestedYamlEntry[]> {
+  const out: SuggestedYamlEntry[] = [];
+  for (const entry of entries) {
+    if (entry.status === "published" || (entry.answer.trim() && !deps.force)) {
+      out.push(entry);
+      continue;
+    }
+    const plan = planAnswer({ index: deps.index, qvec: deps.cache.get(retrievalQuery(entry.question, [])), question: entry.question, history: [], project: null });
+    const result = await collectAnswer(deps.provider, plan);
+    out.push({ ...entry, answer: result.text, sources: sourcesFor(deps.index, plan, result.text), generated_on: deps.today, status: "draft" });
+  }
+  return out;
+}
+
+async function main() {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) throw new Error("Set ANTHROPIC_API_KEY to Din's dev key (this spends a few cents).");
+  const path = `${REPO_ROOT}site/src/content/suggested/suggested.yaml`;
+  const doc = parseDocument(await readFile(path, "utf8"));
+  const entries = doc.toJS() as SuggestedYamlEntry[];
+  const index = await readIndexFromDisk();
+  const cache = await readQueryCacheFromDisk();
+  for (const e of entries) if (!cache.get(e.question)) throw new Error(`No cached embedding for "${e.question}". Run pnpm --dir site ask:index first.`);
+  const provider = createAnthropicProvider(makeAnthropicClient(key));
+  let spent = 0;
+  const counting: AnswerProvider = {
+    name: provider.name,
+    async *stream(req, signal) {
+      const result = yield* provider.stream(req, signal);
+      spent += costNanoUsd(result.usage);
+      return result;
+    },
+  };
+  const filled = await fillSuggested(entries, { index, cache, provider: counting, today: new Date().toISOString().slice(0, 10), force: process.argv.includes("--force") });
+  doc.contents = doc.createNode(filled) as typeof doc.contents;
+  await writeFile(path, doc.toString({ lineWidth: 0 }));
+  console.log(`Updated ${path}. Cost about $${(spent / 1e9).toFixed(4)}. Review every answer, then set status: published.`);
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) await main();
+```
+
+- [ ] **Step 6: Run the tests**
+
+Run: `pnpm --dir site test:unit -- tests/unit/ask/node-assets.test.ts tests/unit/ask/suggested.test.ts`
+Expected: all pass.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add site/scripts/ask site/package.json pnpm-lock.yaml site/src/content/suggested/suggested.yaml site/tests/unit/ask/node-assets.test.ts site/tests/unit/ask/suggested.test.ts
+git commit -m "feat(ask): suggested answers script and sample suggested questions"
+```
+
+- [ ] **Step 8: Generate the sample answers (ask Din first)**
+
+Ask Din: "Generating the suggested answers calls Claude Haiku with your dev key, a few cents for the two samples. OK?" Then run `pnpm --dir site ask:index` (adds the suggested questions to the query cache; needs the bge-m3 weights from Task 13) and `ANTHROPIC_API_KEY=<dev key> pnpm --dir site ask:suggested`. Commit the YAML with `status: draft` for Din's review in the PR. Din publishes the real questions written in M1 the same way.
 
 ---
