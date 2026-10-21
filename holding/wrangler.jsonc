@@ -1,0 +1,17 @@
+// The holding page: a static-assets-only Worker on dins.dev until the real site
+// (the `dins-site` Worker from M0) takes over the domain at launch.
+{
+  "name": "dins-holding",
+  "compatibility_date": "2026-10-21",
+  "assets": {
+    "directory": "./public",
+    // Every path shows the holding page, so old or guessed links land somewhere useful.
+    "not_found_handling": "single-page-application"
+  },
+  // Only dins.dev serves it; no workers.dev or preview URLs.
+  "workers_dev": false,
+  "preview_urls": false,
+  // `wrangler deploy` attaches the apex as a Custom Domain and creates its DNS
+  // record and certificate. The domain must have no A, AAAA or CNAME at the apex.
+  "routes": [{ "pattern": "dins.dev", "custom_domain": true }]
+}
