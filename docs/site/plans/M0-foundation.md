@@ -25,6 +25,7 @@ Status: Proposed (plan only, written 2026-10-21 for Din's review). Nothing here 
 - Contract commands other plans rely on (defined exactly in Task 2 and Task 11): `pnpm --dir site dev|build|test|test:e2e|check`, `./check.sh` at the root (under 2 minutes without e2e), `uv run --project rag pytest`.
 - Repo contract paths: `site/astro.config.mjs`, `site/wrangler.jsonc`, `site/src/{layouts,components,styles,ottie,lib}/`, `site/src/pages/api/`, `site/migrations/`, `site/tests/{unit,worker,e2e}/`, Ottie sheets served under `/ottie/`, `site/public/ask/` owned by M3 (never gitignored).
 - Bindings are read with `import { env } from "cloudflare:workers"` (Astro 6+ removed `Astro.locals.runtime`).
+- `serve` (wrangler dev) needs `site/.dev.vars`, copied from `site/.dev.vars.example`. Without it wrangler dev runs on the top-level production vars (`SITE_ENV=production`, and in M3 `ASK_BACKEND=anthropic` with no key). Task 2 creates it locally, `check.sh --e2e` and the CI `e2e` job copy it when missing.
 - One build-time deploy flag for every milestone (shared contract, "Build-time deploy"): `deployFromEnv(ci, branch)` in `site/src/lib/deploy.ts` and `DEPLOY` in `site/src/lib/deploy-env.ts` (Task 3a). Worker code reads `SITE_ENV` at runtime.
 - No cookies: Astro sessions are turned off (`session: false`), which also stops the adapter from provisioning a `SESSION` KV namespace.
 - Fonts: WOFF2, subset to Latin plus French, self-hosted, two preloaded (Fraunces and Instrument Sans), metric-matched fallbacks (PRD section 6). All three are OFL.
@@ -377,6 +378,8 @@ Expected: `worker-configuration.d.ts` appears with `DB: D1Database`, `ASSETS: Fe
 
 - [ ] **Step 12: Run the built Worker under wrangler dev**
 
+`serve` reads `site/.dev.vars` (Step 9). Anyone running `serve` on a fresh clone copies it first: `cp site/.dev.vars.example site/.dev.vars`; otherwise wrangler dev uses the production vars.
+
 Run: `pnpm --dir site serve` in one terminal, then `curl -s http://127.0.0.1:8787/ | grep -c "dins.dev"`
 Expected: `1`. `site/.wrangler/deploy/config.json` exists (the redirect the Cloudflare Vite plugin writes so wrangler uses the built config). If it does not, change `serve` to `wrangler dev --config dist/server/wrangler.json --port 8787 --ip 127.0.0.1` and note it in the ledger. Stop the server.
 
@@ -614,7 +617,7 @@ Expected: both projects run; 5 tests pass (3 unit, 2 worker).
 
 - [ ] **Step 11: Check the route in the built Worker**
 
-Run: `pnpm --dir site build && pnpm --dir site serve`, then `curl -s http://127.0.0.1:8787/api/health`
+Run (with `site/.dev.vars` in place, Task 2 Step 9): `pnpm --dir site build && pnpm --dir site serve`, then `curl -s http://127.0.0.1:8787/api/health`
 Expected: `{"ok":true,"service":"dins-site","env":"local"}` (from `.dev.vars`). Stop the server.
 
 - [ ] **Step 12: Commit**
@@ -1116,7 +1119,7 @@ Expected: 10 passed (3 health, 4 deploy, 3 sync).
 
 - [ ] **Step 5: Check the sheets are served by the built Worker**
 
-Run: `pnpm --dir site build && pnpm --dir site serve`, then `curl -s http://127.0.0.1:8787/ottie/manifest.json | python3 -c "import json,sys; print(len(json.load(sys.stdin)['states']))"` and `curl -sI http://127.0.0.1:8787/ottie/idle.webp | grep -i content-type`
+Run (with `site/.dev.vars` in place): `pnpm --dir site build && pnpm --dir site serve`, then `curl -s http://127.0.0.1:8787/ottie/manifest.json | python3 -c "import json,sys; print(len(json.load(sys.stdin)['states']))"` and `curl -sI http://127.0.0.1:8787/ottie/idle.webp | grep -i content-type`
 Expected: `12` and `content-type: image/webp`. Stop the server.
 
 - [ ] **Step 6: Commit**
@@ -1223,6 +1226,8 @@ const { title, description } = Astro.props;
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
     <meta name="dins-deploy" content={DEPLOY} />
+    <!-- Not indexed before launch. M1 replaces this with the SITE_LAUNCHED and preview flags. -->
+    <meta name="robots" content="noindex" />
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="icon" href={favicon} type="image/svg+xml" />
@@ -1291,7 +1296,7 @@ Expected, in order: `content="local"`, `content="preview"`, `content="production
 
 - [ ] **Step 6: Build and look**
 
-Run: `pnpm --dir site build && pnpm --dir site serve`, open http://127.0.0.1:8787/ in light and dark
+Run (with `site/.dev.vars` in place): `pnpm --dir site build && pnpm --dir site serve`, open http://127.0.0.1:8787/ in light and dark
 Expected: paper (light) or charcoal (dark) background, the Fraunces headline, the Instrument Sans lead in muted ink, the mono label "BUILT ON M0", the teal focus ring on Tab with the skip link appearing. Network panel: two preloaded WOFF2 files, JetBrains Mono fetched only when used, no JavaScript from the page. Din checks the look in the preview (Task 13); this step only confirms it renders. Stop the server.
 
 - [ ] **Step 7: Commit**
@@ -1409,7 +1414,7 @@ test("Ottie sheets and the health route are served", async ({ request }) => {
 
 - [ ] **Step 3: Install the browser and run**
 
-Run: `pnpm --dir site exec playwright install chromium && pnpm --dir site test:e2e`
+Run: `test -f site/.dev.vars || cp site/.dev.vars.example site/.dev.vars`, then `pnpm --dir site exec playwright install chromium && pnpm --dir site test:e2e`
 Expected: 7 passed. A failure here is a real defect in Tasks 2 to 6 (fix it there, then rerun); do not loosen the assertions.
 
 - [ ] **Step 4: Commit**
@@ -1781,6 +1786,8 @@ step "font tests (pytest)" uv run --no-project --with fonttools~=4.67 --with bro
   pytest -q -p no:cacheprovider brand/tools/test_fonts.py
 step "site build" pnpm --dir site build
 if [ "$run_e2e" = 1 ]; then
+  # wrangler dev must run on the local vars, not the production ones.
+  [ -f site/.dev.vars ] || cp site/.dev.vars.example site/.dev.vars
   step "e2e (playwright, axe)" pnpm --dir site exec playwright test
 fi
 
@@ -1869,6 +1876,8 @@ jobs:
       - uses: jdx/mise-action@v5
       - run: pnpm install --frozen-lockfile
       - run: pnpm --dir site exec playwright install --with-deps chromium
+      # wrangler dev must run on the local vars, not the top-level production ones.
+      - run: cp site/.dev.vars.example site/.dev.vars
       - run: pnpm --dir site test:e2e
       - if: failure()
         uses: actions/upload-artifact@v7
@@ -1878,7 +1887,7 @@ jobs:
           retention-days: 7
 ```
 
-`wrangler dev` in the e2e job runs fully locally and needs no Cloudflare login; there is no `.dev.vars` in CI, so `/api/health` reports `production` there, which the test does not check.
+`wrangler dev` in the e2e job runs fully locally and needs no Cloudflare login. The job copies `.dev.vars.example` first, so `/api/health` reports `local` in CI, as it does on Din's machine; without that copy wrangler dev would run on the production vars, and M3's `/api/ask` and M4's `/api/contact` tests would fail.
 
 - [ ] **Step 2: Write `renovate.json`**
 
@@ -2024,25 +2033,54 @@ EXPECT_DEPLOY=preview BASE_URL="$url" pnpm --dir site exec playwright test
 
 Expected: `{"ok":true,"service":"dins-site","env":"preview"}` (runtime, from the `previews` vars), `name="dins-deploy" content="preview"` (build time, from `WORKERS_CI=1` and `WORKERS_CI_BRANCH`, which Workers Builds sets: https://developers.cloudflare.com/workers/ci-cd/builds/configuration/, "Default variables"), and 7 Playwright tests pass against the preview. If the meta says `local`, Workers Builds did not pass the variables to the build: stop and check the build log before going on. Din opens the link and checks the starter page in light and dark (the only visual sign-off in M0).
 
+- [ ] **Step 7a: Check that previews get their own secrets**
+
+M0 has no real secrets yet, so this uses two throwaway probe secrets with random values (not credentials) and deletes them afterwards. Ask Din first: it writes to the production Worker (a new version) and the preview base config.
+
+```bash
+cd site
+probe() { LC_ALL=C tr -dc 'a-z0-9' </dev/urandom | head -c 16; }
+probe | pnpm exec wrangler secret put SECRET_PROBE_PRODUCTION
+probe | pnpm exec wrangler preview base-config secret put SECRET_PROBE_PREVIEW
+git commit --allow-empty -m "chore: rebuild the preview" && git push   # a new Preview deployment picks up the base config
+# after the preview build finishes, with <preview> = the Preview name from the build log:
+pnpm exec wrangler preview secret list --name <preview>
+pnpm exec wrangler secret list
+cd ..
+```
+
+Expected: the preview listing shows `SECRET_PROBE_PREVIEW` and not `SECRET_PROBE_PRODUCTION`; the production listing shows `SECRET_PROBE_PRODUCTION` and not `SECRET_PROBE_PREVIEW`. If the preview lists the production probe, stop: previews would see the Anthropic key in M3. Clean up:
+
+```bash
+cd site
+pnpm exec wrangler secret delete SECRET_PROBE_PRODUCTION
+pnpm exec wrangler preview base-config secret delete SECRET_PROBE_PREVIEW
+cd ..
+```
+
+Record only the names and the pass or fail result, never values.
+
 - [ ] **Step 8: Renovate**
 
 Ask Din to install the Renovate GitHub app (Mend) on `dinsdev/dins.dev`. Expected: Renovate's onboarding PR lists the groups above; Din merges it or Claude closes it if `renovate.json` is already on `main`.
 
 - [ ] **Step 9: Record the evidence**
 
-After the PR merges and `main` deploys, check `curl -s https://dins-site.<subdomain>.workers.dev/ | grep -o 'name="dins-deploy" content="[a-z]*"'` shows `content="production"`.
+After the PR merges and `main` deploys, check `curl -s https://dins-site.<subdomain>.workers.dev/ | grep -oE 'name="(dins-deploy|robots)" content="[a-z]*"'` shows `content="production"` and `name="robots" content="noindex"`. The production page on workers.dev is expected to stay `noindex` until M5's soft go-live (M0's stopgap tag now, M1's `SITE_LAUNCHED = false` after M1).
 
-Add a ledger entry (see "Doc updates to apply on merge") with: `check.sh` time, CI run links, the gitleaks result (rule id, exit 1), the preview URL, the `/api/health` output and both `dins-deploy` values, and anything that differed from this plan.
+Add a ledger entry (see "Doc updates to apply on merge") with: `check.sh` time, CI run links, the gitleaks result (rule id, exit 1), the preview URL, the `/api/health` output, both `dins-deploy` values, the secrets isolation result (Step 7a), and anything that differed from this plan.
 
 ---
 
 ## Assumes (from other milestones)
 
 - **M1** keeps M0's Playwright web server (`pnpm build && pnpm serve`, waiting on `/api/health`, adding `DINS_SHOW_DRAFTS=1`) and the `chromium` project as the default catch-all for every spec no other project claims; M1's `light` project is `chromium`. M1 modifies `BaseLayout.astro` (M0 creates it) and reads `DEPLOY` for its drafts and `noindex` flags.
+- **Not indexed before launch.** Production deploys to workers.dev from M0 on, and that build is `production`. M0's `BaseLayout` carries a plain `<meta name="robots" content="noindex">` as a stopgap. **M1** adds `SITE_LAUNCHED = false` in `site/src/data/site.ts` and replaces the stopgap: `noindex` is on for `preview` or while `SITE_LAUNCHED` is false (robots meta and `robots.txt`). **M5** adds the matching `X-Robots-Tag` and flips `SITE_LAUNCHED` to `true` in the soft go-live PR, when `dins.dev` is attached.
 - **M1** creates `site/src/content.config.ts` and the collections, the full SEO head in `BaseLayout` (canonical, social cards, structured data), nav and footer, the full icon set (`brand/logo/icons/*` into `public/`), `robots.txt`, `llms.txt`, `security.txt`, the 404, and replaces the starter copy. M0's starter text never reaches production after M1.
 - **M2** reads `/ottie/manifest.json` and `/ottie/<state>.webp` as copied by `sync-brand.mjs` and owns the player in `site/src/ottie/`. If M2 needs the neutral still (`brand/reference/ottie-3d-neutral.webp`) under `/ottie/` too, M2 adds it to the `wanted` filter in `sync-brand.mjs` with a test. Long-term cache headers for `/ottie/*` are M2's or M5's (M0 adds no `_headers`).
 - **M3** adds `scheduled` to `site/src/worker.ts`, D1 migrations in `site/migrations/` (the worker test setup already applies them), its vars and bindings in both the top level and `previews` of `wrangler.jsonc` (AI, rate limiting, `ASK_BACKEND`), `@anthropic-ai/sdk`, `rag/` modules and dependencies, and its steps in `check.sh` and CI. M3 writes `site/public/ask/`, which M0 leaves tracked.
 - **M4** adds GSAP and the home JavaScript budget step (`pnpm --dir site budget`, per the M5 notes) to `check.sh`.
+- **M3 and M5** put real secrets on previews with `wrangler preview base-config secret put` (never production values; Task 13 Step 7a proves previews do not inherit production secrets). Deploys go only through Workers Builds; a manual `wrangler deploy` would ship a `local` build (M5's runbook).
 - **M5** owns security headers and CSP (`site/src/lib/security/headers.ts`, `_headers`), the custom domain, production secrets, required status checks on `main` and the uptime monitor (which can poll `/api/health`).
 - Names other plans can rely on: `deployFromEnv` and `Deploy` in `site/src/lib/deploy.ts`, `DEPLOY` in `site/src/lib/deploy-env.ts`, the `dins-deploy` meta; Worker `dins-site`; D1 binding `DB`, databases `dins-site` and `dins-site-preview`; var `SITE_ENV`; CI jobs `check` and `e2e`; Playwright honours `BASE_URL`; Python package `dins_rag` with `dins_rag.paths.SITE_ASK_DIR`.
 
