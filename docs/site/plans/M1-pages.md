@@ -19,6 +19,7 @@ Status: Proposed (plan only, written 2026-10-21 by the M1 plan session; nothing 
 - Astro 7 compiles with the Rust compiler: unclosed tags are errors and `<div>` inside `<p>` is not auto-corrected. `compressHTML` defaults to `'jsx'`, so whitespace between inline elements is dropped: write `{" "}` where a space matters.
 - Prerendering runs in workerd by default (`prerenderEnvironment: 'workerd'`). Page and endpoint code must not use `node:fs`, `process.env` or native modules. Node-only work (env flags, social cards) happens in `astro.config.mjs` and integration hooks.
 - Drafts never render in a production build (PRD 2). The deploy comes from M0's shared `deployFromEnv` (`local`, `preview`, `production`; production only from Workers Builds on `main`). Drafts show on `preview`, on `local` with `DINS_SHOW_DRAFTS=1`, and in `astro dev`. `DINS_SHOW_DRAFTS=1` on `production` fails the build.
+- Not indexed before launch: `noindex` (robots meta and `robots.txt`) is on for `preview`, and for `production` while `SITE_LAUNCHED` is false. Local builds are never deployed and stay indexable so the Lighthouse SEO gate can run on them.
 - Never invent facts about Din. Every sample is `status: draft`, says it is a sample in its own text, and renders with a visible "Draft" badge carrying `data-draft`.
 - Light and dark come only from `brand/tokens/tokens.css` (`prefers-color-scheme`, overridden by `html[data-theme]`). Teal is the only accent; amber never as text on paper.
 - Type: Fraunces only down to H3, H4 and below in Instrument Sans, labels and data in JetBrains Mono, body at most 66 characters per line. Curly apostrophes in display text and headings (I’m).
@@ -69,10 +70,10 @@ site/
       library/_README.md                M3 adds entries
       suggested/suggested.yaml          two sample entries, draft
     data/
-      site.ts                           identity and links (Din fills the nulls)
+      site.ts                           SITE_LAUNCHED (Task 1), identity and links (Din fills the nulls)
       profile.ts                        role line, about teaser, bio, timeline, skills, languages
     lib/
-      drafts.ts                         resolveBuildFlags(deploy, showDraftsEnv), isVisible (pure)
+      drafts.ts                         resolveBuildFlags(deploy, showDraftsEnv, launched), resolveNoindex, isVisible (pure)
       build.ts                          BUILD_FLAGS, SHOW_DRAFTS (reads the define)
       schemas.ts                        zod schemas and enums for every collection and profile
       kinds.ts                          labels for project and writing kinds
@@ -128,12 +129,12 @@ Responsibilities are split so that pure logic never imports `astro:content`: `co
 
 These names are the contract. They are repeated in the shared notes folder for the M2, M3 and M4 plan sessions.
 
-- **Build flags:** `import { BUILD_FLAGS, SHOW_DRAFTS } from "site/src/lib/build"`. `BUILD_FLAGS: { showDrafts: boolean; noindex: boolean }`, from `resolveBuildFlags(deploy, process.env.DINS_SHOW_DRAFTS)` where `deploy` is M0's `Deploy`. Other milestones read the deploy itself from M0's `site/src/lib/deploy-env.ts`, not from these flags. The RAG build (M3) must apply the same rule to the production index: only `status: published` entries, and never library entries with `sample: true`.
+- **Build flags:** `import { BUILD_FLAGS, SHOW_DRAFTS } from "site/src/lib/build"`. `BUILD_FLAGS: { showDrafts: boolean; noindex: boolean }`, from `resolveBuildFlags(deploy, process.env.DINS_SHOW_DRAFTS, SITE_LAUNCHED)` where `deploy` is M0's `Deploy` and `SITE_LAUNCHED` comes from `site/src/data/site.ts` (`false` until M5's soft go-live PR flips it). `noindex` is true on `preview`, and on `production` while `SITE_LAUNCHED` is false; it drives the robots meta and `robots.txt` (and M5's `X-Robots-Tag`). Other milestones read the deploy itself from M0's `site/src/lib/deploy-env.ts`, not from these flags. The RAG build (M3) must apply the same rule to the production index: projects and posts only with `status: published`, library entries only with `approved_on` set and never with `sample: true`.
 - **Visible content:** `getVisibleProjects()`, `getVisiblePosts()`, `getVisibleSuggested()` in `site/src/lib/collections.ts`, each already sorted. A project's slug is its file name (`entry.id`); its URL is `/work/<id>/`. A post's URL is `/writing/<id>/`.
 - **Ask Ottie slots (M3):** `AskSlot.astro` with props `{ scope: "site" } | { scope: "project"; project: string }` renders `<div class="ask-slot" data-ask-scope data-ask-project>` around a `<slot />`. M3 mounts its island inside. Home suggested answers render as `<details data-suggested-id="<id>">` inside `<section id="suggested">`; M3's island may take them over.
 - **Ottie slot (M2):** `OttieSlot.astro` with props `{ placement: "hero" | "project" | "contact" | "404" | "devlog"; state?: "idle" | "shrug" }` renders `<div class="ottie-slot" data-ottie-placement data-ottie-state aria-hidden="true">` holding the neutral still, sized 180 x 220 in a reserved box. It is a placeholder: M2's Task 16 replaces every `<OttieSlot placement=…>` with M2's `<Ottie context=…>` (`hero` becomes `home`) and deletes `OttieSlot.astro`.
 - **Set pieces (M4):** home sections are `<header id="top" data-setpiece="lens">`, `<section id="work" data-setpiece="windows">`, `<section id="writing" data-setpiece="paper">`, `<section id="about" data-setpiece="studio">`, `<section id="contact" data-setpiece="letter">`. `/about` opens with `<div class="screen-panel" data-setpiece="studio-screen">`. `<html>` has class `no-js`, replaced by `js` by an inline script, so calm and enhanced CSS can branch. `BaseLayout.astro` has `<slot name="head" />` inside `<head>` for M4's `MotionHead.astro`.
-- **Contact (M4 implements `/api/contact` and extends this module):** `site/src/lib/contact.ts` exports `CONTACT_FIELDS` (`message`, `reason`, `name`, `email`, honeypot `website`, Turnstile `cf-turnstile-response`), `CONTACT_LIMITS` (`name` 100, `email` 254, `message` 4000), `REASONS` (`role`, `admissions`, `hi`), `CONTACT_REDIRECTS` (`sent: "/contact/sent/"`, `notSent: "/contact/not-sent/"`) and `parseContact(form: FormData | URLSearchParams): ContactResult`, which also strips control characters other than newline and tab. A plain form post answers with a `303` to one of the two pages; a fetch with `Accept: application/json` gets JSON. A post without JavaScript has no Turnstile token and is never accepted (Din, 2026-10-21), so it lands on `/contact/not-sent/`, which carries a `mailto:din@dins.dev` link; the form carries a `<noscript>` note saying the same. The form holds an empty `<div data-turnstile-slot>` where M4 renders Turnstile.
+- **Contact (M4 implements `/api/contact` and extends this module):** `site/src/lib/contact.ts` exports `CONTACT_FIELDS` (`message`, `reason`, `name`, `email`, honeypot `website`, Turnstile `cf-turnstile-response`), `CONTACT_LIMITS` (`name` 100, `email` 254, `message` 4000), `REASONS` (`role`, `admissions`, `hi`), `CONTACT_REDIRECTS` (`sent: "/contact/sent/"`, `notSent: "/contact/not-sent/"`) and `parseContact(form: FormData | URLSearchParams): ContactResult`, which strips control characters (newline and tab survive only in `message`), collapses whitespace in `name` to single spaces, and rejects an `email` containing a line break. A plain form post answers with a `303` to one of the two pages; a fetch with `Accept: application/json` gets JSON. A post without JavaScript has no Turnstile token and is never accepted (Din, 2026-10-21), so it lands on `/contact/not-sent/`, which carries a `mailto:din@dins.dev` link; the form carries a `<noscript>` note saying the same. The form holds an empty `<div data-turnstile-slot>` where M4 renders Turnstile.
 
 ## Assumes
 
@@ -143,6 +144,7 @@ From M0 (Foundation), merged before M1 starts:
 - `site/` builds with `pnpm --dir site build` and serves the built Worker with `pnpm --dir site serve` (wrangler dev on 127.0.0.1:8787, `GET /api/health`); `astro.config.mjs` sets `site: "https://dins.dev"`, the Cloudflare adapter with the custom entry `site/src/worker.ts`, `@astrojs/svelte` and `session: false`. Default `output` (static), `build.format: "directory"`, `trailingSlash: "ignore"`.
 - M0's build-time deploy: `site/src/lib/deploy.ts` (`type Deploy = "local" | "preview" | "production"`, `deployFromEnv(ci, branch)`), the `__DINS_DEPLOY__` define, its declaration in `site/src/env.d.ts`, and `site/src/lib/deploy-env.ts` (`DEPLOY`). M1 adds `__DINS_BUILD_FLAGS__` next to it.
 - `site/src/layouts/BaseLayout.astro` exists (props `{ title, description }`), imports `site/src/styles/global.css` (tokens and `fonts.css`), preloads the Fraunces and Instrument Sans WOFF2 files from `brand/fonts/web/`, links the favicon, writes `<meta name="dins-deploy" content={DEPLOY}>`, and has a skip link and `<main id="main">`. M1 rewrites it with the SEO head, nav and footer, keeping M0's imports, preloads and deploy meta.
+- `SITE_LAUNCHED` (contract, "Not indexed before launch"): production deploys to workers.dev from M0 on, so M1 keeps every production build `noindex` until M5's soft go-live PR sets `SITE_LAUNCHED = true` in `site/src/data/site.ts`.
 - `/ottie/` serves `brand/ottie/dist/` (M0). M0 links only `favicon.svg`; M1 copies the full icon set (`brand/logo/icons/*` and `favicon.svg`) into `site/public/` in Task 8.
 - Fonts: `brand/fonts/Fraunces-VF.ttf` (already there) and M0's web fonts in `brand/fonts/web/` (WOFF2, with their OFL licences). Task 17's `card_fonts.py` searches both and reads TTF or WOFF2.
 - Vitest runs `site/tests/unit/**/*.test.ts` in Node (`pnpm --dir site test:unit`); Worker tests (`@cloudflare/vitest-plugin`) are a separate project M1 does not use.
@@ -152,7 +154,7 @@ From M0 (Foundation), merged before M1 starts:
 From M2, M3, M4 and M5:
 
 - M2's Task 16 replaces `OttieSlot.astro` with `<Ottie context=…>` and deletes it; M3 mounts the Ask island inside `AskSlot.astro` and fills `suggested.yaml` with reviewed answers; M4 implements `/api/contact` on M1's `contact.ts`, Turnstile and the set pieces on the hooks above, and adjusts M1's contact landing pages; M5 owns the CSP and security headers, the release scan and the `security.txt` expiry test (M1 owns the file).
-- M3 asked for these schema details (shared notes, 2026-10-21) and M1 adopts them: library `topic`, `audience`, `sources`, `language` (`en` or `fr`), `approved_on` (date or null) and `sample` (boolean); suggested `question`, `answer`, `sources`, `language`, `generated_on`. `status: published` is the only "reviewed by Din" flag for every collection (contract), so suggested entries have no `reviewed_by_din` field.
+- M3 asked for these schema details (shared notes, 2026-10-21) and M1 adopts them: library `topic`, `audience`, `sources`, `language` (`en` or `fr`), `approved_on` (date or null) and `sample` (boolean); suggested `question`, `answer`, `sources`, `language`, `generated_on`. `status: published` is the "reviewed by Din" flag for projects, writing and suggested answers (contract), so suggested entries have no `reviewed_by_din` field. Library entries use `approved_on` instead (only Din sets it, and the build fails without it), with `sample: true` for development samples.
 
 ## Din tasks (copy and facts only Din can provide)
 
@@ -175,39 +177,54 @@ These are Din's to write or confirm. Claude can interview Din and draft from Din
 ## Task 1: Build flags and the drafts rule
 
 **Files:**
-- Create: `site/src/lib/drafts.ts`, `site/src/lib/build.ts`
+- Create: `site/src/lib/drafts.ts`, `site/src/lib/build.ts`, `site/src/data/site.ts` (only `SITE_LAUNCHED` for now; Task 5 adds the rest)
 - Modify: `site/astro.config.mjs`, `site/src/env.d.ts`
 - Test: `site/tests/unit/drafts.test.ts`
 
 **Interfaces:**
 - Consumes: M0's `type Deploy` and `deployFromEnv(ci, branch)` from `site/src/lib/deploy.ts`.
-- Produces: `type BuildFlags = { showDrafts: boolean; noindex: boolean }`, `resolveBuildFlags(deploy: Deploy, showDraftsEnv: string | undefined): BuildFlags`, `isVisible(status: Status, showDrafts: boolean): boolean`, `type Status = "draft" | "published"`; `BUILD_FLAGS` and `SHOW_DRAFTS` from `build.ts`.
+- Produces: `type BuildFlags = { showDrafts: boolean; noindex: boolean }`, `resolveBuildFlags(deploy: Deploy, showDraftsEnv: string | undefined, launched: boolean): BuildFlags`, `resolveNoindex(deploy: Deploy, launched: boolean): boolean`, `SITE_LAUNCHED` from `site/src/data/site.ts`, `isVisible(status: Status, showDrafts: boolean): boolean`, `type Status = "draft" | "published"`; `BUILD_FLAGS` and `SHOW_DRAFTS` from `build.ts`.
 
 - [ ] **Step 1: Write the failing test**
 
 ```ts
 // site/tests/unit/drafts.test.ts
 import { describe, expect, it } from "vitest";
-import { isVisible, resolveBuildFlags } from "../../src/lib/drafts";
+import { isVisible, resolveBuildFlags, resolveNoindex } from "../../src/lib/drafts";
 
 describe("resolveBuildFlags", () => {
   it("hides drafts and allows indexing in a plain local build (check.sh, CI)", () => {
-    expect(resolveBuildFlags("local", undefined)).toEqual({ showDrafts: false, noindex: false });
+    expect(resolveBuildFlags("local", undefined, false)).toEqual({ showDrafts: false, noindex: false });
   });
   it("shows drafts without noindex locally with DINS_SHOW_DRAFTS=1 (e2e and Lighthouse builds)", () => {
-    expect(resolveBuildFlags("local", "1")).toEqual({ showDrafts: true, noindex: false });
+    expect(resolveBuildFlags("local", "1", false)).toEqual({ showDrafts: true, noindex: false });
   });
   it("treats any other DINS_SHOW_DRAFTS value as off", () => {
-    expect(resolveBuildFlags("local", "true").showDrafts).toBe(false);
+    expect(resolveBuildFlags("local", "true", false).showDrafts).toBe(false);
   });
-  it("shows drafts and sets noindex on preview deploys", () => {
-    expect(resolveBuildFlags("preview", undefined)).toEqual({ showDrafts: true, noindex: true });
+  it("shows drafts and sets noindex on preview deploys, launched or not", () => {
+    expect(resolveBuildFlags("preview", undefined, false)).toEqual({ showDrafts: true, noindex: true });
+    expect(resolveBuildFlags("preview", undefined, true)).toEqual({ showDrafts: true, noindex: true });
   });
-  it("hides drafts in production", () => {
-    expect(resolveBuildFlags("production", undefined)).toEqual({ showDrafts: false, noindex: false });
+  it("hides drafts in production and stays noindex until launch", () => {
+    expect(resolveBuildFlags("production", undefined, false)).toEqual({ showDrafts: false, noindex: true });
+    expect(resolveBuildFlags("production", undefined, true)).toEqual({ showDrafts: false, noindex: false });
   });
   it("refuses DINS_SHOW_DRAFTS=1 in production", () => {
-    expect(() => resolveBuildFlags("production", "1")).toThrow(/production/);
+    expect(() => resolveBuildFlags("production", "1", true)).toThrow(/production/);
+  });
+});
+
+describe("resolveNoindex", () => {
+  it.each([
+    ["local", false, false],
+    ["local", true, false],
+    ["preview", false, true],
+    ["preview", true, true],
+    ["production", false, true],
+    ["production", true, false],
+  ] as const)("%s, launched %s -> noindex %s", (deploy, launched, expected) => {
+    expect(resolveNoindex(deploy, launched)).toBe(expected);
   });
 });
 
@@ -238,16 +255,18 @@ import type { Deploy } from "./deploy";
 export type Status = "draft" | "published";
 export type BuildFlags = { showDrafts: boolean; noindex: boolean };
 
-export function resolveBuildFlags(deploy: Deploy, showDraftsEnv: string | undefined): BuildFlags {
+/** Previews are never indexed; production is not indexed until launch (it runs on workers.dev from M0 on).
+ * Local builds are never deployed, so they stay indexable for the Lighthouse SEO gate. */
+export function resolveNoindex(deploy: Deploy, launched: boolean): boolean {
+  return deploy === "preview" || (deploy === "production" && !launched);
+}
+
+export function resolveBuildFlags(deploy: Deploy, showDraftsEnv: string | undefined, launched: boolean): BuildFlags {
   const forced = showDraftsEnv === "1";
-  if (deploy === "production") {
-    if (forced) throw new Error("DINS_SHOW_DRAFTS=1 is not allowed in a production build");
-    return { showDrafts: false, noindex: false };
-  }
-  // Preview deploys: drafts on so Din can review them, never indexed.
-  if (deploy === "preview") return { showDrafts: true, noindex: true };
-  // Local builds (laptop, GitHub Actions): drafts only when asked, never public, so no noindex.
-  return { showDrafts: forced, noindex: false };
+  if (deploy === "production" && forced) throw new Error("DINS_SHOW_DRAFTS=1 is not allowed in a production build");
+  // Preview deploys show drafts so Din can review them; local builds only when asked.
+  const showDrafts = deploy === "preview" || (deploy === "local" && forced);
+  return { showDrafts, noindex: resolveNoindex(deploy, launched) };
 }
 
 export function isVisible(status: Status, showDrafts: boolean): boolean {
@@ -270,14 +289,23 @@ Add one line to M0's `site/src/env.d.ts`, next to its `__DINS_DEPLOY__` declarat
 declare const __DINS_BUILD_FLAGS__: import("./lib/drafts").BuildFlags;
 ```
 
+Create `site/src/data/site.ts` with the launch flag only (Task 5 adds the identity below it):
+
+```ts
+// site/src/data/site.ts
+// false until the soft go-live PR (M5) attaches dins.dev: production builds stay noindex until then.
+export const SITE_LAUNCHED = false;
+```
+
 In `site/astro.config.mjs`, reuse M0's deploy value and add the flags to M0's `vite.define` block:
 
 ```js
 import { deployFromEnv } from "./src/lib/deploy.ts"; // M0
 import { resolveBuildFlags } from "./src/lib/drafts.ts";
+import { SITE_LAUNCHED } from "./src/data/site.ts";
 
 const deploy = deployFromEnv(process.env.WORKERS_CI, process.env.WORKERS_CI_BRANCH); // M0
-const buildFlags = resolveBuildFlags(deploy, process.env.DINS_SHOW_DRAFTS);
+const buildFlags = resolveBuildFlags(deploy, process.env.DINS_SHOW_DRAFTS, SITE_LAUNCHED);
 
 export default defineConfig({
   // ...M0's existing settings...
@@ -293,10 +321,13 @@ export default defineConfig({
 - [ ] **Step 4: Run the tests and the build**
 
 Run: `pnpm --dir site exec vitest run tests/unit/drafts.test.ts`
-Expected: PASS, 8 tests.
+Expected: PASS, 14 tests.
 
 Run: `WORKERS_CI=1 WORKERS_CI_BRANCH=main DINS_SHOW_DRAFTS=1 pnpm --dir site build`
 Expected: FAIL with "DINS_SHOW_DRAFTS=1 is not allowed in a production build".
+
+Run: `WORKERS_CI=1 WORKERS_CI_BRANCH=main pnpm --dir site build && grep -c 'name="robots" content="noindex"' site/dist/client/index.html` (use `site/dist/index.html` if there is no `client` folder; the robots meta lands with the layout in Task 8, so run this check again there)
+Expected after Task 8: `1`, because `SITE_LAUNCHED` is false.
 
 Run: `pnpm --dir site build && pnpm --dir site check`
 Expected: both PASS.
@@ -304,7 +335,7 @@ Expected: both PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add site/src/lib/drafts.ts site/src/lib/build.ts site/src/env.d.ts site/astro.config.mjs site/tests/unit/drafts.test.ts
+git add site/src/lib/drafts.ts site/src/lib/build.ts site/src/data/site.ts site/src/env.d.ts site/astro.config.mjs site/tests/unit/drafts.test.ts
 git commit -m "feat(site): build flags that decide drafts and noindex"
 ```
 
@@ -1048,7 +1079,8 @@ git commit -m "feat(site): content helpers for visibility, order and stage captu
 ## Task 5: Site identity, profile copy and launch blockers
 
 **Files:**
-- Create: `site/src/data/site.ts`, `site/src/data/profile.ts`, `site/src/lib/launch.ts`, `site/scripts/launch-blockers.ts`
+- Create: `site/src/data/profile.ts`, `site/src/lib/launch.ts`, `site/scripts/launch-blockers.ts`
+- Modify: `site/src/data/site.ts` (Task 1 created it with `SITE_LAUNCHED`; keep that line)
 - Modify: `site/src/lib/schemas.ts` (add `profileSchema`, `siteSchema`), `site/package.json` (script `launch:blockers`)
 - Test: `site/tests/unit/profile.test.ts`, `site/tests/unit/launch.test.ts`
 
@@ -1196,6 +1228,9 @@ export function visibleValue<T>(d: { status: Status; value: T }, showDrafts: boo
 // Facts and links about Din. A null is something only Din can fill in (see the M1 plan, Din tasks).
 import { siteSchema, type SiteConfig } from "../lib/schemas";
 
+// false until the soft go-live PR (M5) attaches dins.dev: production builds stay noindex until then.
+export const SITE_LAUNCHED = false;
+
 export const site: SiteConfig = siteSchema.parse({
   name: "Din",
   legalName: null,
@@ -1264,6 +1299,7 @@ export function launchBlockers(
   if (counts.projects === 0) out.push("There is no published project");
   if (counts.posts === 0) out.push("There is no published post");
   if (counts.suggested === 0) out.push("There are no published suggested answers");
+  // SITE_LAUNCHED is not listed: M5 flips it in the soft go-live PR, after this list is empty.
   return out;
 }
 ```
@@ -1546,7 +1582,7 @@ git commit -m "feat(site): canonical URLs, titles, structured data and card path
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: `CONTACT_FIELDS`, `CONTACT_LIMITS` (`message` 4000), `REASONS`, `type Reason = "role" | "admissions" | "hi"`, `CONTACT_REDIRECTS = { sent: "/contact/sent/", notSent: "/contact/not-sent/" }`, `type ContactInput`, `type ContactResult = { ok: true; value: ContactInput } | { ok: false; spam: boolean; errors: Partial<Record<"message" | "name" | "email", string>> }`, `parseContact(form: FormData | URLSearchParams): ContactResult` (strips control characters other than newline and tab). M4's `/api/contact` imports this module and extends it rather than writing a second parser, so the form and the endpoint cannot drift.
+- Produces: `CONTACT_FIELDS`, `CONTACT_LIMITS` (`message` 4000), `REASONS`, `type Reason = "role" | "admissions" | "hi"`, `CONTACT_REDIRECTS = { sent: "/contact/sent/", notSent: "/contact/not-sent/" }`, `type ContactInput`, `type ContactResult = { ok: true; value: ContactInput } | { ok: false; spam: boolean; errors: Partial<Record<"message" | "name" | "email", string>> }`, `parseContact(form: FormData | URLSearchParams): ContactResult` (strips control characters; newline and tab survive only in `message`; `name` is collapsed to single spaces; an `email` with a line break is rejected). M4's `/api/contact` imports this module and extends it rather than writing a second parser, so the form and the endpoint cannot drift.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1582,14 +1618,23 @@ describe("parseContact", () => {
     const r = parseContact(form({ ...good, message: "x".repeat(CONTACT_LIMITS.message + 1) }));
     expect(!r.ok && r.errors.message).toMatch(/4000/);
   });
-  it("strips control characters but keeps newlines and tabs", () => {
-    const r = parseContact(form({ ...good, message: "a\u0000b\r\nc\td\u001b\u007f", name: "Sam\u0007" }));
+  it("strips control characters but keeps newlines and tabs in the message", () => {
+    const r = parseContact(form({ ...good, message: "a\u0000b\r\nc\td\u001b\u007f" }));
     expect(r.ok && r.value.message).toBe("ab\nc\td");
-    expect(r.ok && r.value.name).toBe("Sam");
   });
   it("rejects a message that is only control characters", () => {
     const r = parseContact(form({ ...good, message: "\u0000\u0001" }));
     expect(!r.ok && r.errors.message).toBeTruthy();
+  });
+  it("collapses whitespace in the name to single spaces (it becomes a reply-to display name)", () => {
+    const r = parseContact(form({ ...good, name: "  Sam\n\tLee \u0007  Jr\r\n" }));
+    expect(r.ok && r.value.name).toBe("Sam Lee Jr");
+  });
+  it("rejects an email that contains a line break (header injection)", () => {
+    for (const email of ["sam@example.com\nBcc: x@evil.test", "sam@example.com\r", "sam@\nexample.com"]) {
+      const r = parseContact(form({ ...good, email }));
+      expect(!r.ok && r.errors.email, JSON.stringify(email)).toMatch(/email/);
+    }
   });
   it("flags a filled honeypot as spam without saying why", () => {
     expect(parseContact(form({ ...good, website: "http://spam.test" }))).toEqual({ ok: false, spam: true, errors: {} });
@@ -1643,16 +1688,20 @@ export type ContactResult =
   | { ok: false; spam: boolean; errors: Partial<Record<Field, string>> };
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-// C0 and C1 control characters except tab (09) and newline (0A). CR (0D) goes too, so CRLF becomes LF.
-const CONTROL = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F]/g;
+// C0 and C1 control characters. Only the message keeps tab (09) and newline (0A); CR (0D) always goes, so CRLF becomes LF.
+const CONTROL_EXCEPT_TAB_LF = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F]/g;
+const ANY_CONTROL = /[\u0000-\u001F\u007F-\u009F]/g;
 
 export function parseContact(form: FormData | URLSearchParams): ContactResult {
-  const get = (k: string) => String(form.get(k) ?? "").replace(CONTROL, "").trim();
+  const raw = (k: string) => String(form.get(k) ?? "");
+  const get = (k: string) => raw(k).replace(ANY_CONTROL, "").trim();
   if (get(CONTACT_FIELDS.honeypot)) return { ok: false, spam: true, errors: {} };
 
+  const rawEmail = raw(CONTACT_FIELDS.email);
   const value = {
-    message: get(CONTACT_FIELDS.message),
-    name: get(CONTACT_FIELDS.name),
+    message: raw(CONTACT_FIELDS.message).replace(CONTROL_EXCEPT_TAB_LF, "").trim(),
+    // The name becomes the display name in an email header: one line, single spaces.
+    name: raw(CONTACT_FIELDS.name).replace(ANY_CONTROL, " ").replace(/\s+/g, " ").trim(),
     email: get(CONTACT_FIELDS.email),
   };
   const errors: Partial<Record<Field, string>> = {};
@@ -1660,7 +1709,9 @@ export function parseContact(form: FormData | URLSearchParams): ContactResult {
   else if (value.message.length > CONTACT_LIMITS.message) errors.message = `Please keep the message under ${CONTACT_LIMITS.message} characters.`;
   if (!value.name) errors.name = "Please add your name.";
   else if (value.name.length > CONTACT_LIMITS.name) errors.name = `Please keep your name under ${CONTACT_LIMITS.name} characters.`;
-  if (!EMAIL.test(value.email) || value.email.length > CONTACT_LIMITS.email) errors.email = "Please check your email address.";
+  if (/[\r\n]/.test(rawEmail) || !EMAIL.test(value.email) || value.email.length > CONTACT_LIMITS.email) {
+    errors.email = "Please check your email address.";
+  }
   if (Object.keys(errors).length) return { ok: false, spam: false, errors };
 
   const raw = get(CONTACT_FIELDS.reason);
