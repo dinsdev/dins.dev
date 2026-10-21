@@ -15,7 +15,7 @@ Status vocabulary: Proposed, Planned, In progress, Implemented, Verified, Accept
 | 0.9 | "Send mail as" with an outgoing mail provider, SPF, DKIM, DMARC | Implemented (2026-10-21): Resend free plan, DMARC `p=none` |
 | 0.10 | Verify a sent message passes SPF, DKIM and DMARC | Verified (2026-10-21): all three pass in Gmail's headers |
 | 0.10a | **To do (Din):** warm up dins.dev mail (mark the test Not spam, add `din@dins.dev` as a contact, send real mail for a couple of weeks), then move DMARC to `p=quarantine` if the Cloudflare reports stay clean | Planned (Din) |
-| 0.10b | **To do (Din):** delete the old `info@dineshd.dev` from Gmail "Send mail as" | Planned (Din) |
+| 0.10b | Delete the old `info@dineshd.dev` from Gmail "Send mail as" | Done (Din, 2026-10-21) |
 | 0.11 | GitHub organization `dinsdev` | Done (Din) |
 | 0.12 | Claim `dinsdev` on YouTube (Brand Account), TikTok, X | Done (Din) |
 | 0.14 | Optional: `@dins.dev` handle on Bluesky | Proposed |

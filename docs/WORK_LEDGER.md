@@ -12,7 +12,7 @@ Decisions and why, work done, verification results, approvals, blockers, handoff
 - **Verified (Claude):** the records answer from Cloudflare's nameserver, 1.1.1.1 and 8.8.8.8. Din's test from `din@dins.dev` to Din's other Gmail: `spf=pass` (return path on `rsend.dins.dev`, relaxed alignment), `dkim=pass` for `d=dins.dev` (aligned) and for `amazonses.com`, `dmarc=pass`. Sent through Amazon SES (54.240.11.151).
 - **Problem:** Gmail put the test in Spam with "similar to messages that were identified as spam in the past". Authentication is clean, so this is reputation, not setup: the domain is a day old, has no sending history, and the message was a one-word "Test". No DNS change helps; marking it Not spam, adding the contact and real correspondence over the next weeks do (task 0.10a). DMARC stays at `p=none` until the reports show clean weeks.
 - **Follow-up (Din):** after Din marked the first test Not spam, a second message with a normal subject and a few sentences landed in the Inbox. The warm-up in task 0.10a continues.
-- **Open (Din):** delete `info@dineshd.dev` from Gmail "Send mail as" (task 0.10b).
+- **Done (Din):** deleted `info@dineshd.dev` from Gmail "Send mail as" (task 0.10b). Email setup is closed except the warm-up and the DMARC review (task 0.10a).
 
 ### Email Routing rules for dins.dev (Claude, 2026-10-21)
 
