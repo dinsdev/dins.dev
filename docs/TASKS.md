@@ -60,7 +60,7 @@ Status vocabulary: Proposed, Planned, In progress, Implemented, Verified, Accept
 | 2.4b | Lock the 3D look in `docs/BRAND.md`; keep only the sheets, manifest and preview in this repo and move the 3D source to the private `~/Develop/dins-ottie` | Implemented (2026-10-21) |
 | 2.4c | A private GitHub remote for `dins-ottie` (Git LFS for the model, `.blend` files and textures) | Implemented (Din's go, 2026-10-21): `dinsdev/dins-ottie` |
 | 2.9 | Holding page at `dins.dev` ("Under construction.") until launch: `holding/` | Verified (2026-10-21): built and checked in the preview (light, dark, phone, short screen); deploy route chosen by Din (Workers static assets) |
-| 2.9a | Deploy the holding page to `dins.dev` as the `dins-holding` Worker (static assets, Custom Domain) | In progress: config and headers Verified locally (2026-10-21), PR open; Din runs the first deploy |
+| 2.9a | Deploy the holding page to `dins.dev` as the `dins-holding` Worker (static assets, Custom Domain) | Verified (2026-10-21): live at https://dins.dev (PR 5, version `6774ca12`), headers, fallback, assets and certificate checked against Cloudflare's edge |
 | 2.9b | At launch: detach `dins.dev` from `dins-holding`, delete the Worker and `holding/` | Planned (M5) |
 | 2.10 | M0 Foundation: `site/` and `rag/` set up, checks, CI, Renovate, Workers Builds previews. Plan: `docs/site/plans/M0-foundation.md` | Planned (Oct 22 to 26); plan written, Din's answers to its 7 questions recorded |
 | 2.10a | Connect Workers Builds to the repo in the Cloudflare dashboard | Planned (Din, M0) |
