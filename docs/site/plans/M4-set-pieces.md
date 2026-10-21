@@ -128,7 +128,7 @@ site/
 4. Ask Din for the go to push and open the PR (AGENTS.md: pushing and PRs need Din's go). Attach the screenshots and the perf summary to the PR description.
 5. Din reviews the Workers Builds preview link on a laptop and a phone, full and calm (`?calm`).
 6. On Din's approval, set the release to `"full"`, add a ledger entry quoting Din, and mark the TASKS row Accepted only if Din says so.
-7. The next piece starts after the merge. If Din has not approved a piece by December 1, its release stays `"preview"`, which already means calm in production.
+7. The next piece's visual work starts after the merge. Its pure-logic tasks (tests and math only, such as Tasks 12, 17 and 20) may start while Din reviews the current piece (Din, 2026-10-21). If Din has not approved a piece by December 1, its release stays `"preview"`, which already means calm in production.
 
 Branching: each gate is one squash-merged PR from `feat/m4-set-pieces`, recreated from `main` after each merge. The foundation and the contact endpoint (Tasks 1 to 7) are the first PR.
 
@@ -3102,25 +3102,29 @@ On December 1, list each piece's release value in the ledger. Pieces still on `"
 
 ---
 
-## Open questions for Din
+## Decisions on the open questions (Din, 2026-10-21)
 
-1. **Contact form without JavaScript.** The PRD says the contact form still submits with JavaScript off, but Turnstile needs JavaScript, so the server cannot verify a no-JS post. This plan lets it submit and lands on `/contact/not-sent/` with a `mailto:din@dins.dev` link (and a `<noscript>` note on the form). The alternative is to accept unverified posts behind the honeypot and a stricter rate limit, which lets most spam bots through. Recommendation: the mailto fallback.
-2. **Where the letters go.** On the free Workers plan, `send_email` only reaches verified destination addresses. `din@dins.dev` is a routing address, so Cloudflare may refuse it as a recipient (`E_RECIPIENT_NOT_ALLOWED`). The plan keeps the recipient in the `CONTACT_TO` secret, so if `din@dins.dev` is refused, the secret holds Din's verified personal inbox and nothing personal lands in the public repo. Task 7 Step 6 checks this with one real send.
-3. **"Ottie carries it off."** Ottie has no carry state. The plan has the envelope fly off while Ottie jumps. Good enough for v1, or should a carry state be rendered after launch (like celebrate)?
-4. **A second Ottie at the letter on the home page.** The hero Ottie is far away by the time the visitor reaches the letter. The plan mounts a second instance beside the envelope (only one is ever on screen). This needs M2's component to support two instances.
-5. **What counts toward the 100 KB.** The plan gates the JavaScript loaded before any interaction (the initial module graph plus inline scripts) and reports the lazily loaded set-piece chunks (GSAP is about 45 KB gzipped of that) without gating them, since they load on scroll. If Din meant "everything the home page ever loads", the budget has to grow or GSAP has to go.
-6. **Strict gates and the calendar.** Five sequential gates between November 13 and 29 leave about three days each, and each gate waits on Din's review. Recommendation: while Din reviews one piece, the next piece's pure-logic tasks (tests and math only, no visuals) may start. Is that within the "next starts after approval" rule?
-7. **No blur.** The sketch's blurs (intro, out-of-focus windows, captions, unhovered cards) are replaced by opacity and scale to meet PRD section 6. Din judges whether the depth still reads in the preview.
-8. **Lens intro once per session.** It plays once per browser session and not on every load. Should it instead play only on the first visit ever (like Ottie's run-in), or every time?
-9. **The studio on phones.** The plan runs the full studio on phones (shorter, 240vh) and falls back to calm on phones if the mid-range phone trace drops frames. Din decides at Gate 4.
-10. **Stage snap.** Off by default (dwell zones instead). Din can ask for snapping in the Gate 2 preview.
+Din's answer to all ten: "Go with your recommendations on the open questions". The plan's tasks already follow these.
+
+1. **Contact form without JavaScript:** it still submits, and since Turnstile cannot run, the post lands on `/contact/not-sent/` with a `mailto:din@dins.dev` link, plus a `<noscript>` note on the form (Tasks 6 and 7). Unverified posts are never accepted.
+2. **Where the letters go:** the recipient lives in the `CONTACT_TO` Worker secret, never in `wrangler.jsonc`. It is `din@dins.dev` if Cloudflare accepts that address, otherwise Din's verified inbox. Task 7 Step 6 settles it with one real send, recorded in the ledger.
+3. **"Ottie carries it off":** for v1 the envelope flies off while Ottie jumps (Task 21). A carry state is an optional post-launch item, like celebrate.
+4. **A second Ottie at the letter:** mounted beside the envelope on home and `/contact`, only one on screen at a time (Task 21). M2's component must support a second instance (`instance="letter"`).
+5. **What counts toward the 100 KB:** the gate covers the JavaScript loaded before any interaction (the initial module graph plus inline scripts), and GSAP must never be in it. Chunks loaded on scroll are reported in CI without a gate (Task 4).
+6. **Gates and the calendar:** while Din reviews a piece, the next piece's pure-logic tasks (tests and math only) may start. Its visual work starts only after the previous piece is approved and merged (see "How a gate works", step 7).
+7. **No blur:** opacity and scale replace the sketch's blur. Din judges the depth in each preview.
+8. **Lens intro:** plays once per browser session (Task 11).
+9. **The studio on phones:** full (240vh) by default, calm on phones if the mid-range phone trace drops frames. Din confirms at Gate 4 (Task 19).
+10. **Stage snap:** off, with dwell zones instead (Task 12). Din can ask for snapping at Gate 2.
 
 ## Doc updates to apply on merge
 
 - `docs/TASKS.md`: split 2.14 into rows with status: 2.14a foundation and contact delivery (`/api/contact`, plain letter), 2.14b lens and letter field, 2.14c windows, 2.14d paper, 2.14e studio, 2.14f letter. Each starts Planned; gates move to Accepted only on Din's word.
 - `docs/site/PLAN.md` (M4): "`/api/contact` is built in M4's first PR (the contact endpoint is not a visual gate)"; "set pieces ship behind release flags in `site/src/lib/setpieces/flags.ts`; a piece not approved by December 1 stays on `preview`, which is calm in production"; "pinning uses CSS sticky with ScrollTrigger driving the timeline (no `pin`)".
+- `docs/site/PLAN.md` (M4): "while Din reviews a piece, the next piece's tests and math may start; its visuals wait for approval".
+- `docs/site/PLAN.md` (After launch): add "optional: Ottie's carry state for the letter".
 - `docs/site/PLAN.md` (Dependencies on Din): add "Set the `CONTACT_TO` secret in preview and production (with M4's first PR)" and "Confirm one real letter arrives (end of M4's first PR)".
-- `docs/WORK_LEDGER.md`: an entry for this plan's decisions (sticky over pin, blur replaced, Astro plus vanilla enhancers instead of Svelte islands for set pieces, release flags, contact first, intro once per session, transform-only typing) and the answers to the open questions.
-- `docs/site/PRD.md`: no requirement changes proposed. If Din accepts Open question 1, section 6's failure-mode line could read "the contact form still submits, and without JavaScript it explains how to email Din directly". That wording change needs Din's approval.
+- `docs/WORK_LEDGER.md`: an entry for this plan's decisions (sticky over pin, blur replaced, Astro plus vanilla enhancers instead of Svelte islands for set pieces, release flags, contact first, intro once per session, transform-only typing) and Din's "go with your recommendations" on the ten open questions (2026-10-21), listed one by one.
+- `docs/site/PRD.md` (approved by Din on 2026-10-21 through decision 1): section 6's failure-mode line becomes "the contact form still submits, and without JavaScript it explains how to email Din directly". Section 6's JavaScript line gains the clarification from decision 5: "(the initial module graph plus inline scripts; set-piece code loaded on scroll is reported, not gated)".
 - For M5's CSP work: the inline scripts from `MotionHead.astro` and `LensIntro.astro` need hashes; Turnstile needs `script-src` and `frame-src https://challenges.cloudflare.com`; the contact form posts to the same origin.
 - For M1's sitemap: exclude `/contact/sent/` and `/contact/not-sent/`.
