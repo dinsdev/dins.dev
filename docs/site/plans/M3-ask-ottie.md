@@ -96,6 +96,7 @@ site/
   src/content/suggested/suggested.yaml  sample suggested questions (status: draft until Din reviews)
   src/lib/ask/                       server and shared TypeScript (see tasks)
   src/lib/turnstile.ts               server-side Turnstile check, shared with M4's contact form
+  src/lib/turnstile-client.ts        browser Turnstile loader and per-question tokens, shared with M4's letter
   src/components/ask/                AskOttie.svelte and parts
   tests/unit/ask/                    Node-environment Vitest
   tests/worker/ask/                  Workers-runtime Vitest with local D1
@@ -4831,6 +4832,8 @@ git commit -m "feat(ask): request validation, language detection and Ottie's fix
 - Create: `site/src/lib/turnstile.ts` (shared with M4's contact form), `site/src/lib/ask/rate-limit.ts`
 - Test: `site/tests/unit/turnstile.test.ts`, `site/tests/unit/ask/rate-limit.test.ts`
 
+If M4's contact work has already created `site/src/lib/turnstile.ts` with the contract's signature, import it and keep this task's tests as extra coverage instead of creating the file again; extend it only if something below is missing.
+
 **Interfaces:**
 - Produces (M4 relies on this exact signature): `SITEVERIFY_URL`; `TurnstileOutcome { ok: boolean; codes: string[] }`; `verifyTurnstile(opts: { token: string; secret: string; remoteip?: string | null; action?: string; hostnames?: readonly string[]; fetcher?: typeof fetch; timeoutMs?: number }): Promise<TurnstileOutcome>`. Ask Ottie: `RateLimiter { limit(o: { key: string }): Promise<{ success: boolean }> }`; `rateLimitAllows(limiter: RateLimiter | undefined, key: string): Promise<boolean>` (a missing binding allows and warns once, so a misconfigured preview still works behind Turnstile and the budget).
 
@@ -6502,7 +6505,7 @@ Expected: all pass; the build log lists `/api/ask` and `/api/ask-feedback` as on
 
 Then, with `site/.dev.vars` copied from the example and `ASK_EMBEDDER=off`:
 
-Run: `pnpm --dir site exec wrangler d1 migrations apply DB --local` and start `pnpm --dir site serve` (preview server on 127.0.0.1:8787, through the preview tooling), then:
+Run: `pnpm --dir site exec wrangler d1 migrations apply DB --local` and start `pnpm --dir site serve` (M0's script: wrangler dev on 127.0.0.1:8787, which reads `site/.dev.vars`), then:
 
 ```bash
 curl -sN -X POST http://127.0.0.1:8787/api/ask -H 'origin: http://127.0.0.1:8787' -H 'content-type: application/json' -d '{"question":"What is Ask Ottie?","turnstileToken":"XXXX.DUMMY.TOKEN.XXXX"}'
@@ -6697,12 +6700,14 @@ git commit -m "feat(ask): plain-text answer formatter that never emits HTML"
 ### Task 30: Browser client, Turnstile loader and Ottie cues
 
 **Files:**
-- Create: `site/src/lib/ask/client.ts`, `site/src/lib/ask/turnstile-client.ts`, `site/src/lib/ask/ottie-cues.ts`, `site/src/lib/ask/ui-copy.ts`
-- Test: `site/tests/unit/ask/client.test.ts`, `site/tests/unit/ask/turnstile-client.test.ts`, `site/tests/unit/ask/ottie-cues.test.ts`
+- Create: `site/src/lib/ask/client.ts`, `site/src/lib/turnstile-client.ts` (shared with M4's letter, so not under `lib/ask/`), `site/src/lib/ask/ottie-cues.ts`, `site/src/lib/ask/ui-copy.ts`
+- Test: `site/tests/unit/ask/client.test.ts`, `site/tests/unit/turnstile-client.test.ts`, `site/tests/unit/ask/ottie-cues.test.ts`
+
+If M4's contact work has already created `site/src/lib/turnstile-client.ts` with the contract's signatures (`loadTurnstile(): Promise<TurnstileApi>`, `siteKey()`, `TURNSTILE_TEST_SITEKEY`), extend that file with `createTokenSource` and its test instead of creating it.
 
 **Interfaces:**
 - Consumes: `AskEvent` (Task 24), `Turn` (Task 20), M2's `cueOttie`.
-- Produces: `AskStatus = "idle" | "waiting" | "streaming" | "done" | "error"`; `AskError = "rate_limited" | "turnstile" | "bad_request" | "network" | "internal"`; `AskViewState { status, question, text, mode: AskMode | null, sources: SourceRef[], links: LinkRef[], logId: string | null, searchMode: "hybrid" | "keyword" | "none" | null, model: string | null, timings: Timings | null, truncated: boolean, language: "en" | "fr", error: AskError | null }`; `initialState`; `AskAction = { type: "submit"; question } | { type: "event"; event: AskEvent } | { type: "http_error"; status: number } | { type: "network_error" } | { type: "reset" }`; `reduce(state, action): AskViewState`; `readNdjson(body: ReadableStream<Uint8Array>): AsyncGenerator<AskEvent>`; `runAsk(o: { question; history: Turn[]; project: string | null; getToken(): Promise<string>; dispatch(a: AskAction): void; fetchFn?: typeof fetch; signal?: AbortSignal }): Promise<void>`. Turnstile: `TURNSTILE_TEST_SITEKEY = "1x00000000000000000000BB"`; `siteKey(): string` (`import.meta.env.PUBLIC_TURNSTILE_SITE_KEY`, else the test key); `createTokenSource(container: HTMLElement, sitekey: string, load?: () => Promise<TurnstileApi>): { prepare(): Promise<void>; getToken(): Promise<string>; destroy(): void }`. Cues: `AskUiEvent = "focus" | "typing" | "submit" | "stream" | "answer" | "dont_know" | "declined" | "redirect" | "resting" | "error" | "reset"`; `notifyAsk(event, extra?: { sources?: number }, deps?: { target?: EventTarget; cue?: typeof cueOttie }): void`. UI strings: `UI_COPY` (English UI chrome; answers follow the question's language).
+- Produces: `AskStatus = "idle" | "waiting" | "streaming" | "done" | "error"`; `AskError = "rate_limited" | "turnstile" | "bad_request" | "network" | "internal"`; `AskViewState { status, question, text, mode: AskMode | null, sources: SourceRef[], links: LinkRef[], logId: string | null, searchMode: "hybrid" | "keyword" | "none" | null, model: string | null, timings: Timings | null, truncated: boolean, language: "en" | "fr", error: AskError | null }`; `initialState`; `AskAction = { type: "submit"; question } | { type: "event"; event: AskEvent } | { type: "http_error"; status: number } | { type: "network_error" } | { type: "reset" }`; `reduce(state, action): AskViewState`; `readNdjson(body: ReadableStream<Uint8Array>): AsyncGenerator<AskEvent>`; `runAsk(o: { question; history: Turn[]; project: string | null; getToken(): Promise<string>; dispatch(a: AskAction): void; fetchFn?: typeof fetch; signal?: AbortSignal }): Promise<void>`. Turnstile (`site/src/lib/turnstile-client.ts`, contract names): `TURNSTILE_TEST_SITEKEY = "1x00000000000000000000BB"`; `TurnstileApi`; `loadTurnstile(): Promise<TurnstileApi>`; `siteKey(): string` (`import.meta.env.PUBLIC_TURNSTILE_SITE_KEY`, else the test key); `createTokenSource(container: HTMLElement, sitekey: string, load?: () => Promise<TurnstileApi>): { prepare(): Promise<void>; getToken(): Promise<string>; destroy(): void }`. Cues: `AskUiEvent = "focus" | "typing" | "submit" | "stream" | "answer" | "dont_know" | "declined" | "redirect" | "resting" | "error" | "reset"`; `notifyAsk(event, extra?: { sources?: number }, deps?: { target?: EventTarget; cue?: typeof cueOttie }): void`. UI strings: `UI_COPY` (English UI chrome; answers follow the question's language).
 
 Cue mapping (M2's note): submit gives `ask:submit` (think), the first token `ask:stream`, an answer `ask:answer` with the source count (nod, then point when there are sources), don't know, declined and redirect give `ask:unknown` (shrug), resting `ask:resting`, errors `ask:error`, reset `ask:reset`. Phases for M4: submit `retrieving`, first token `streaming`, answer `done`, don't know, declined and redirect `dont-know`, resting `resting`, error `error`, reset `idle`.
 
@@ -6786,11 +6791,11 @@ describe("runAsk", () => {
 });
 ```
 
-`site/tests/unit/ask/turnstile-client.test.ts`:
+`site/tests/unit/turnstile-client.test.ts`:
 
 ```ts
 import { describe, expect, it, vi } from "vitest";
-import { createTokenSource, siteKey, TURNSTILE_TEST_SITEKEY } from "../../../src/lib/ask/turnstile-client";
+import { createTokenSource, siteKey, TURNSTILE_TEST_SITEKEY } from "../../src/lib/turnstile-client";
 
 function fakeApi() {
   let opts: Record<string, (t?: string) => void> = {};
@@ -6869,7 +6874,7 @@ describe("notifyAsk", () => {
 
 - [ ] **Step 2: Run them to see them fail**
 
-Run: `pnpm --dir site test:unit -- tests/unit/ask/client.test.ts tests/unit/ask/turnstile-client.test.ts tests/unit/ask/ottie-cues.test.ts`
+Run: `pnpm --dir site test:unit -- tests/unit/ask/client.test.ts tests/unit/turnstile-client.test.ts tests/unit/ask/ottie-cues.test.ts`
 Expected: FAIL with unresolved imports.
 
 - [ ] **Step 3: Implement**
@@ -6984,7 +6989,7 @@ export async function runAsk(o: {
 }
 ```
 
-`site/src/lib/ask/turnstile-client.ts`:
+`site/src/lib/turnstile-client.ts`:
 
 ```ts
 // Loads Turnstile only when someone focuses the question box, and asks for one fresh token per question.
@@ -7137,13 +7142,13 @@ Unit tests run in Node, where `window` does not exist: the cue tests always pass
 
 - [ ] **Step 4: Run the tests**
 
-Run: `pnpm --dir site test:unit -- tests/unit/ask/client.test.ts tests/unit/ask/turnstile-client.test.ts tests/unit/ask/ottie-cues.test.ts`
+Run: `pnpm --dir site test:unit -- tests/unit/ask/client.test.ts tests/unit/turnstile-client.test.ts tests/unit/ask/ottie-cues.test.ts`
 Expected: all pass. If `site/src/ottie/events.ts` does not exist yet, M2 has not merged: do not stub M2's file on this branch. Do Tasks 32 to 35 meanwhile and come back once M2 is on `main`.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add site/src/lib/ask/client.ts site/src/lib/ask/turnstile-client.ts site/src/lib/ask/ottie-cues.ts site/src/lib/ask/ui-copy.ts site/tests/unit/ask/client.test.ts site/tests/unit/ask/turnstile-client.test.ts site/tests/unit/ask/ottie-cues.test.ts
+git add site/src/lib/ask/client.ts site/src/lib/turnstile-client.ts site/src/lib/ask/ottie-cues.ts site/src/lib/ask/ui-copy.ts site/tests/unit/ask/client.test.ts site/tests/unit/turnstile-client.test.ts site/tests/unit/ask/ottie-cues.test.ts
 git commit -m "feat(ask): browser client, lazy Turnstile and Ottie cues"
 ```
 
@@ -7157,7 +7162,7 @@ Visual work: verified by tests for behaviour and accessibility, and by Din in th
 - Test: `site/tests/e2e/ask.spec.ts`
 
 **Interfaces:**
-- Consumes: Tasks 29 and 30; M1's `AskSlot.astro` props `{ scope: "site" } | { scope: "project", project: id }`; M1's `#suggested details[data-suggested-id]`.
+- Consumes: Tasks 29 and 30 (`createTokenSource` and `siteKey` from `site/src/lib/turnstile-client.ts`); M1's `AskSlot.astro` props `{ scope: "site" } | { scope: "project", project: id }`; M1's `#suggested details[data-suggested-id]`.
 - Produces: `<AskOttie scope="site" | "project" project={id | null} projectTitle={string | undefined} />` (Svelte 5 runes; hydrated `client:idle` on the home page and `client:visible` on case studies).
 
 Behaviour:
@@ -7301,7 +7306,9 @@ test("smoke: the real Worker answers on the fake backend", async ({ page }) => {
 });
 ```
 
-The smoke test needs the preview server with `.dev.vars` from the example (fake backend, Turnstile test secret) and network for Turnstile; M0's `test:e2e` starts the server. `ASK_EMBEDDER=off` is fine for it.
+How this spec runs (contract, Tests section): M0's Playwright web server, `pnpm build && pnpm serve` (wrangler dev on 127.0.0.1:8787, so `/api/ask` is the real Worker), waiting on `/api/health`, with `DINS_SHOW_DRAFTS=1` from M1 so the sample case studies exist for the project-bar test. The spec uses relative paths only (`page.goto("/")`), so it follows M0's `baseURL`; it runs under the default `chromium` project, and its no-JS case sets `javaScriptEnabled: false` locally rather than joining M1's `no-js` project.
+
+`wrangler dev` reads `site/.dev.vars`. Without it the top-level vars apply (`SITE_ENV=production`, `ASK_BACKEND=anthropic`, no key and no Turnstile secret), so the smoke test would see a 403. Locally, copy `site/.dev.vars.example` to `site/.dev.vars` (`ASK_EMBEDDER=off` is fine). In CI, add `cp site/.dev.vars.example site/.dev.vars` before the Playwright step of M0's `e2e` job if that job does not already do it (Task 35 checks). The smoke test also needs network for Turnstile's test siteverify.
 
 - [ ] **Step 2: Run them to see them fail**
 
@@ -7438,7 +7445,7 @@ Expected: FAIL: no textbox named "Ask Ottie about Din".
   import { MAX_HISTORY_TURNS, MAX_QUESTION_CHARS } from "../../lib/ask/config";
   import { citedNumbers } from "../../lib/ask/format";
   import { notifyAsk } from "../../lib/ask/ottie-cues";
-  import { createTokenSource, siteKey } from "../../lib/ask/turnstile-client";
+  import { createTokenSource, siteKey } from "../../lib/turnstile-client";
   import { UI_COPY } from "../../lib/ask/ui-copy";
   import type { Turn } from "../../lib/ask/validate";
   import AnswerBlocks from "./AnswerBlocks.svelte";
@@ -8390,7 +8397,7 @@ git commit -m "feat(rag): answer judge for faithfulness, refusals and language"
 ### Task 35: CI wiring: retrieval evals on every PR, answer evals on manual trigger
 
 **Files:**
-- Modify: `check.sh` (M0's), `.github/workflows/ci.yml` only if M0's `check` job does not already run `check.sh`
+- Modify: `check.sh` (M0's); `.github/workflows/ci.yml` only if M0's `check` job does not already run `check.sh`, or its `e2e` job does not create `site/.dev.vars` from the example (Task 31's smoke test needs it)
 - Create: `.github/workflows/answer-evals.yml`
 
 **Interfaces:**
@@ -8542,7 +8549,7 @@ From M2:
 - `site/src/ottie/events.ts` with `cueOttie(type, extra?)` and the `ask:*` types listed in Phase C; Ottie's bubbles avoid `[data-ottie-avoid]`. Talk while streaming is not used (M2's open question for Din).
 
 From M4:
-- The letter field listens for `ask:state`; the contact form reuses `site/src/lib/turnstile.ts` (`verifyTurnstile({ token, secret, remoteip, action, hostnames, fetcher, timeoutMs })`).
+- The letter field listens for `ask:state`; the contact form reuses `site/src/lib/turnstile.ts` (`verifyTurnstile({ token, secret, remoteip, action, hostnames, fetcher, timeoutMs })`) and the browser loader `site/src/lib/turnstile-client.ts` (`loadTurnstile`, `siteKey`, `TURNSTILE_TEST_SITEKEY`). Whichever of M3 or M4 reaches Turnstile first creates both files (contract, `docs/site/plans/README.md`).
 
 From M5:
 - Production secrets `ANTHROPIC_API_KEY` and `TURNSTILE_SECRET_KEY`, the build variable `PUBLIC_TURNSTILE_SITE_KEY` for `main`, `TURNSTILE_EXPECTED_HOSTNAMES=dins.dev` once the custom domain exists, the $100 production and $5 eval workspaces, the CSP allowing `https://challenges.cloudflare.com` in `script-src` and `frame-src`, the release gate `ottie-rag check --release`, and the Sonnet-judged release run of `answer-evals`.
