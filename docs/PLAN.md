@@ -66,6 +66,7 @@ Verification: send from `din@dins.dev` to an outside address and confirm SPF, DK
 | Repo in `dinsdev`          | Visibility | Holds                                                                                  |
 | -------------------------- | ---------- | -------------------------------------------------------------------------------------- |
 | `dins.dev` (this repo)     | Public (since 2026-10-19) | Brand assets and docs now; the portfolio site and later the game subdomain pages |
+| `dins-ottie`               | Private    | Ottie's 3D source: model, Blender files, build tools, rendered frames (Git LFS); the sheets ship in `dins.dev` |
 | `handbook`                 | Private    | Account security, business and personal notes, the private checklist, templates |
 | `.github`                  | Public     | Org profile README and default files (SECURITY.md, issue templates)                    |
 | one repo per new game      | Private    | The Unity project for each new dins game                                               |
@@ -87,7 +88,7 @@ Reasoning: Din chose to make `dins.dev` public from the start (2026-10-19) so pr
 - **Checks, CI and dependency updates (locked by Din, 2026-10-19):**
   - One `check.sh` runs every check; CI runs the same script. Heavier checks (Playwright, Lighthouse) may run in CI only so the local loop stays under about 2 minutes.
   - pre-commit hooks (the Python `pre-commit` framework): format and lint changed files, gitleaks secret scan (GitHub's own secret scanning and push protection are on too).
-  - Checks: Prettier and ESLint (web), Ruff (Python), `astro check` and TypeScript, Vitest and pytest, Playwright smoke tests with axe (zero violations), Lighthouse CI (performance at least 90, accessibility 100, SEO 100), lychee link check.
+  - Checks: Prettier and ESLint (web), Ruff (Python), `astro check` and TypeScript, Vitest and pytest, Playwright smoke tests with axe (zero violations), Lighthouse CI (accessibility 100 and SEO 100 as gates; performance reported as a warning until the optimization pass, Din, 2026-10-21), lychee link check.
   - CI: GitHub Actions on every PR (2,000 free minutes a month on private repos). Previews: Cloudflare's Git integration builds every branch and comments the preview link, so no Cloudflare token lives in GitHub.
   - Dependencies: Renovate opens one grouped PR a week; Dependabot security alerts stay on.
   - Games: Unity tests run locally before merge until a game nears release; GameCI is added when it pays off.

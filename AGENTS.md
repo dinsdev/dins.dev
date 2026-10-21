@@ -31,4 +31,6 @@ In UI strings, docs, comments and commit messages: no em dashes, no en dashes as
 
 ## Stop and ask Din before
 
-Generating images with Codex (it uses Din's quota), committing, creating a GitHub remote, pushing, deploying, adding a paid service, or deleting or overwriting anything unrelated to the task.
+Generating images with Codex (it uses Din's quota), creating a GitHub remote, pushing, opening or merging PRs, deploying, adding a paid service, or deleting or overwriting anything unrelated to the task.
+
+Local commits need no approval: commit at each working checkpoint as you go (Din, 2026-10-21). Never add attribution trailers such as `Co-Authored-By` to commits or PR descriptions.
