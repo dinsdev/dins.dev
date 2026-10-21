@@ -4,6 +4,39 @@ Decisions and why, work done, verification results, approvals, blockers, handoff
 
 ## 2026-10-21
 
+### Din's decisions on the plans' open questions (Din, 2026-10-21)
+
+- **Decided (Din):** "Go with your recommendations, then push and open the PR", covering all 35 open questions across M1, M2, M3 and M5. Each plan's "Open questions for Din" section records its answers. Where a question had no recommendation, the plan's default stands: the structured-data name stays Din's task D5 and no photo is used; the theme toggle stays; Quiet Ottie sits under the first Ottie; and a 4x CPU slowdown stands in for a mid-range phone if Din's phone is a flagship.
+- **Requirement changes (PRD updated):**
+  - static filter pages at `/work/kind/<kind>/`;
+  - `/contact/sent/` and `/contact/not-sent/` landing pages;
+  - previews show drafts and are never indexed;
+  - no separate `devlog` flag (the kind decides);
+  - an optional `project` on library entries;
+  - `sample` entries never in the production index; Din keeps the samples Din likes as real entries after approving them;
+  - Haiku with thinking off;
+  - thumbs sent to `/api/ask-feedback`, and declined questions logged like any other;
+  - injection resistance a 100 percent release bar after the first baseline;
+  - $100 monthly on a production-only Anthropic workspace, and an eval workspace at $5 ($10 in December) behind `ANTHROPIC_EVAL_API_KEY`;
+  - the greeting on the first page with a greeting Ottie, the wave once per later session, and run-in loaded first on a first visit;
+  - nap after 6 background clicks within 4 seconds;
+  - a second Ottie by the letter on home.
+- **Other decisions:**
+  - mirrored point is built but stays off until Din approves it in the lab;
+  - no talk while streaming;
+  - English-only Ottie lines in v1;
+  - bge-m3 download and a one-run Workers AI read token approved;
+  - the built index committed with freshness checks;
+  - rate limits of 6 questions and 20 thumbs a minute per visitor;
+  - a fresh Turnstile token per question;
+  - suggested-answer library sources link to `/about/`;
+  - soft go-live December 3 and launch December 10;
+  - Cloudflare's AI crawler blocks off;
+  - demos self-hosted;
+  - UptimeRobot for uptime.
+- **Still to confirm before launch:** Haiku 5.5's prices on Anthropic's pricing page (M5).
+- **Reviews for Din, not blockers:** Ottie's French fixed lines (task 2.13d) and Ottie's lines (2.12a).
+
 ### Milestone plans written and reconciled (Claude, 2026-10-21)
 
 - **Done:** six implementation plans in `docs/site/plans/`, one per milestone, each written by its own Claude session in its own worktree, planning only (nothing built, nothing pushed). M0 Foundation, 1,901 lines; M1 Pages and content, 4,644; M2 Ottie, 3,548; M3 Ask Ottie, 8,577 (36 tasks); M4 Set pieces, 3,130; M5 Hardening and launch, 2,195. Each plan lists its decisions, its assumptions about the others, Din's open questions and the doc updates it asked for.
@@ -33,7 +66,7 @@ Decisions and why, work done, verification results, approvals, blockers, handoff
 
   Each plan's session amends its own file to match.
 - **Docs updated:** `docs/site/PLAN.md` (plans folder, `src/pages/api/`, `rag/` contents, preview environment, secrets, M2 lab page and cues, M4 contact-first and release flags, Din's new dependencies), `docs/site/PRD.md` (the Vitest package, the 100 KB definition and the no-JavaScript letter, all approved above) and `docs/TASKS.md` (plan links, rows for Din's dependencies, M4 split into gates, 1.12 marked Implemented).
-- **Held back until Din answers or the code exists:**
+- **Held back until Din answers or the code exists** (the PRD and plan items were applied once Din answered; see the entry above):
   - PRD changes that depend on open questions (M1's preview drafts and routes, M2's load order and greeting rules, M3's sample entries and project filter, M5's spend limit wording and go-live dates).
   - The `AGENTS.md` commands, which land with the milestone that creates them.
   - The CAA records in `docs/PLAN.md`.
@@ -47,7 +80,7 @@ Decisions and why, work done, verification results, approvals, blockers, handoff
   - `MotionHead` lives in `BaseLayout`.
 
   Every plan was checked by grep afterwards: none of the retired names (`Base.astro`, `PUBLIC_DEPLOY_ENV`, `instance="letter"`, `detail.cue`, `/contact/error/`, `contact/parse.ts`, `style` attributes and the rest) remain except in sentences saying they are gone.
-- **Open questions for Din (35):** M0 none (all 7 decided), M1 6, M2 8 (number 8 added in round 2), M3 15 (number 7 is settled by the contract), M4 none (all 10 decided), M5 6 (3 and 4 decided through M4, and 9 settled by the contract). Each plan's "Open questions for Din" section has the full text.
+- **Open questions for Din (35):** answered by Din the same day (see "Din's decisions on the plans' open questions" above).
 
 ### Domain bought, Wrangler installed, commit rule (Din, Claude, 2026-10-21)
 

@@ -68,9 +68,9 @@ Status vocabulary: Proposed, Planned, In progress, Implemented, Verified, Accept
 | 2.12a | Review Ottie's lines | Planned (Din, M2) |
 | 2.12b | Approve Ottie in the preview | Planned (Din, M2) |
 | 2.13 | M3 Ask Ottie: RAG build, Worker API, D1, budget, streaming UI, evals. Plan: `docs/site/plans/M3-ask-ottie.md` | Planned (Nov 6 to 22); plan written |
-| 2.13a | Approve the bge-m3 model download (about 2.3 GB) | Planned (Din, M3) |
-| 2.13b | Anthropic eval workspace (about $5) and the GitHub secret `ANTHROPIC_EVAL_API_KEY` | Planned (Din, M3) |
-| 2.13c | A read-only Workers AI token in Din's shell for one agreement test | Planned (Din, M3) |
+| 2.13a | Approve the bge-m3 model download (about 2.3 GB) | Done (Din approved, 2026-10-21) |
+| 2.13b | Anthropic eval workspace ($5 a month, $10 in December) and the GitHub secret `ANTHROPIC_EVAL_API_KEY` | Planned (Din, M3; name and limits approved 2026-10-21) |
+| 2.13c | A read-only Workers AI token in Din's shell for one agreement test | Approved (Din, 2026-10-21); Din creates it at M3 Task 14 |
 | 2.13d | Review the sample library entries and Ottie's French fixed lines | Planned (Din, M3) |
 | 2.14 | M4 Set pieces, each approved by Din. Plan: `docs/site/plans/M4-set-pieces.md` | Planned (Nov 13 to 29); plan written, Din's answers to its 10 questions recorded |
 | 2.14a | Shared foundation and contact delivery (`/api/contact`, the plain letter) | Planned |

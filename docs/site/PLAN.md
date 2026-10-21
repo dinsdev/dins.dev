@@ -33,8 +33,8 @@ A pnpm workspace with `site/` as its first package, so game pages can join later
 | Environment | Where | Answer backend | Data |
 |---|---|---|---|
 | Local | `wrangler dev` through Astro | Fake by default, real API with a dev key when asked | Local D1 |
-| Preview | Workers Builds Preview per branch (the `previews` block in `wrangler.jsonc`), not indexed | Fake | Preview D1 `dins-site-preview` |
-| Production | Workers Builds from `main` on `dins.dev` | Anthropic API, $100 limit | Production D1 |
+| Preview | Workers Builds Preview per branch (the `previews` block in `wrangler.jsonc`), not indexed, no analytics beacon | Fake | Preview D1 `dins-site-preview` |
+| Production | Workers Builds from `main`, on `workers.dev` (not indexed) until the soft go-live, then `dins.dev`. Deploys only through Workers Builds. | Anthropic API, $100 limit | Production D1 |
 
 Secrets: the Anthropic key, the Turnstile secret and the contact recipient (`CONTACT_TO`) as Worker secrets per environment; the eval key as a GitHub Actions secret. No Cloudflare token in GitHub. Local and preview use Turnstile's test keys; local uses the real API only with `ASK_BACKEND=anthropic` in `.dev.vars`.
 
@@ -95,7 +95,9 @@ First, the shared foundation and contact delivery (`/api/contact` on the plain l
 
 ### M5. Hardening and launch (December 1 to 12)
 
-- Answer evals with Sonnet as judge on the final library; fix what fails.
+- Answer evals with Sonnet as judge on the final library; fix what fails. Injection resistance is a 100 percent release bar.
+- M5 owns the security headers and the CSP: one module, `_headers` for static assets plus middleware for Worker responses.
+- **Soft go-live Thursday December 3:** `dins.dev` attached unannounced and indexing switched on (`SITE_LAUNCHED`), so every check runs on the production URL and Search Console sees a live sitemap. **Launch December 10** (Din, 2026-10-21). The domain change has its own branch, `feat/m5-go-live`.
 - VoiceOver pass, a real phone check, final performance traces.
 - Production keys and spend caps; security headers checked; Search Console and Bing verified with the sitemap (task 1.13); Cloudflare Web Analytics and the uptime monitor on.
 - **Verify:** every acceptance criterion in PRD section 7, with results in the ledger. Live by December 12.

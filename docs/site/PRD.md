@@ -21,11 +21,11 @@ Success: the site is live by **December 12, 2026**; it reads as one brand; Ask O
 ### Routes
 
 - `/`: the home page (section 2.2).
-- `/work`: every published project as a grid of windows, filterable by ML, data engineering, data science and research.
+- `/work`: every published project as a grid of windows, filterable by ML, data engineering, data science and research. Each filter is a static page at `/work/kind/<kind>/`, shown only for kinds that have projects (Din, 2026-10-21).
 - `/work/<project>`: the case study. It opens with the project's window and live demo, then a summary block (problem, Din's role, stack, results with real numbers), then the story. At the bottom, an "Ask Ottie about this project" bar that only searches that project's sources (retrieval filtered by metadata).
 - `/writing` and `/writing/<post>`: case studies, devlogs and notes, with an RSS feed.
 - `/about`: opens on the studio's zoomed-in screen, then bio, an education and experience timeline (the thesis appears here and as a research project), skills, English and French, and a resume download.
-- `/contact`: the letter (section 2.2), also reachable as its own page.
+- `/contact`: the letter (section 2.2), also reachable as its own page. `/contact/sent/` and `/contact/not-sent/` are the landing pages for a form post (not indexed, not in the sitemap).
 - `/privacy` (short and plain), a 404 page where Ottie shrugs.
 - SEO files: `sitemap.xml`, `robots.txt`, `llms.txt`, `/.well-known/security.txt`, RSS.
 
@@ -49,11 +49,11 @@ Typed Astro content collections in the repo, no CMS. A missing or wrong field fa
 | Collection | Format | Fields (main) |
 |---|---|---|
 | `projects` | MDX | title, kind (ML, data engineering, data science, research), summary, role, stack, results, featured order, demo (live, chart or video), stage capture (16:10), repo link, `status: draft / published` |
-| `writing` | MDX | title, kind (case study, devlog, note), date, summary, motif, optional linked project, `devlog` (uses social card C), `status` |
-| `library` | Markdown, one topic per file | topic or question, approved text, audience tags, sources, language, `approved_on` (set by Din only). Never rendered as a page. |
+| `writing` | MDX | title, kind (case study, devlog, note; devlogs use social card C), date, summary, motif, optional linked project, `status` |
+| `library` | Markdown, one topic per file | topic or question, approved text, audience tags, sources, language, optional `project` (a project id, for the project Ask bar), `approved_on` (set by Din only), `sample` (development samples, never in the production index). Never rendered as a page. |
 | `suggested` | YAML | suggested questions and their reviewed static answers with sources |
 
-- Drafts never render in production, so placeholder projects (`passfx`, `claude-runner`, `claudehome`) cannot ship.
+- Drafts never render in production, so placeholder projects (`passfx`, `claude-runner`, `claudehome`) cannot ship. Preview deploys show drafts with a "Draft" badge and are never indexed, so Din can review them (Din, 2026-10-21).
 - Every project needs a stage capture: a demo or video that works in a 16:10 window.
 - Ottie's corpus is the library plus the published project and writing pages, so the site and Ottie speak from the same approved source.
 - The library is public in this repo (Din, 2026-10-21).
@@ -87,17 +87,17 @@ The interview questions with Din's approved answers become the golden eval set; 
 
 ### Cost and safety
 
-- A $100 hard limit on the Anthropic console, a daily budget of about $1 in the Worker (roughly 2,500 answers), answers capped at about 350 tokens, questions at 300 characters, the last 3 turns kept, the system prompt cached. Expected cost is about $0.0004 per answer.
+- A $100 monthly spend limit on an Anthropic workspace that holds only the production key (Anthropic's limits are per workspace, not per key; Din, 2026-10-21), a daily budget of about $1 in the Worker (roughly 2,500 answers), answers capped at about 350 tokens, questions at 300 characters, the last 3 turns kept, the system prompt cached. The model is Claude Haiku (`claude-haiku-5-5`) with thinking off. Expected cost is about $0.0004 per answer.
 - No tools and no side effects; the corpus is public, so a prompt injection has nothing secret to reach.
 - Answers render as plain text with simple formatting, never raw HTML.
 - When the API is down or the budget is spent, Ottie is "resting" and shows the best-matching pages as links plus Din's contact links. When Workers AI is down, search falls back to keywords only.
-- An anonymous question log (question, sources used, scores, thumbs up or down; no IP address, no cookies) is kept for 30 days and disclosed on `/privacy`. It is how the eval set grows from real questions.
+- An anonymous question log (question, sources used, scores, thumbs up or down sent to `/api/ask-feedback`; no IP address, no cookies; declined questions are logged the same way) is kept for 30 days and disclosed on `/privacy`. It is how the eval set grows from real questions.
 
 ### Evals
 
 - **Golden set:** interview questions (English and some French) with Din's approved answers and the sources each should cite. **Adversarial set:** deny-list, off-topic, injection and unknown questions.
-- **Metrics and starting bars** (revisit after the first baseline): retrieval recall@6 at least 0.9, answer faithfulness at least 0.95 (a judge checks every claim against the retrieved chunks), 100 percent correct refusals on the deny-list, answering in the question's language, latency.
-- **When:** retrieval evals on every PR (no model cost). Answer evals on demand and before each release, in GitHub Actions on manual trigger, with a separate eval key (spend cap about $5) stored as a GitHub secret. Haiku judges routine runs; Sonnet judges release runs.
+- **Metrics and starting bars** (revisit after the first baseline): retrieval recall@6 at least 0.9, answer faithfulness at least 0.95 (a judge checks every claim against the retrieved chunks), 100 percent correct refusals on the deny-list, 100 percent injection resistance from the first release after the baseline (Din, 2026-10-21), answering in the question's language, latency.
+- **When:** retrieval evals on every PR (no model cost). Answer evals on demand and before each release, in GitHub Actions on manual trigger, with a separate eval key (a workspace capped at about $5 a month, $10 in December for the release runs) stored as the GitHub secret `ANTHROPIC_EVAL_API_KEY`. Haiku judges routine runs; Sonnet judges release runs.
 
 ## 4. Ottie on the site
 
@@ -105,13 +105,13 @@ Ottie is the 3D character in `brand/ottie/dist/` (twelve states, accepted by Din
 
 | State | When |
 |---|---|
-| run-in, then wave | First visit: "Hi, I'm Ottie." Returning visitors get just the wave. |
+| run-in, then wave | First visit, on the first page with a greeting Ottie: "Hi, I'm Ottie." Later browser sessions get just the wave on their first Ottie page; other pages in a session start in idle. |
 | idle | Default: breathing, blinks, small weight shifts |
 | think | While Ottie retrieves |
 | nod, then point | When an answer lands; points toward the sources |
 | talk | While a speech bubble shows |
 | shrug | "Don't know" answers and the 404 page |
-| nap, then wake | A minute with nothing happening, or lots of background clicking; wakes on the next real interaction |
+| nap, then wake | A minute with nothing happening, or lots of background clicking (6 clicks on empty areas within 4 seconds); wakes on the next real interaction |
 | point, then jump | Contact: points at the letter; jumps when it is sent |
 | poke | Clicking Ottie: a small hop and a random line |
 | tip (idle plus a bubble) | About 20 seconds without interaction: one helpful line, at most 3 per visit |
@@ -124,11 +124,11 @@ Rules:
 - Decorative to screen readers; anything useful Ottie says also exists in the real UI.
 - Phones: smaller, below the questions, no tips or naps.
 - Eyes do not follow the cursor (they are rendered into the frames).
-- Appears on: home (hero corner), project pages (beside the project Ask bar), contact, 404, devlog posts. Not on the About studio, the writing list or formal pages.
+- Appears on: home (hero corner, plus a second Ottie beside the letter in the contact section; only one animates at a time), project pages (beside the project Ask bar), contact (beside the letter), 404, devlog posts. Not on the About studio, the writing list or formal pages.
 
 Loading (Din: "make sure Ottie loads good and the website is smooth"):
 - The neutral still (`brand/reference/ottie-3d-neutral.webp`, sized in advance) is in the HTML, so nothing shifts.
-- The idle sheet loads once the page is idle; wave is preloaded right after.
+- The idle sheet loads once the page is idle; wave is preloaded right after. On a first visit nothing moves until run-in is ready, so run-in loads first, then wave, then idle (Din, 2026-10-21).
 - Other states are fetched just before they are needed: think on focusing the question box, nod and shrug while an answer streams, nap after the idle timer, jump when the letter form is filled in.
 - Sheets decode off the main thread; playback pauses when Ottie is off screen or the tab is hidden. Sheet files are cached long term.
 - A typical visit loads about 0.6 to 0.9 MB of Ottie, not the full 2.4 MB.
@@ -158,7 +158,7 @@ Free-plan constraints shape two choices: the search index is binary (no JSON par
 - **Accessibility:** WCAG 2.2 AA. Every set piece has a calm version under reduced motion (no lens intro, the stage as a plain list, About opening on the screen, the letter as a plain form). Full keyboard access, a visible teal focus ring, a skip link, no focus traps in pinned sections. Ask Ottie answers are announced once complete. axe at zero violations, plus one manual VoiceOver pass before launch.
 - **Smoothness:** no layout shift (reserved boxes, metric-matched font fallbacks, two preloaded self-hosted WOFF2 fonts subset to Latin and French); animate only transform, opacity and canvas; 60 fps and no main-thread task over 50 ms through the set pieces on a 2020 laptop and a mid-range phone; at most 100 KB gzipped of first-party JavaScript on the home page before interaction (the initial module graph plus inline scripts; set-piece code loaded on scroll is reported, not gated); Save-Data or low-memory devices get the still Ottie and no lens intro. Lighthouse performance is reported but not a gate until the post-launch optimization pass (Din, 2026-10-21).
 - **SEO:** unique titles and descriptions, canonicals, sitemap, social cards generated at build time (card A by default, C for devlogs), Person structured data with `sameAs`, `llms.txt`; all content in real HTML. Lighthouse SEO 100.
-- **Privacy:** no cookies and no consent banner; the only outside scripts are Turnstile and Cloudflare Web Analytics; the question log as in section 3; contact messages are emailed, not stored; `/privacy` lists all of it in plain words.
+- **Privacy:** no cookies and no consent banner; the only outside scripts are Turnstile (`challenges.cloudflare.com`) and Cloudflare Web Analytics (production only); previews are never indexed; the question log as in section 3; contact messages are emailed, not stored; `/privacy` lists all of it in plain words.
 - **Security:** the Anthropic key as a Worker secret per environment, a strict content security policy, HSTS, `security.txt`, input limits, rate limit, Turnstile and budget on every API route.
 - **Failure modes:** readable with JavaScript off (suggested answers are static, the contact form still submits, and without JavaScript it explains how to email Din directly); Ottie resting when the API or budget is out; keyword-only search when Workers AI is down; the still Ottie when a sheet fails; the 404 with Ottie.
 
@@ -173,7 +173,7 @@ Din accepts the site when, on the production URL:
 5. axe reports zero violations, Lighthouse accessibility and SEO are 100, and the VoiceOver pass and a real phone check are done.
 6. The smoothness budget holds: the home page JavaScript budget passes in CI, and performance traces show 60 fps through the set pieces.
 7. The contact form delivers to `din@dins.dev`, and the site is verified in Search Console and Bing with a sitemap submitted.
-8. Spend limits are set: $100 on the production key, about $5 on the eval key, the daily budget active.
+8. Spend limits are set: $100 a month on the production workspace, about $5 on the eval workspace ($10 in December), the daily budget active.
 
 ## 8. Risks
 
