@@ -37,7 +37,7 @@ Decisions and why, work done, verification results, approvals, blockers, handoff
   - PRD changes that depend on open questions (M1's preview drafts and routes, M2's load order and greeting rules, M3's sample entries and project filter, M5's spend limit wording and go-live dates).
   - The `AGENTS.md` commands, which land with the milestone that creates them.
   - The CAA records in `docs/PLAN.md`.
-- **Open questions for Din:** M1 has 8, M2 has 7, M3 has 15 and M5 has 8, 34 in all once M1's question 2 and M5's questions 3 and 4 are counted as already answered through M4's decisions. Each plan's "Open questions for Din" section has them.
+- **Open questions for Din:** M1 has 8, M2 has 7, M3 has 15 and M5 has 8, 35 still open, since M1's question 2 and M5's questions 3 and 4 were already answered through M4's decisions. Each plan's "Open questions for Din" section has them.
 
 ### Domain bought, Wrangler installed, commit rule (Din, Claude, 2026-10-21)
 
