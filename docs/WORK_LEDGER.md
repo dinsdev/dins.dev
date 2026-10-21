@@ -4,6 +4,84 @@ Decisions and why, work done, verification results, approvals, blockers, handoff
 
 ## 2026-10-21
 
+### Din's decisions on the plans' open questions (Din, 2026-10-21)
+
+- **Decided (Din):** "Go with your recommendations, then push and open the PR", covering all 35 open questions across M1, M2, M3 and M5. Each plan's "Open questions for Din" section records its answers. Where a question had no recommendation, the plan's default stands: the structured-data name stays Din's task D5 and no photo is used; the theme toggle stays; Quiet Ottie sits under the first Ottie; and a 4x CPU slowdown stands in for a mid-range phone if Din's phone is a flagship.
+- **Requirement changes (PRD updated):**
+  - static filter pages at `/work/kind/<kind>/`;
+  - `/contact/sent/` and `/contact/not-sent/` landing pages;
+  - previews show drafts and are never indexed;
+  - no separate `devlog` flag (the kind decides);
+  - an optional `project` on library entries;
+  - `sample` entries never in the production index; Din keeps the samples Din likes as real entries after approving them;
+  - Haiku with thinking off;
+  - thumbs sent to `/api/ask-feedback`, and declined questions logged like any other;
+  - injection resistance a 100 percent release bar after the first baseline;
+  - $100 monthly on a production-only Anthropic workspace, and an eval workspace at $5 ($10 in December) behind `ANTHROPIC_EVAL_API_KEY`;
+  - the greeting on the first page with a greeting Ottie, the wave once per later session, and run-in loaded first on a first visit;
+  - nap after 6 background clicks within 4 seconds;
+  - a second Ottie by the letter on home.
+- **Other decisions:**
+  - mirrored point is built but stays off until Din approves it in the lab;
+  - no talk while streaming;
+  - English-only Ottie lines in v1;
+  - bge-m3 download and a one-run Workers AI read token approved;
+  - the built index committed with freshness checks;
+  - rate limits of 6 questions and 20 thumbs a minute per visitor;
+  - a fresh Turnstile token per question;
+  - suggested-answer library sources link to `/about/`;
+  - soft go-live December 3 and launch December 10;
+  - Cloudflare's AI crawler blocks off;
+  - demos self-hosted;
+  - UptimeRobot for uptime.
+- **Still to confirm before launch:** Haiku 5.5's prices on Anthropic's pricing page (M5).
+- **Reviews for Din, not blockers:** Ottie's French fixed lines (task 2.13d) and Ottie's lines (2.12a).
+
+### Milestone plans written and reconciled (Claude, 2026-10-21)
+
+- **Done:** six implementation plans in `docs/site/plans/`, one per milestone, each written by its own Claude session in its own worktree, planning only (nothing built, nothing pushed). M0 Foundation, 1,901 lines; M1 Pages and content, 4,644; M2 Ottie, 3,548; M3 Ask Ottie, 8,577 (36 tasks); M4 Set pieces, 3,130; M5 Hardening and launch, 2,195. Each plan lists its decisions, its assumptions about the others, Din's open questions and the doc updates it asked for.
+- **Decided (Din, during planning):** M0's seven questions:
+  - `@cloudflare/vitest-plugin` with Vitest 4.1. `@cloudflare/vitest-pool-workers` is deprecated and renamed, so the earlier reason for pinning 4.1 no longer holds; Vitest 5 is a later upgrade.
+  - Keep the `previews` block, not `env.preview`.
+  - Approved the fallback font names in the tokens.
+  - Keep the pinned font axes and the size budgets.
+  - Production deploys to `workers.dev` from M0 on.
+  - Public previews.
+  - pnpm 12.
+
+  M4's ten questions: "Go with your recommendations on the open questions". That means no-JavaScript contact posts land on `/contact/not-sent/` with a mailto link, the recipient comes only from the `CONTACT_TO` secret, the envelope flies off while Ottie jumps, a second Ottie sits by the letter, the 100 KB rule covers the initial module graph plus inline scripts, the next piece's tests may start during a review, no blur, the lens intro plays once per session, the studio stays full on phones unless the trace drops frames, and stage snap is off.
+- **Reconciled (Claude):** the plans were written in parallel, so they disagreed where milestones meet. `docs/site/plans/README.md` is now the shared contract, and it wins over any plan. The fixes:
+  - one base layout name (`BaseLayout.astro`, M0's);
+  - one build-time deploy module (four plans had invented their own);
+  - one contact module (M1's `contact.ts`, message limit 4,000, `/contact/not-sent/`);
+  - M2's cue interface for Ottie, with the second Ottie as M2's `context="contact"`;
+  - M1's `data-setpiece` hooks;
+  - the `previews` block everywhere;
+  - `/sitemap.xml`;
+  - M3's real budget and backend names;
+  - one shared Turnstile client;
+  - M0's Playwright server and `chromium` project kept;
+  - no `style` attributes in server HTML, because M5's CSP blocks them;
+  - the two Python packages (`dins_rag` and `ottie_rag`) kept side by side.
+
+  Each plan's session amends its own file to match.
+- **Docs updated:** `docs/site/PLAN.md` (plans folder, `src/pages/api/`, `rag/` contents, preview environment, secrets, M2 lab page and cues, M4 contact-first and release flags, Din's new dependencies), `docs/site/PRD.md` (the Vitest package, the 100 KB definition and the no-JavaScript letter, all approved above) and `docs/TASKS.md` (plan links, rows for Din's dependencies, M4 split into gates, 1.12 marked Implemented).
+- **Held back until Din answers or the code exists** (the PRD and plan items were applied once Din answered; see the entry above):
+  - PRD changes that depend on open questions (M1's preview drafts and routes, M2's load order and greeting rules, M3's sample entries and project filter, M5's spend limit wording and go-live dates).
+  - The `AGENTS.md` commands, which land with the milestone that creates them.
+  - The CAA records in `docs/PLAN.md`.
+- **Round 2 (the sessions' review of the contract):** the sessions found real gaps, and they are now in the contract and the plans:
+  - production on `workers.dev` would have been indexed before launch, so `SITE_LAUNCHED = false` keeps it `noindex` until M5's soft go-live;
+  - previews would have rendered the production Turnstile site key, so `siteKey()` now follows the deploy;
+  - the hero Ottie's idle could have set off the envelope, so `ottie:state` carries the host's context;
+  - CI's `serve` would have run on production vars, so the `e2e` job copies `.dev.vars.example`;
+  - a newline in the contact name could reach an email header, so names are collapsed;
+  - the library keeps `approved_on` as its review flag;
+  - `MotionHead` lives in `BaseLayout`.
+
+  Every plan was checked by grep afterwards: none of the retired names (`Base.astro`, `PUBLIC_DEPLOY_ENV`, `instance="letter"`, `detail.cue`, `/contact/error/`, `contact/parse.ts`, `style` attributes and the rest) remain except in sentences saying they are gone.
+- **Open questions for Din (35):** answered by Din the same day (see "Din's decisions on the plans' open questions" above).
+
 ### Domain bought, Wrangler installed, commit rule (Din, Claude, 2026-10-21)
 
 - **Done (Din):** bought `dins.dev` on Cloudflare (task 0.6). Verified: the .dev RDAP record shows Cloudflare as registrar, registered 2026-10-21, expiring 2027-10-21, so the term is 1 year rather than the planned 4; auto-renew is not visible from outside. Nameservers are Cloudflare's (`tom`, `paloma`). `wrangler login` succeeded. This clears the domain risk in the site plan; Email Routing (task 0.8) is next for the contact form.
@@ -16,7 +94,7 @@ Decisions and why, work done, verification results, approvals, blockers, handoff
 - **Section 8 agreed (Din):** milestones M0 Foundation (Oct 22 to 26), M1 Pages and content (Oct 27 to Nov 6), M2 Ottie on the site (Nov 2 to 12), M3 Ask Ottie (Nov 6 to 22), M4 Set pieces (Nov 13 to 29), a content track for Din (Nov 1 to Dec 1, freeze Dec 1), M5 Hardening and launch (Dec 1 to 12, live by Dec 12), then the performance pass. Fallbacks: a set piece not approved by Dec 1 ships as its calm version; unready projects stay drafts. Din's dependencies: Workers Builds authorization (M0), the domain and Email Routing by about Nov 12, Anthropic keys before M3, the interview in early November.
 - **Done:** `docs/site/PRD.md` (sections 1 to 8 with acceptance criteria) and `docs/site/PLAN.md` (layout, environments, milestones with verification, dependencies, fallbacks), kept separate from the setup PRD, which says the site gets its own. TASKS rows 2.10 to 2.17.
 - **Reconciled while writing:** section 1's project `placeholder` or `real` status became section 5's `draft` or `published`; library entry fields merge both sections (question or topic, approved text, audience tags, sources, language, `approved_on`).
-- **Go-ahead (Din):** "Now let's start on the plans. But we'll do each one in their own worktree concurrently." Milestones run as separate Claude sessions, each in its own git worktree and branch, writing its implementation plan to `docs/site/plans/` before building. They start in dependency order: M0 (foundation) and the Python RAG build first, since they touch separate folders; M1, M2 and the Ask Ottie runtime once M0 is merged; M4 after M1 and M2.
+- **Go-ahead (Din):** "Now let's start on the plans. But we'll do each one in their own worktree concurrently." Milestones run as separate Claude sessions, each in its own git worktree and branch, writing its implementation plan to `docs/site/plans/` before building. They start in dependency order: M0 (foundation) and the Python RAG build first, since they touch separate folders; M1, M2 and the Ask Ottie runtime once M0 is merged; M4 after M1 and M2. **Correction (same day):** Din then said "Oh no not building. Writing the plan for each": all six sessions wrote plans at the same time, and nothing was built. Building starts later, in the order above.
 - **Working rule (Din):** "local commits are fine as you go. Only pushing to github requires permission." `AGENTS.md` updated to match (see the entry above).
 
 ### Site brainstorm, section 7: testing and CI (Din and Claude, 2026-10-21)
