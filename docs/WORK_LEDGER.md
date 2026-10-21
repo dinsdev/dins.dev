@@ -4,6 +4,16 @@ Decisions and why, work done, verification results, approvals, blockers, handoff
 
 ## 2026-10-21
 
+### Email Routing rules for dins.dev (Claude, 2026-10-21)
+
+- **Asked (Din):** set up the agreed addresses, everything to `dind.dev@gmail.com` (task 0.8).
+- **Access:** the earlier `wrangler login` had no Email Routing scope. Din logged in again with the same scopes plus `email_routing:write` and `email_sending:write` (the second one is for task 0.9).
+- **Found already in place:** Email Routing was enabled on the zone (status `ready`, since 05:37 UTC today), with Cloudflare's three MX records, the SPF record (`include:_spf.mx.cloudflare.net ~all`) and the `cf2024-1._domainkey` DKIM record. `dind.dev@gmail.com` was already a verified destination (verified 2025-12-15), so no verification click was needed.
+- **Done:** four literal rules forwarding to `dind.dev@gmail.com`: `din@`, `dinesh@`, `hello@`, `support@`. The catch-all changed from disabled (drop) to enabled (forward to the same inbox). Done with `wrangler email routing` (4.151.2, open beta commands).
+- **Verified:** `rules list` shows the four rules and the catch-all as enabled; public DNS returns the three MX records and the SPF record.
+- **Not verified yet:** an actual message arriving from an outside sender.
+- **Noted for 0.9:** there is no `_dmarc.dins.dev` record yet. The catch-all will collect spam sent to made-up addresses; switching it back to drop is one command if it gets noisy.
+
 ### Holding page live on dins.dev (Claude, 2026-10-21)
 
 - **Go-ahead (Din):** PR 5 merged (bc05a86), then "Yes, deploy the holding page to dins.dev from here and verify it's live."
