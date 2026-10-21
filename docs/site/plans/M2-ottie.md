@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task by task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-Status: Proposed (plan only, 2026-10-21). Nothing here is built yet. Task 2.12 in `docs/TASKS.md`.
+Status: Proposed (plan only, 2026-10-21). Nothing here is built yet. Task 2.12 in `docs/TASKS.md`. Amended the same day to match the shared contract in `docs/site/plans/README.md` ("Ottie (owner M2)"); where this plan and the contract differ, the contract wins.
 
 **Goal:** Put the accepted 3D Ottie on dins.dev as a small, framework-free canvas player that plays the twelve states on their triggers, loads lazily without layout shift or long tasks, and gives M3 and M4 a tiny event interface to drive it.
 
@@ -35,11 +35,11 @@ Status: Proposed (plan only, 2026-10-21). Nothing here is built yet. Task 2.12 i
 
 The five conditions most likely to bite a visitor that the spec implies but does not spell out. Each has a test in the task named.
 
-1. **Storage is blocked** (Safari private mode, strict privacy settings): Ottie still works, never greets on every page and never throws. Pinned in Task 8 (throwing storage) and Task 13 (pre-paint script).
-2. **A sheet fails or is slow** (offline, flaky phone network): Ottie never vanishes or goes blank; the still shows, and on a first visit the hidden still comes back within 4 seconds. Pinned in Task 5 (loader failure), Task 11 (fallbacks) and Task 13 (aborted `run-in.webp`).
+1. **Storage is blocked** (Safari private mode, strict privacy settings): Ottie still works, never greets on every page and never throws. Pinned in Task 8 (throwing storage) and Task 14 (pre-paint script).
+2. **A sheet fails or is slow** (offline, flaky phone network): Ottie never vanishes or goes blank; the still shows, and on a first visit the hidden still comes back within 4 seconds. Pinned in Task 5 (loader failure), Task 12 (fallbacks) and Task 14 (aborted `run-in.webp`).
 3. **Rapid repeated input** (poke spam, submit while an answer streams, a burst of cues): no stuck state, at most one bubble per 20 seconds, Ottie returns to idle. Pinned in Task 3 (play spam) and Task 9 (poke spam).
-4. **JavaScript off or the player script fails**: the still keeps its reserved box, the Quiet toggle stays hidden. Pinned in Task 13 (`javaScriptEnabled: false`).
-5. **Narrow or dense screens** (375 px, zoom, device pixel ratio 3): no horizontal scroll from the run-in canvas, Ottie never overlaps `[data-ottie-avoid]`, canvas stays sharp. Pinned in Task 13 (layout checks at 375 and 1280 px with `deviceScaleFactor: 3`).
+4. **JavaScript off or the player script fails**: the still keeps its reserved box, the Quiet toggle stays hidden. Pinned in Task 14 (`javaScriptEnabled: false`).
+5. **Narrow or dense screens** (375 px, zoom, device pixel ratio 3): no horizontal scroll from the run-in canvas, Ottie never overlaps `[data-ottie-avoid]`, canvas stays sharp. Pinned in Task 14 (layout checks at 375 and 1280 px with `deviceScaleFactor: 3`).
 
 Also pinned: a tab hidden for minutes never fast-forwards Ottie or fires a nap the moment it returns (Task 3 `advance` cap, Task 10 tick cap).
 
@@ -60,7 +60,10 @@ These are Claude's calls to make the PRD buildable. Each is cheap to change; the
 9. **Thresholds** (constants, tuned by Din in the preview): tip after 20 s of quiet, talk prefetched at 15 s, nap prefetched at 45 s and played at 60 s, "lots of background clicking" is 6 clicks on non-interactive areas within 4 s, typing silences bubbles for 2 s after the last keystroke, one tip per quiet stretch.
 10. **Reduced motion uses key poses**, one drawing per state (table in `poses.ts`, Din picks the final drawings in the lab): run-in, poke, talk and wake have no pose and are skipped; idle is the still image itself, so reduced motion never loads the idle sheet.
 11. **Point is drawn toward screen right only** (ledger, 2026-10-20). The player can mirror it, but mirroring stays off (`MIRROR_POINT_APPROVED = false`) until Din approves it.
-12. **A lab page** at `/lab/ottie` (plus `/project`, `/contact`, `/devlog`, `/404`, `/blank`) hosts the end-to-end tests and Din's review. It is built everywhere except production builds from `main`.
+12. **A lab page** at `/lab/ottie` (plus `/project`, `/contact`, `/devlog`, `/404`, `/blank`) hosts the end-to-end tests and Din's review. It is built unless the shared build-time deploy (contract, "Build-time deploy") is `production`, with a `DINS_LABS` override.
+13. **More than one Ottie on a page** (Din, 2026-10-21, M4 decision 4, in the contract): home has the hero Ottie (`context="home"`) and the letter Ottie in `#contact` (`context="contact"`); `/contact` has only the letter Ottie. One page controller runs every host: `ask:*` cues go to `home` and `project` hosts, `letter:*` cues to `contact` hosts; only the page's first host greets, and a `contact` host always starts in idle; all hosts share one loader; at most one host animates at a time (the one most in view), and the others show their still. A second host starts (and prefetches) only when it first becomes the active host, so home's first-visit network order stays run-in, wave, idle.
+14. **No `style` attributes** (M5's CSP drops them): the component's sizes come from a build-time `<style>` element (hashed by Astro's CSP) and from classes; runtime positions (the bubble) are set from JavaScript, which the CSP allows.
+15. **`<html data-motion="calm">`** (M4's review switch and calm mode) counts as reduced motion.
 
 ## The public interface (for M3, M4 and anyone else)
 
@@ -87,9 +90,10 @@ cueOttie("letter:sent");               // sent: jump
 |---|---|---|
 | `cueOttie(type, extra?)` | function | Dispatches `new CustomEvent("ottie:cue", { detail: { type, ...extra } })` on `window`. Safe during SSR (no `window`: no-op). |
 | `onOttieCue(handler)` | function | Subscribes to cues; returns an unsubscribe function. Used by the player. |
-| `onOttieState(handler)` | function | Subscribes to `ottie:state` (`detail.state` is the state Ottie just entered, or a reduced-motion pose). For M4's letter: wait for `jump` to end (`idle` after `jump`) before carrying the letter off. |
+| `onOttieState(handler)` | function | Subscribes to `ottie:state` (`detail.state` is the state Ottie just entered, or a reduced-motion pose; `detail.context` is the host's context, added so a page with two Otties can tell them apart). Handler signature: `(state: string, context: PageContext) => void`. For M4's letter: wait for `idle` after `jump` **with `context === "contact"`** before the envelope flies off, otherwise the hero Ottie's idle could arrive first. |
 | `[data-ottie-avoid]` | attribute | Put it on the question input, the answer panel and the letter. Bubbles never overlap these elements; the e2e tests check Ottie's box never does either. |
-| `[data-ottie-host]` | attribute | Ottie's reserved box. M4 may move it with `transform` for the carry-off; it must not change its size. |
+| `[data-ottie-host]` | attribute | Ottie's reserved box, with `data-ottie-context` (`home`, `project`, `contact`, `devlog`, `404`). A page may have more than one (home: hero and letter). M4 may move the contact host with `transform`; it must not change its size. |
+| Routing | rule | `ask:*` cues reach `home` and `project` hosts; `letter:*` cues reach `contact` hosts. A cue for a context the page does not have does nothing. |
 
 Unknown cue types are ignored. M3's planning note assumed state-named cues (`cueOttie("think")`); the mapping is: `think` = `ask:submit`, `nod` then `point` = `ask:answer` with sources, `shrug` = `ask:unknown`, `ask:resting` or `ask:error`, `idle` = `ask:reset`. M3's "talk while streaming" is not adopted: the PRD keeps talk for speech bubbles, so Ottie thinks until the answer lands.
 
@@ -109,29 +113,33 @@ Unknown cue types are ignored. M3's planning note assumed state-named cues (`cue
 | `site/src/ottie/lines.ts` | Line types, `pickLine`, `lintLine` | `lines.test.ts` |
 | `site/src/ottie/bubble.ts` | 20 s gate, bubble duration, placement that avoids `[data-ottie-avoid]` | `bubble.test.ts` |
 | `site/src/ottie/prefs.ts` | Safe storage, Quiet Ottie, visit kind, tips count, mode (full, reduced, still) | `prefs.test.ts` |
-| `site/src/ottie/director.ts` | Rules: openers, cues, poke, tips, nap, wake, silence | `director.test.ts`, `director-quiet.test.ts` |
+| `site/src/ottie/director.ts` | Rules for one host: openers, cues, poke, tips, nap, wake, silence | `director.test.ts`, `director-quiet.test.ts` |
+| `site/src/ottie/hosts.ts` | Rules across hosts on a page: cue and interaction routing, which host greets, which host is active | `hosts.test.ts` |
+| `site/src/ottie/layout.ts` | Build-time sizes of the box, canvas and still as CSS (no `style` attributes) | `layout.test.ts` |
 | `site/src/ottie/still.ts` | Measured size and ground point of the inline still | Din's lab overlay check |
 | `site/src/ottie/source.ts` | Browser fetch and `createImageBitmap` decode | e2e |
 | `site/src/ottie/renderer.ts` | Canvas sizing and painting | e2e, Din |
-| `site/src/ottie/player.ts` | Shell: wires everything, rAF loop, observers, bubble DOM, listeners | e2e |
-| `site/src/ottie/boot.ts` | Entry: finds the host, Quiet toggle, starts the player | e2e |
+| `site/src/ottie/actor.ts` | One host in the browser: renderer, timeline, director, rAF loop, bubble DOM, reduced-motion poses | e2e |
+| `site/src/ottie/player.ts` | The page controller: shared loader and prefs, listeners, routing, the active host, pausing | e2e |
+| `site/src/ottie/boot.ts` | Entry: finds every host, Quiet toggle, starts the player | e2e |
 | `site/src/components/Ottie.astro` | Reserved box, inline still, canvas, bubble, Quiet toggle, pre-paint script, styles | e2e, Din |
-| `site/src/lib/lab.ts` | Whether lab pages are built | `tests/unit/lab.test.ts` |
+| `site/src/lib/lab.ts` | Whether lab pages are built (from M0's shared deploy) | `tests/unit/lab.test.ts` |
 | `site/src/pages/lab/ottie/[...slug].astro` | Ottie lab (tests and Din's review) | e2e |
 | `site/public/_headers` | Long-term caching for `/ottie/*` | curl on the preview |
 | `site/tests/unit/ottie/fixtures.ts` | Synthetic manifests and helpers for tests | n/a |
-| `site/tests/e2e/ottie.spec.ts` | Behaviour, network order, a11y, resilience, layout | Playwright |
+| `site/tests/e2e/ottie.spec.ts` | Behaviour, network order, two Otties, a11y, resilience, layout | Playwright |
+| `site/tests/e2e/ottie-routes.spec.ts` | Ottie on the right routes, the hero size, phones (after M1) | Playwright |
 | `site/tests/e2e/ottie-perf.spec.ts` | Long tasks, layout shift, trace, JavaScript cost | Playwright (Chromium) |
 
-Modified: `site/astro.config.mjs` (one `vite.define`), `site/src/env.d.ts` (one `declare const`), and in Task 15 the page and layout files M1 creates.
+Modified: `site/astro.config.mjs` (one `vite.define` for the `DINS_LABS` override), `site/src/env.d.ts` (one `declare const`), and in Task 16 the pages that use M1's `OttieSlot.astro` (which Task 16 deletes) and their e2e specs.
 
 ## Order and dependencies
 
-- Tasks 1 to 10 are pure TypeScript and need only M0's Vitest setup. Task 1 should land first and early so M3 and M4 can import `events.ts`.
-- Tasks 11 to 14 need M0's Astro app, base layout and Playwright setup.
-- Task 15 needs M1's pages merged.
-- Tasks 16 and 17 are Din's; Task 18 closes the milestone.
-- Calendar (PLAN.md M2, November 2 to 12): Tasks 1 to 10 by about November 5, 11 to 14 by November 9, 15 once M1 lands, Din's review November 10 to 12.
+- Tasks 1 to 11 are pure TypeScript and need only M0's Vitest setup. Task 1 should land first and early so M3 and M4 can import `events.ts`.
+- Tasks 12 to 15 need M0's Astro app, base layout and Playwright setup.
+- Task 16 needs M1's pages merged.
+- Tasks 17 and 18 are Din's; Task 19 closes the milestone.
+- Calendar (PLAN.md M2, November 2 to 12): Tasks 1 to 11 by about November 5, 12 to 15 by November 9, 16 once M1 lands, Din's review November 10 to 12.
 
 Unit test command used throughout: `pnpm --dir site exec vitest run <file>`. All unit tests: `pnpm --dir site test`. End to end: `pnpm --dir site test:e2e`.
 
@@ -146,7 +154,7 @@ Unit test command used throughout: `pnpm --dir site exec vitest run <file>`. All
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: `OTTIE_CUE = "ottie:cue"`, `OTTIE_STATE = "ottie:state"`, `type OttieCueType`, `interface OttieCueDetail { type: OttieCueType; sources?: number }`, `cueOttie(type: OttieCueType, extra?: { sources?: number }): void`, `onOttieCue(handler: (cue: OttieCueDetail) => void): () => void`, `onOttieState(handler: (state: string) => void): () => void`, `isCueType(value: unknown): value is OttieCueType`.
+- Produces: `OTTIE_CUE = "ottie:cue"`, `OTTIE_STATE = "ottie:state"`, `type OttieCueType`, `interface OttieCueDetail { type: OttieCueType; sources?: number }`, `cueOttie(type: OttieCueType, extra?: { sources?: number }): void`, `onOttieCue(handler: (cue: OttieCueDetail) => void): () => void`, `interface OttieStateDetail { state: string; context: string }`, `onOttieState(handler: (state: string, context: string) => void): () => void`, `isCueType(value: unknown): value is OttieCueType`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -169,12 +177,12 @@ describe("ottie events", () => {
     expect(seen).toEqual([{ type: "ask:answer", sources: 2 }, { type: "ask:submit" }]);
   });
 
-  it("reports state changes", () => {
+  it("reports state changes with the host's context", () => {
     const seen: string[] = [];
-    const off = onOttieState((s) => seen.push(s));
-    window.dispatchEvent(new CustomEvent(OTTIE_STATE, { detail: { state: "jump" } }));
+    const off = onOttieState((s, ctx) => seen.push(`${ctx}:${s}`));
+    window.dispatchEvent(new CustomEvent(OTTIE_STATE, { detail: { state: "jump", context: "contact" } }));
     off();
-    expect(seen).toEqual(["jump"]);
+    expect(seen).toEqual(["contact:jump"]);
   });
 
   it("knows which cue types exist", () => {
@@ -213,7 +221,7 @@ const CUE_TYPES = [
 
 export type OttieCueType = (typeof CUE_TYPES)[number];
 export interface OttieCueDetail { type: OttieCueType; sources?: number }
-export interface OttieStateDetail { state: string }
+export interface OttieStateDetail { state: string; context: string }
 
 export function isCueType(value: unknown): value is OttieCueType {
   return typeof value === "string" && (CUE_TYPES as readonly string[]).includes(value);
@@ -230,8 +238,12 @@ export function onOttieCue(handler: (cue: OttieCueDetail) => void): () => void {
   return () => window.removeEventListener(OTTIE_CUE, listener);
 }
 
-export function onOttieState(handler: (state: string) => void): () => void {
-  const listener = (e: Event) => handler((e as CustomEvent<OttieStateDetail>).detail.state);
+// A page can have two Otties (home: hero and letter), so check the context.
+export function onOttieState(handler: (state: string, context: string) => void): () => void {
+  const listener = (e: Event) => {
+    const { state, context } = (e as CustomEvent<OttieStateDetail>).detail;
+    handler(state, context);
+  };
   window.addEventListener(OTTIE_STATE, listener);
   return () => window.removeEventListener(OTTIE_STATE, listener);
 }
@@ -743,7 +755,7 @@ git commit -m "feat(ottie): port the preview's playback state machine with tests
 - Consumes: `geometry`, `offsetOf`, `shiftOf`, `Manifest`, `StateName` (Task 2); `FADE`, `Snapshot` (Task 3).
 - Produces: `interface DrawOp { state: StateName; sx; sy; sw; sh; dx; dy: number; alpha: number; mirror: boolean }` (all in stage frame pixels), `sourceRect(spec, i): [number, number, number, number]`, `drawOps(m, g, snap, opts: { mirrorPoint: boolean }): DrawOp[]`, `interface PoseStep { state: StateName | "still"; drawing: number; holdMs: number }`, `reducedPlan(m, states): PoseStep[]`, `MIN_POSE_MS = 1200`; from `poses.ts`: `KEY_POSE: Partial<Record<StateName, number>>`, `MIRROR_POINT_APPROVED = false`.
 
-The key poses below are first guesses from the hold lengths in the manifest; Din picks the final drawings in the lab (Task 17).
+The key poses below are first guesses from the hold lengths in the manifest; Din picks the final drawings in the lab (Task 18).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1163,7 +1175,7 @@ git commit -m "feat(ottie): load sheets in order, decode on demand and cache the
 - Consumes: nothing.
 - Produces: `type PageContext = "home" | "project" | "contact" | "devlog" | "404"`, `interface Lines { greeting: string[]; notFound: string[]; poke: string[]; tips: Record<PageContext, string[]> }`, `LINES: Lines`, `MAX_LINE_CHARS = 90`, `lintLine(line): string[]`, `pickLine(list, rng, used: Set<string>): string | undefined`.
 
-The lines below are **drafts in Ottie's voice** (first person, short, warm, a little nerdy, honest, about Din and never as Din). They are copy: Din reviews and rewrites them in Task 16 before anything ships. The greeting is fixed by the PRD.
+The lines below are **drafts in Ottie's voice** (first person, short, warm, a little nerdy, honest, about Din and never as Din). They are copy: Din reviews and rewrites them in Task 17 before anything ships. The greeting is fixed by the PRD.
 
 - [ ] **Step 1: Write the lines file**
 
@@ -1424,9 +1436,9 @@ git commit -m "feat(ottie): add bubble timing and placement that avoids the inpu
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: `KEYS = { quiet: "dins.ottie.quiet", seen: "dins.ottie.seen", session: "dins.ottie.session", tips: "dins.ottie.tips" }`, `PHONE_MAX_PX = 639`, `LOW_MEMORY_GB = 2`, `type Mode = "full" | "reduced" | "still"`, `type Visit = "first" | "returning" | "session"`, `interface StorageLike { getItem; setItem; removeItem }`, `interface SafeStorage { readonly ok: boolean; getItem(k): string | null; setItem(k, v): void }`, `safe(get: () => StorageLike | undefined): SafeStorage`, `localStore()`, `sessionStore()`, `readQuiet(ls)`, `writeQuiet(ls, on)`, `visitKind(ls, ss): Visit`, `markVisit(ls, ss, now?)`, `tipsShown(ss): number`, `recordTip(ss)`, `interface DeviceHints { reducedMotion: boolean; saveData: boolean; deviceMemory?: number; phone: boolean }`, `deviceHints(): DeviceHints` (browser only), `modeFor(quiet, hints): Mode`.
+- Produces: `KEYS = { quiet: "dins.ottie.quiet", seen: "dins.ottie.seen", session: "dins.ottie.session", tips: "dins.ottie.tips" }`, `PHONE_MAX_PX = 639`, `LOW_MEMORY_GB = 2`, `type Mode = "full" | "reduced" | "still"`, `type Visit = "first" | "returning" | "session"`, `interface StorageLike { getItem; setItem; removeItem }`, `interface SafeStorage { readonly ok: boolean; getItem(k): string | null; setItem(k, v): void }`, `safe(get: () => StorageLike | undefined): SafeStorage`, `localStore()`, `sessionStore()`, `readQuiet(ls)`, `writeQuiet(ls, on)`, `visitKind(ls, ss): Visit`, `markVisit(ls, ss, now?)`, `tipsShown(ss): number`, `recordTip(ss)`, `interface DeviceHints { reducedMotion: boolean; calm: boolean; saveData: boolean; deviceMemory?: number; phone: boolean }`, `deviceHints(): DeviceHints` (browser only; `calm` is `<html data-motion="calm">`, set before paint by M4's `MotionHead.astro`), `modeFor(quiet, hints): Mode`.
 
-Rules: when storage is blocked, the visit counts as `"session"` (no run-in, no greeting), so a visitor in private mode is never greeted on every page. The pre-paint script in Task 12 must agree with `visitKind` and `modeFor`; Task 13 checks that end to end.
+Rules: when storage is blocked, the visit counts as `"session"` (no run-in, no greeting), so a visitor in private mode is never greeted on every page. The pre-paint script in Task 13 must agree with `visitKind` and `modeFor`; Task 14 checks that end to end.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1487,7 +1499,7 @@ describe("quiet and tips", () => {
 });
 
 describe("modes", () => {
-  const hints = { reducedMotion: false, saveData: false, deviceMemory: 8, phone: false };
+  const hints = { reducedMotion: false, calm: false, saveData: false, deviceMemory: 8, phone: false };
   it("picks still, reduced or full", () => {
     expect(modeFor(false, hints)).toBe("full");
     expect(modeFor(true, hints)).toBe("still");
@@ -1496,6 +1508,10 @@ describe("modes", () => {
     expect(modeFor(false, { ...hints, deviceMemory: undefined })).toBe("full");
     expect(modeFor(false, { ...hints, reducedMotion: true })).toBe("reduced");
     expect(modeFor(true, { ...hints, reducedMotion: true })).toBe("still");
+  });
+  it("treats M4's calm switch like reduced motion", () => {
+    expect(modeFor(false, { ...hints, calm: true })).toBe("reduced");
+    expect(modeFor(false, { ...hints, calm: true, saveData: true })).toBe("still");
   });
 });
 ```
@@ -1557,12 +1573,14 @@ export function markVisit(ls: SafeStorage, ss: SafeStorage, now = Date.now()) {
 export const tipsShown = (ss: SafeStorage) => Number(ss.getItem(KEYS.tips)) || 0;
 export const recordTip = (ss: SafeStorage) => ss.setItem(KEYS.tips, String(tipsShown(ss) + 1));
 
-export interface DeviceHints { reducedMotion: boolean; saveData: boolean; deviceMemory?: number; phone: boolean }
+export interface DeviceHints { reducedMotion: boolean; calm: boolean; saveData: boolean; deviceMemory?: number; phone: boolean }
 
 export function deviceHints(): DeviceHints {
   const nav = navigator as Navigator & { connection?: { saveData?: boolean }; deviceMemory?: number };
   return {
     reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+    // M4's MotionHead sets data-motion before first paint (calm for ?calm, reduced motion, Save-Data, low memory).
+    calm: document.documentElement.dataset.motion === "calm",
     saveData: Boolean(nav.connection?.saveData),
     deviceMemory: nav.deviceMemory,
     phone: matchMedia(`(max-width: ${PHONE_MAX_PX}px)`).matches,
@@ -1571,14 +1589,14 @@ export function deviceHints(): DeviceHints {
 
 export function modeFor(quiet: boolean, h: DeviceHints): Mode {
   if (quiet || h.saveData || (h.deviceMemory !== undefined && h.deviceMemory <= LOW_MEMORY_GB)) return "still";
-  return h.reducedMotion ? "reduced" : "full";
+  return h.reducedMotion || h.calm ? "reduced" : "full";
 }
 ```
 
 - [ ] **Step 4: Run it to verify it passes**
 
 Run: `pnpm --dir site exec vitest run tests/unit/ottie/prefs.test.ts`
-Expected: PASS, 5 tests.
+Expected: PASS, 6 tests.
 
 - [ ] **Step 5: Commit**
 
@@ -1598,7 +1616,7 @@ git commit -m "feat(ottie): remember Quiet Ottie and visits, and pick the playba
 - Consumes: `StateName` (Task 2), `OttieCueDetail` (Task 1), `createBubbleGate`, `bubbleMs` (Task 7), `Lines`, `PageContext`, `pickLine` (Task 6), `Mode`, `Visit` (Task 8).
 - Produces: `interface DirectorEnv { mode: Mode; phone: boolean; context: PageContext; visit: Visit; tipsShown: number }`, `type Command = { kind: "prefetch"; states: StateName[] } | { kind: "play"; states: StateName[] } | { kind: "say"; text: string; ms: number; tip: boolean } | { kind: "hush" }`, `type Interaction = "pointer" | "key" | "scroll" | "background-click" | "poke"`, `interface Director { start(now): Command[]; entered(state: StateName, now): Command[]; cue(cue: OttieCueDetail, now): Command[]; interact(kind: Interaction, now): Command[]; tick(now): Command[]; bubbleDone(now): Command[] }`, `createDirector(env, lines, rng = Math.random): Director`, and the timing constants used in Task 10.
 
-The director is pure: it gets times as numbers and returns commands; the player (Task 11) runs them. Within one returned list, a `play` always comes before the `say` it belongs to, so if the bubble cannot be placed the player's `bubbleDone` can cancel the talk loop. Openers (decisions 6 and 7):
+The director is pure: it gets times as numbers and returns commands; the player (Task 12) runs them. Within one returned list, a `play` always comes before the `say` it belongs to, so if the bubble cannot be placed the player's `bubbleDone` can cancel the talk loop. Openers (decisions 6 and 7):
 
 | Visit and page | Prefetch (in order) | Play |
 |---|---|---|
@@ -1606,9 +1624,11 @@ The director is pure: it gets times as numbers and returns commands; the player 
 | Returning (new session) | idle, wave | wave |
 | Same session | idle, wave | nothing |
 | 404 page | idle, shrug | shrug, with a not-found line |
-| Contact page | adds point after the above | as above |
+| Contact host (the letter Ottie, on home and `/contact`) | idle, point | nothing: it starts in idle, never greets, and points on `letter:open` |
 | Reduced motion | only the opener's states, never idle or run-in | key poses |
 | Still mode (Quiet, Save-Data, low memory) | nothing | nothing |
+
+The visit a director sees comes from the page controller (`hostVisit` in Task 11, wired in Task 12): the page's first host gets the real visit, every other host gets `session`, so only the first host can greet.
 
 Cues: `ask:focus` prefetches think; `ask:typing` silences bubbles for 2 s; `ask:submit` hushes and plays think; `ask:stream` prefetches nod, point and shrug; `ask:answer` plays nod then point (nod alone without sources); `ask:unknown`, `ask:resting`, `ask:error` play shrug; `ask:reset` plays idle; `letter:open` prefetches and plays point; `letter:ready` prefetches jump; `letter:sent` plays jump. No bubble ever starts while typing or streaming.
 
@@ -1684,8 +1704,11 @@ describe("director openers", () => {
     expect(says(d.entered("shrug", 500))).toEqual([expect.objectContaining({ text: "nf1" })]);
   });
 
-  it("gets point ready on the contact page", () => {
-    expect(director({ context: "contact" }).opener).toEqual([prefetch("idle", "wave", "point"), play("wave")]);
+  it("starts the letter Ottie in idle with point ready, and never greets", () => {
+    const { d, opener } = director({ context: "contact", visit: "first" });
+    expect(opener).toEqual([prefetch("idle", "point")]);
+    expect(d.entered("wave", 100)).toEqual([]);
+    expect(director({ context: "contact", mode: "reduced", visit: "first" }).opener).toEqual([]);
   });
 });
 
@@ -1843,15 +1866,17 @@ export function createDirector(env: DirectorEnv, lines: Lines, rng: () => number
       if (still) return [];
       lastTick = now;
       const notFound = env.context === "404";
+      const letter = env.context === "contact"; // the letter Ottie starts in idle and never greets
       const opener: StateName[] = notFound ? ["shrug"]
+        : letter ? []
         : env.visit === "first" ? (reduced ? ["wave"] : ["run-in", "wave"])
         : env.visit === "returning" ? ["wave"] : [];
-      greetingPending = !notFound && env.visit === "first";
+      greetingPending = !notFound && !letter && env.visit === "first";
       notFoundPending = notFound;
-      const extra: StateName[] = env.context === "contact" ? ["point"] : [];
-      const order: StateName[] = reduced ? [...opener, ...extra]
-        : greetingPending ? ["run-in", "wave", "idle", ...extra]
-        : ["idle", notFound ? "shrug" : "wave", ...extra];
+      const order: StateName[] = reduced ? [...opener]
+        : greetingPending ? ["run-in", "wave", "idle"]
+        : letter ? ["idle", "point"]
+        : ["idle", notFound ? "shrug" : "wave"];
       const out: Command[] = [];
       if (order.length) out.push(prefetch(...order));
       if (opener.length) out.push(play(...opener));
@@ -2154,27 +2179,141 @@ git add site/src/ottie/director.ts site/tests/unit/ottie/director-quiet.test.ts
 git commit -m "feat(ottie): add tips, naps and waking to the director"
 ```
 
-### Task 11: The browser shell: source, renderer, player and boot
+### Task 11: Several Otties on one page: routing and the active host
 
 **Files:**
-- Create: `site/src/ottie/source.ts`, `site/src/ottie/renderer.ts`, `site/src/ottie/player.ts`, `site/src/ottie/boot.ts`
-- Test: covered end to end in Task 13 (these modules only wire DOM APIs to the tested logic).
+- Create: `site/src/ottie/hosts.ts`
+- Test: `site/tests/unit/ottie/hosts.test.ts`
 
 **Interfaces:**
-- Consumes: everything from Tasks 1 to 10.
-- Produces: `browserSource: SheetSource<Sheet>` where `type Sheet = CanvasImageSource & Decoded`; `createRenderer(canvas, m, g, mirrorPoint): { resize(): void; paint(ops: DrawOp[], get: (n: StateName) => Sheet | undefined): void; poses(from, to, t, get): void }`; `interface PlayerOptions { host: HTMLElement; context: PageContext; mirrorPoint: boolean; quiet: boolean; forceMode?: Mode }`; `startOttie(opts): () => void` (returns a stop function); `whenIdle(cb)`. DOM contract (rendered by Task 12): `[data-ottie-host]` holding `[data-ottie-still]`, `[data-ottie-canvas]` and `[data-ottie-bubble]`; a sibling `[data-ottie-quiet]` button. The host gets `is-live` while the canvas shows Ottie, `data-ottie-mode`, and `data-ottie-running="true|false"` (the e2e tests read these).
+- Consumes: `OttieCueType` (Task 1), `PageContext` (Task 6), `Visit` (Task 8), `Interaction` (Task 9).
+- Produces: `cueTargets(type: OttieCueType, contexts: PageContext[]): number[]`, `interactionTargets(kind: Interaction, count: number, active: number | null, poked: number | null): number[]`, `hostVisit(index: number, visit: Visit): Visit`, `pickActive(ratios: number[], current: number | null): number | null`.
 
-What the shell does, in order:
-1. Reads Quiet Ottie and the device hints, picks the mode, reads and marks the visit. In still mode it shows the still, clears `data-ottie-enter` and stops.
-2. Builds the loader (sheet URLs with the content version), renderer, timeline (rest: idle) and director.
-3. After `load` and an idle callback, runs `director.start()`; in full mode it also asks for idle (decoded) after the opener's sheets, so the request order is run-in, wave, idle on a first visit and idle, wave otherwise.
-4. Runs commands: `prefetch` goes to the loader; `play` waits for the sheets it needs (plus the current state's `exit_via`), then calls `timeline.play` (a newer play cancels an older one still waiting); `say` places the bubble with `placeBubble` and hides it after `ms`; `hush` hides it.
-5. Each animation frame (full mode): does nothing until the current state's sheet is decoded (the still stays up and the timeline does not move), then advances the timeline and repaints only when the picture changed. The first painted frame and the `is-live` class change happen in the same frame, so the still hands over to the canvas with no flash.
-6. Reduced mode: plays `reducedPlan` steps with a 400 ms crossfade (`--motion-slow`), the still standing in for idle.
-7. Pauses the frame loop and the 1 s director tick when the host is off screen (IntersectionObserver, 64 px margin) or the tab is hidden.
-8. Listens for pointer, key and scroll (passive, capture) to classify interactions, and for `ottie:cue`.
-9. On a first visit, if run-in has not started within 4 s, it drops run-in, shows the still and plays the wave.
-10. Emits `ottie:state` on every state entered (and on every reduced-motion pose).
+The contract's multi-host rules (Din, 2026-10-21, M4 decision 4) as pure functions, so the page controller in Task 12 only wires them up:
+- `ask:*` cues reach `home` and `project` hosts; `letter:*` cues reach `contact` hosts.
+- A poke goes to the Ottie that was clicked; a background click to the active host; pointer, key and scroll activity to every host (it resets their quiet timers and wakes them).
+- The page's first host gets the real visit; every other host gets `session`, so only the first host can greet. (A `contact` host never greets anyway, per Task 9.)
+- The active host is the one with the largest visible share (IntersectionObserver ratio). Ties keep the current host, so two fully visible Otties do not flicker; nothing visible means no active host.
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+// site/tests/unit/ottie/hosts.test.ts
+import { describe, expect, it } from "vitest";
+import { cueTargets, hostVisit, interactionTargets, pickActive } from "../../../src/ottie/hosts";
+
+describe("cue routing", () => {
+  it("sends ask cues to home and project hosts and letter cues to contact hosts", () => {
+    expect(cueTargets("ask:submit", ["home", "contact"])).toEqual([0]);
+    expect(cueTargets("letter:open", ["home", "contact"])).toEqual([1]);
+    expect(cueTargets("ask:answer", ["project"])).toEqual([0]);
+    expect(cueTargets("ask:focus", ["contact"])).toEqual([]);
+    expect(cueTargets("letter:sent", ["404"])).toEqual([]);
+  });
+});
+
+describe("interaction routing", () => {
+  it("pokes the clicked Ottie, counts background clicks on the active one, tells everyone about activity", () => {
+    expect(interactionTargets("poke", 2, 0, 1)).toEqual([1]);
+    expect(interactionTargets("background-click", 2, 1, null)).toEqual([1]);
+    expect(interactionTargets("background-click", 2, null, null)).toEqual([]);
+    expect(interactionTargets("pointer", 2, 0, null)).toEqual([0, 1]);
+    expect(interactionTargets("scroll", 1, null, null)).toEqual([0]);
+  });
+});
+
+describe("hosts", () => {
+  it("lets only the first host see the real visit", () => {
+    expect(hostVisit(0, "first")).toBe("first");
+    expect(hostVisit(1, "first")).toBe("session");
+    expect(hostVisit(1, "returning")).toBe("session");
+  });
+
+  it("animates the host most in view, keeps it on ties, and none when nothing shows", () => {
+    expect(pickActive([1, 0], null)).toBe(0);
+    expect(pickActive([0.5, 0.75], 0)).toBe(1);
+    expect(pickActive([1, 1], 1)).toBe(1);
+    expect(pickActive([1, 1], null)).toBe(0);
+    expect(pickActive([0, 0.25], 0)).toBe(1);
+    expect(pickActive([0, 0], 1)).toBeNull();
+  });
+});
+```
+
+- [ ] **Step 2: Run it to verify it fails**
+
+Run: `pnpm --dir site exec vitest run tests/unit/ottie/hosts.test.ts`
+Expected: FAIL, "Failed to resolve import ../../../src/ottie/hosts".
+
+- [ ] **Step 3: Write the implementation**
+
+```ts
+// site/src/ottie/hosts.ts
+// Rules for pages with more than one Ottie (home: the hero and the letter).
+import type { Interaction } from "./director";
+import type { OttieCueType } from "./events";
+import type { PageContext } from "./lines";
+import type { Visit } from "./prefs";
+
+const ASK_HOSTS: readonly PageContext[] = ["home", "project"];
+const LETTER_HOSTS: readonly PageContext[] = ["contact"];
+
+export function cueTargets(type: OttieCueType, contexts: PageContext[]): number[] {
+  const wanted = type.startsWith("ask:") ? ASK_HOSTS : LETTER_HOSTS;
+  return contexts.flatMap((c, i) => (wanted.includes(c) ? [i] : []));
+}
+
+export function interactionTargets(kind: Interaction, count: number, active: number | null, poked: number | null): number[] {
+  if (kind === "poke") return poked === null ? [] : [poked];
+  if (kind === "background-click") return active === null ? [] : [active];
+  return Array.from({ length: count }, (_, i) => i);
+}
+
+export const hostVisit = (index: number, visit: Visit): Visit => (index === 0 ? visit : "session");
+
+export function pickActive(ratios: number[], current: number | null): number | null {
+  let best: number | null = null;
+  ratios.forEach((r, i) => { if (r > 0 && (best === null || r > ratios[best])) best = i; });
+  if (best === null) return null;
+  if (current !== null && ratios[current] > 0 && ratios[current] >= ratios[best]) return current;
+  return best;
+}
+```
+
+- [ ] **Step 4: Run it to verify it passes**
+
+Run: `pnpm --dir site exec vitest run tests/unit/ottie/hosts.test.ts`
+Expected: PASS, 4 tests.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add site/src/ottie/hosts.ts site/tests/unit/ottie/hosts.test.ts
+git commit -m "feat(ottie): route cues between several Otties and pick the one that animates"
+```
+
+### Task 12: The browser shell: source, renderer, actors, player and boot
+
+**Files:**
+- Create: `site/src/ottie/source.ts`, `site/src/ottie/renderer.ts`, `site/src/ottie/actor.ts`, `site/src/ottie/player.ts`, `site/src/ottie/boot.ts`
+- Test: covered end to end in Task 14 (these modules only wire DOM APIs to the tested logic).
+
+**Interfaces:**
+- Consumes: everything from Tasks 1 to 11.
+- Produces: `browserSource: SheetSource<Sheet>` where `type Sheet = CanvasImageSource & Decoded`; `createRenderer(canvas, m, g, mirrorPoint): { resize(): void; paint(ops: DrawOp[], get: (n: StateName) => Sheet | undefined): void; poses(from, to, t, get): void }`; `interface Shared { loader: Loader<Sheet>; geometry: Geometry; mode: Mode; phone: boolean; ss: SafeStorage; now: () => number; mirrorPoint: boolean }`; `interface Actor { readonly context: PageContext; readonly host: HTMLElement; readonly started: boolean; start(): void; setActive(on: boolean): void; cue(c: OttieCueDetail): void; interact(kind: Interaction): void; tick(): void; dispose(): void }`; `createActor(host, visit, shared): Actor`; `interface PlayerOptions { hosts: HTMLElement[]; quiet: boolean; forceMode?: Mode; mirrorPoint(host: HTMLElement): boolean }`; `startOttie(opts): () => void` (returns a stop function); `whenIdle(cb)`.
+
+DOM contract (rendered by Task 13): each `[data-ottie-host]` (with `data-ottie-context`, and `data-ottie-greets` on greeting contexts) holds `[data-ottie-still]`, `[data-ottie-canvas]` and `[data-ottie-bubble]`; the page has at most one `[data-ottie-quiet]` button. Each host gets `is-live` while its canvas shows Ottie, `data-ottie-mode`, and `data-ottie-running="true|false"` (true only for the active host); the e2e tests read these.
+
+What the shell does:
+1. **Page controller (`player.ts`)**: reads Quiet Ottie and the device hints once, picks the mode, reads and marks the visit, builds one loader shared by every host, and one actor per host (`hostVisit` gives the first host the real visit). In still mode it shows every still, clears `data-ottie-enter` and stops.
+2. After `load` and an idle callback, the first host's actor starts (runs `director.start()`; in full mode it then asks for idle, so the request order is run-in, wave, idle on a first visit and idle, wave otherwise). Any other host starts the first time it becomes the active host, so the letter Ottie's sheets are only requested when the visitor gets there.
+3. The active host comes from `pickActive` over IntersectionObserver ratios; with the tab hidden there is none. Only the active actor runs its frame loop and its 1 s director tick; the others show their still. Clicking an Ottie makes it the active host.
+4. Cues go through `cueTargets`, interactions through `interactionTargets` (pointer, key and scroll listeners are passive and on capture).
+5. **Actor (`actor.ts`)**, one per host: runs its director's commands. `prefetch` goes to the shared loader; `play` waits for the sheets it needs (plus the current state's `exit_via`), then calls `timeline.play` (a newer play cancels an older one still waiting); `say` places the bubble with `placeBubble` and hides it after `ms`; `hush` hides it.
+6. Each animation frame (full mode, active host only): nothing happens until the current state's sheet is decoded (the still stays up and the timeline does not move); then the timeline advances and the canvas repaints only when the picture changed. The first painted frame and the `is-live` class change happen in the same frame, so the still hands over with no flash.
+7. Reduced mode: plays `reducedPlan` steps with a 400 ms crossfade (`--motion-slow`), the still standing in for idle.
+8. On a first visit, if the greeting host's run-in has not started within 4 s, it drops run-in, shows the still and plays the wave.
+9. Emits `ottie:state` with `{ state, context }` on every state entered (and every reduced-motion pose).
 
 - [ ] **Step 1: Write the sheet source**
 
@@ -2255,83 +2394,63 @@ export function createRenderer(canvas: HTMLCanvasElement, m: Manifest, g: Geomet
 }
 ```
 
-- [ ] **Step 3: Write the player**
+- [ ] **Step 3: Write the actor (one per Ottie on the page)**
 
 ```ts
-// site/src/ottie/player.ts
-import { sheetUrl, sheetVersion } from "./assets";
+// site/src/ottie/actor.ts
 import { placeBubble, type Rect } from "./bubble";
 import { createDirector, type Command, type Interaction } from "./director";
-import { isCueType, onOttieCue, OTTIE_STATE } from "./events";
+import { OTTIE_STATE, type OttieCueDetail } from "./events";
 import { drawOps, reducedPlan, type PoseStep } from "./frames";
 import { LINES, type PageContext } from "./lines";
-import { createLoader } from "./loader";
-import { geometry, type StateName } from "./manifest";
+import type { Loader } from "./loader";
+import type { Geometry, StateName } from "./manifest";
 import { MANIFEST } from "./manifest-data";
-import {
-  deviceHints, localStore, markVisit, modeFor, recordTip, sessionStore, tipsShown, visitKind, type Mode,
-} from "./prefs";
+import { recordTip, tipsShown, type Mode, type SafeStorage, type Visit } from "./prefs";
 import { createRenderer, type Pose } from "./renderer";
-import { browserSource, type Sheet } from "./source";
+import type { Sheet } from "./source";
 import { createTimeline } from "./timeline";
 
-const INTERACTIVE = "a, button, input, textarea, select, label, summary, [role='button'], [contenteditable]";
 const FIRST_ENTER_TIMEOUT_MS = 4000;
 const POSE_FADE_MS = 400;
 
-export interface PlayerOptions { host: HTMLElement; context: PageContext; mirrorPoint: boolean; quiet: boolean; forceMode?: Mode }
-
-export function whenIdle(cb: () => void): void {
-  const go = () => {
-    if ("requestIdleCallback" in window) requestIdleCallback(() => cb(), { timeout: 2000 });
-    else setTimeout(cb, 200);
-  };
-  if (document.readyState === "complete") go();
-  else addEventListener("load", go, { once: true });
+export interface Shared {
+  loader: Loader<Sheet>; geometry: Geometry; mode: Mode; phone: boolean; ss: SafeStorage; now: () => number; mirrorPoint: boolean;
+}
+export interface Actor {
+  readonly context: PageContext;
+  readonly host: HTMLElement;
+  readonly started: boolean;
+  start(): void;
+  setActive(on: boolean): void;
+  cue(c: OttieCueDetail): void;
+  interact(kind: Interaction): void;
+  tick(): void;
+  dispose(): void;
 }
 
 const toRect = (r: DOMRect): Rect => ({ x: r.x, y: r.y, w: r.width, h: r.height });
 
-export function startOttie(opts: PlayerOptions): () => void {
-  const { host } = opts;
+export function createActor(host: HTMLElement, visit: Visit, shared: Shared): Actor {
+  const { loader, mode, now } = shared;
   const root = document.documentElement;
-  const still = host.querySelector<HTMLImageElement>("[data-ottie-still]")!;
+  const context = (host.dataset.ottieContext ?? "home") as PageContext;
   const canvas = host.querySelector<HTMLCanvasElement>("[data-ottie-canvas]")!;
   const bubble = host.querySelector<HTMLElement>("[data-ottie-bubble]")!;
-  const ls = localStore(), ss = sessionStore();
-  const hints = deviceHints();
-  const mode = opts.forceMode ?? modeFor(opts.quiet, hints);
-  const visit = visitKind(ls, ss);
-  markVisit(ls, ss);
-  host.dataset.ottieMode = mode;
+  const renderer = createRenderer(canvas, MANIFEST, shared.geometry, shared.mirrorPoint);
+  const timeline = createTimeline(MANIFEST, "idle");
+  const director = createDirector({ mode, phone: shared.phone, context, visit, tipsShown: tipsShown(shared.ss) }, LINES);
+  let started = false, active = false, disposed = false, ranIn = false, dirty = true, last = 0;
+  let playToken = 0, bubbleTimer = 0, poseTimer = 0, rafId = 0, fadeId = 0, enterTimer = 0;
+  let pose: Pose | null = null;
+  host.dataset.ottieRunning = "false";
 
   const setLive = (live: boolean) => {
     host.classList.toggle("is-live", live);
-    if (live) delete root.dataset.ottieEnter;
+    if (live && host.dataset.ottieGreets !== undefined) delete root.dataset.ottieEnter;
   };
-  if (visit !== "first" || mode !== "full") delete root.dataset.ottieEnter;
-  if (mode === "still") {
-    setLive(false);
-    host.dataset.ottieRunning = "false";
-    return () => {};
-  }
+  const announce = (state: string) => window.dispatchEvent(new CustomEvent(OTTIE_STATE, { detail: { state, context } }));
 
-  performance.mark("ottie:boot");
-  const g = geometry(MANIFEST);
-  const version = sheetVersion(MANIFEST);
-  const loader = createLoader<Sheet>((n) => sheetUrl(MANIFEST, n, version), browserSource);
-  const renderer = createRenderer(canvas, MANIFEST, g, opts.mirrorPoint);
-  const timeline = createTimeline(MANIFEST, "idle");
-  const director = createDirector(
-    { mode, phone: hints.phone, context: opts.context, visit, tipsShown: tipsShown(ss) }, LINES,
-  );
-  const now = () => performance.now();
-  const cleanups: Array<() => void> = [];
-  let playToken = 0, bubbleTimer = 0, poseTimer = 0, rafId = 0, fadeId = 0, tickTimer = 0;
-  let running = false, onScreen = true, last = 0, dirty = true, ranIn = false, disposed = false, booted = false;
-  let pose: Pose | null = null;
-
-  const announce = (state: string) => window.dispatchEvent(new CustomEvent(OTTIE_STATE, { detail: { state } }));
   timeline.onEnter((state) => {
     if (state === "run-in") ranIn = true;
     announce(state);
@@ -2356,8 +2475,9 @@ export function startOttie(opts: PlayerOptions): () => void {
     ready.then(
       () => { if (token === playToken && !disposed) { timeline.play(...states); dirty = true; } },
       () => {
-        if (token !== playToken || disposed) return;
-        if (states.includes("run-in")) { delete root.dataset.ottieEnter; playStates(states.filter((n) => n !== "run-in")); }
+        if (token !== playToken || disposed || !states.includes("run-in")) return;
+        delete root.dataset.ottieEnter;
+        playStates(states.filter((n) => n !== "run-in"));
       },
     );
   }
@@ -2377,7 +2497,7 @@ export function startOttie(opts: PlayerOptions): () => void {
     if (token !== playToken || disposed || i >= steps.length) return;
     const step = steps[i];
     const next: Pose | null = step.state === "still" ? null : { state: step.state, drawing: step.drawing };
-    fadePose(pose, next);
+    if (active) fadePose(pose, next);
     pose = next;
     announce(step.state === "still" ? "idle" : step.state);
     if (step.state !== "still") exec(director.entered(step.state, now()));
@@ -2389,9 +2509,9 @@ export function startOttie(opts: PlayerOptions): () => void {
     cancelAnimationFrame(fadeId);
     if (!to) { setLive(false); return; }
     if (!from) { renderer.poses(null, to, 1, loader.get); setLive(true); return; }
-    const start = now();
+    const begin = now();
     const step = () => {
-      const t = Math.min(1, (now() - start) / POSE_FADE_MS);
+      const t = Math.min(1, (now() - begin) / POSE_FADE_MS);
       renderer.poses(from, to, t, loader.get);
       if (t < 1) fadeId = requestAnimationFrame(step);
     };
@@ -2400,6 +2520,7 @@ export function startOttie(opts: PlayerOptions): () => void {
 
   function say(text: string, ms: number, tip: boolean) {
     hideBubble();
+    if (!active) { exec(director.bubbleDone(now())); return; } // only the Ottie in view speaks
     bubble.textContent = text;
     bubble.hidden = false;
     const hostRect = host.getBoundingClientRect();
@@ -2407,11 +2528,11 @@ export function startOttie(opts: PlayerOptions): () => void {
     const spot = placeBubble(toRect(hostRect), { w: bubble.offsetWidth, h: bubble.offsetHeight }, avoid,
       { w: document.documentElement.clientWidth, h: window.innerHeight });
     if (!spot) { bubble.hidden = true; exec(director.bubbleDone(now())); return; }
-    bubble.style.left = `${spot.rect.x - hostRect.x}px`;
+    bubble.style.left = `${spot.rect.x - hostRect.x}px`; // CSSOM writes are allowed by the CSP
     bubble.style.top = `${spot.rect.y - hostRect.y}px`;
     bubble.dataset.side = spot.side;
     requestAnimationFrame(() => bubble.classList.add("is-shown"));
-    if (tip) recordTip(ss);
+    if (tip) recordTip(shared.ss);
     bubbleTimer = window.setTimeout(() => { hideBubble(); exec(director.bubbleDone(now())); }, ms);
   }
 
@@ -2423,10 +2544,10 @@ export function startOttie(opts: PlayerOptions): () => void {
 
   function frame(t: number) {
     rafId = 0;
-    if (!running || disposed) return;
+    if (!active || disposed) return;
     if (!loader.get(timeline.current)) {
       setLive(false); // the still covers until this state's sheet is decoded
-      if (booted && !loader.failed(timeline.current)) void loader.ensure(timeline.current).catch(() => {}); // after an eviction
+      if (started && !loader.failed(timeline.current)) void loader.ensure(timeline.current).catch(() => {}); // after an eviction
       last = 0;
       rafId = requestAnimationFrame(frame);
       return;
@@ -2436,7 +2557,7 @@ export function startOttie(opts: PlayerOptions): () => void {
     if (timeline.advance(dt)) dirty = true;
     if (dirty) {
       const snap = timeline.snapshot();
-      renderer.paint(drawOps(MANIFEST, g, snap, { mirrorPoint: opts.mirrorPoint }), loader.get);
+      renderer.paint(drawOps(MANIFEST, shared.geometry, snap, { mirrorPoint: shared.mirrorPoint }), loader.get);
       loader.touch(snap.state);
       if (snap.fade) loader.touch(snap.fade.state);
       setLive(true);
@@ -2445,111 +2566,203 @@ export function startOttie(opts: PlayerOptions): () => void {
     rafId = requestAnimationFrame(frame);
   }
 
-  function updateRunning() {
-    const next = onScreen && !document.hidden && !disposed;
-    if (next === running) return;
-    running = next;
-    host.dataset.ottieRunning = String(running);
-    if (running) {
-      last = 0;
-      dirty = true;
-      if (mode === "full") rafId = requestAnimationFrame(frame);
-      tickTimer = window.setInterval(() => exec(director.tick(now())), 1000);
-    } else {
-      cancelAnimationFrame(rafId);
-      clearInterval(tickTimer);
-    }
-  }
-
-  const io = new IntersectionObserver(([entry]) => { onScreen = entry.isIntersecting; updateRunning(); }, { rootMargin: "64px" });
-  io.observe(host);
-  const ro = new ResizeObserver(() => { renderer.resize(); dirty = true; if (pose) renderer.poses(null, pose, 1, loader.get); });
+  const ro = new ResizeObserver(() => { renderer.resize(); dirty = true; if (active && pose) renderer.poses(null, pose, 1, loader.get); });
   ro.observe(canvas);
-  const onVisibility = () => updateRunning();
-  document.addEventListener("visibilitychange", onVisibility);
 
-  const onPointer = (e: PointerEvent) => {
-    const target = e.target instanceof Element ? e.target : null;
-    const kind: Interaction = target && host.contains(target) ? "poke"
-      : target?.closest(INTERACTIVE) ? "pointer" : "background-click";
-    exec(director.interact(kind, now()));
-  };
-  const onKey = () => exec(director.interact("key", now()));
-  let lastScroll = 0;
-  const onScroll = () => {
-    const t = now();
-    if (t - lastScroll < 1000) return;
-    lastScroll = t;
-    exec(director.interact("scroll", t));
-  };
-  document.addEventListener("pointerdown", onPointer, { capture: true, passive: true });
-  document.addEventListener("keydown", onKey, { capture: true });
-  addEventListener("scroll", onScroll, { passive: true });
-  cleanups.push(onOttieCue((cue) => { if (isCueType(cue.type)) exec(director.cue(cue, now())); }));
-
-  if (visit === "first" && mode === "full" && root.dataset.ottieEnter !== undefined) {
-    const timer = window.setTimeout(() => {
-      if (ranIn || disposed) return;
-      delete root.dataset.ottieEnter;
-      playStates(["wave"]);
-    }, FIRST_ENTER_TIMEOUT_MS);
-    cleanups.push(() => clearTimeout(timer));
-  }
-
-  whenIdle(() => {
-    if (disposed) return;
-    exec(director.start(now()));
-    if (mode === "full") void loader.ensure("idle").catch(() => {});
-    booted = true; // from here on, frames may re-request an evicted sheet
-  });
-
-  return () => {
-    disposed = true;
-    playToken++;
-    updateRunning();
-    cancelAnimationFrame(rafId);
-    cancelAnimationFrame(fadeId);
-    clearInterval(tickTimer);
-    clearTimeout(poseTimer);
-    hideBubble();
-    io.disconnect();
-    ro.disconnect();
-    document.removeEventListener("visibilitychange", onVisibility);
-    document.removeEventListener("pointerdown", onPointer, { capture: true });
-    document.removeEventListener("keydown", onKey, { capture: true });
-    removeEventListener("scroll", onScroll);
-    for (const f of cleanups) f();
-    loader.dispose();
-    setLive(false);
+  return {
+    context,
+    host,
+    get started() { return started; },
+    start() {
+      if (started || disposed) return;
+      started = true;
+      exec(director.start(now()));
+      if (mode === "full") void loader.ensure("idle").catch(() => {});
+      if (visit === "first" && mode === "full" && host.dataset.ottieGreets !== undefined && root.dataset.ottieEnter !== undefined) {
+        enterTimer = window.setTimeout(() => {
+          if (ranIn || disposed) return;
+          delete root.dataset.ottieEnter;
+          playStates(["wave"]);
+        }, FIRST_ENTER_TIMEOUT_MS);
+      }
+    },
+    setActive(on) {
+      if (on === active || disposed) return;
+      active = on;
+      host.dataset.ottieRunning = String(on);
+      if (on) {
+        last = 0;
+        dirty = true;
+        if (mode === "full") rafId = requestAnimationFrame(frame);
+        else if (pose) { renderer.poses(null, pose, 1, loader.get); setLive(true); }
+      } else {
+        cancelAnimationFrame(rafId);
+        cancelAnimationFrame(fadeId);
+        setLive(false);
+        if (!bubble.hidden) { hideBubble(); exec(director.bubbleDone(now())); }
+      }
+    },
+    cue: (c) => exec(director.cue(c, now())),
+    interact: (kind) => exec(director.interact(kind, now())),
+    tick: () => exec(director.tick(now())),
+    dispose() {
+      disposed = true;
+      playToken++;
+      cancelAnimationFrame(rafId);
+      cancelAnimationFrame(fadeId);
+      clearTimeout(poseTimer);
+      clearTimeout(enterTimer);
+      hideBubble();
+      ro.disconnect();
+      setLive(false);
+      host.dataset.ottieRunning = "false";
+    },
   };
 }
 ```
 
-- [ ] **Step 4: Write the boot entry**
+- [ ] **Step 4: Write the page controller**
+
+```ts
+// site/src/ottie/player.ts
+// One controller per page: shared loader and preferences, routing between Otties,
+// and which Ottie is active (the only one that animates).
+import { createActor, type Actor } from "./actor";
+import { sheetUrl, sheetVersion } from "./assets";
+import type { Interaction } from "./director";
+import { isCueType, onOttieCue } from "./events";
+import { cueTargets, hostVisit, interactionTargets, pickActive } from "./hosts";
+import { createLoader } from "./loader";
+import { geometry } from "./manifest";
+import { MANIFEST } from "./manifest-data";
+import { deviceHints, localStore, markVisit, modeFor, sessionStore, visitKind, type Mode } from "./prefs";
+import { browserSource, type Sheet } from "./source";
+
+const INTERACTIVE = "a, button, input, textarea, select, label, summary, [role='button'], [contenteditable]";
+
+export interface PlayerOptions { hosts: HTMLElement[]; quiet: boolean; forceMode?: Mode; mirrorPoint(host: HTMLElement): boolean }
+
+export function whenIdle(cb: () => void): void {
+  const go = () => {
+    if ("requestIdleCallback" in window) requestIdleCallback(() => cb(), { timeout: 2000 });
+    else setTimeout(cb, 200);
+  };
+  if (document.readyState === "complete") go();
+  else addEventListener("load", go, { once: true });
+}
+
+export function startOttie(opts: PlayerOptions): () => void {
+  const { hosts } = opts;
+  const root = document.documentElement;
+  const ls = localStore(), ss = sessionStore();
+  const hints = deviceHints();
+  const mode = opts.forceMode ?? modeFor(opts.quiet, hints);
+  const visit = visitKind(ls, ss);
+  markVisit(ls, ss);
+  for (const h of hosts) h.dataset.ottieMode = mode;
+  if (visit !== "first" || mode !== "full") delete root.dataset.ottieEnter;
+  if (mode === "still") {
+    for (const h of hosts) { h.classList.remove("is-live"); h.dataset.ottieRunning = "false"; }
+    return () => {};
+  }
+
+  performance.mark("ottie:boot");
+  const version = sheetVersion(MANIFEST);
+  const loader = createLoader<Sheet>((n) => sheetUrl(MANIFEST, n, version), browserSource);
+  const base = { loader, geometry: geometry(MANIFEST), mode, phone: hints.phone, ss, now: () => performance.now() };
+  const actors: Actor[] = hosts.map((host, i) => createActor(host, hostVisit(i, visit), { ...base, mirrorPoint: opts.mirrorPoint(host) }));
+  const contexts = actors.map((a) => a.context);
+  const ratios = actors.map(() => 0);
+  let active: number | null = null, tickTimer = 0, booted = false;
+
+  function activate(next: number | null) {
+    if (next === active) return;
+    active = next;
+    actors.forEach((a, i) => a.setActive(i === active));
+    clearInterval(tickTimer);
+    if (active === null) return;
+    const a = actors[active];
+    if (booted) a.start();
+    tickTimer = window.setInterval(() => a.tick(), 1000);
+  }
+  const update = () => activate(document.hidden ? null : pickActive(ratios, active));
+
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) ratios[hosts.indexOf(e.target as HTMLElement)] = e.isIntersecting ? e.intersectionRatio : 0;
+    update();
+  }, { threshold: [0, 0.25, 0.5, 0.75, 1] });
+  for (const h of hosts) io.observe(h);
+  document.addEventListener("visibilitychange", update);
+
+  const send = (kind: Interaction, poked: number | null) => {
+    for (const i of interactionTargets(kind, actors.length, active, poked)) actors[i].interact(kind);
+  };
+  const onPointer = (e: PointerEvent) => {
+    const target = e.target instanceof Element ? e.target : null;
+    const poked = target ? hosts.findIndex((h) => h.contains(target)) : -1;
+    if (poked >= 0) { activate(poked); send("poke", poked); return; }
+    send(target?.closest(INTERACTIVE) ? "pointer" : "background-click", null);
+  };
+  const onKey = () => send("key", null);
+  let lastScroll = 0;
+  const onScroll = () => {
+    const t = performance.now();
+    if (t - lastScroll < 1000) return;
+    lastScroll = t;
+    send("scroll", null);
+  };
+  document.addEventListener("pointerdown", onPointer, { capture: true, passive: true });
+  document.addEventListener("keydown", onKey, { capture: true });
+  addEventListener("scroll", onScroll, { passive: true });
+  const offCue = onOttieCue((cue) => {
+    if (!isCueType(cue.type)) return;
+    for (const i of cueTargets(cue.type, contexts)) actors[i].cue(cue);
+  });
+
+  whenIdle(() => {
+    booted = true;
+    actors[0]?.start();
+    if (active !== null) actors[active].start();
+  });
+
+  return () => {
+    activate(null);
+    io.disconnect();
+    document.removeEventListener("visibilitychange", update);
+    document.removeEventListener("pointerdown", onPointer, { capture: true });
+    document.removeEventListener("keydown", onKey, { capture: true });
+    removeEventListener("scroll", onScroll);
+    offCue();
+    for (const a of actors) a.dispose();
+    loader.dispose();
+  };
+}
+```
+
+- [ ] **Step 5: Write the boot entry**
 
 ```ts
 // site/src/ottie/boot.ts
-// Bundled by the <script> in components/Ottie.astro. One Ottie per page.
-import type { PageContext } from "./lines";
+// Bundled once per page by the <script> in components/Ottie.astro, however many Otties the page has.
 import { startOttie } from "./player";
 import { MIRROR_POINT_APPROVED } from "./poses";
 import { localStore, readQuiet, writeQuiet, type Mode } from "./prefs";
 
 const MODES: Mode[] = ["full", "reduced", "still"];
-const host = document.querySelector<HTMLElement>("[data-ottie-host]");
+const hosts = [...document.querySelectorAll<HTMLElement>("[data-ottie-host]")];
 
-if (host) {
+if (hosts.length) {
   const ls = localStore();
   const toggle = document.querySelector<HTMLButtonElement>("[data-ottie-quiet]");
-  const asked = host.dataset.ottieLab !== undefined ? new URLSearchParams(location.search).get("ottie-mode") : null;
+  const lab = hosts.some((h) => h.dataset.ottieLab !== undefined);
+  const asked = lab ? new URLSearchParams(location.search).get("ottie-mode") : null;
   const forceMode = MODES.find((m) => m === asked);
   let quiet = readQuiet(ls);
   const start = () => startOttie({
-    host,
-    context: (host.dataset.ottieContext ?? "home") as PageContext,
-    mirrorPoint: MIRROR_POINT_APPROVED && host.dataset.ottiePoint === "left",
+    hosts,
     quiet,
     forceMode,
+    mirrorPoint: (h) => MIRROR_POINT_APPROVED && h.dataset.ottiePoint === "left",
   });
   let stop = start();
   if (toggle) {
@@ -2566,28 +2779,28 @@ if (host) {
 }
 ```
 
-- [ ] **Step 5: Type check**
+- [ ] **Step 6: Type check**
 
 Run: `pnpm --dir site check`
 Expected: 0 errors. (If `priority` is missing from `RequestInit` in TypeScript 6's DOM types, the cast in `source.ts` covers it; remove the cast if the type already has it.)
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add site/src/ottie/source.ts site/src/ottie/renderer.ts site/src/ottie/player.ts site/src/ottie/boot.ts
-git commit -m "feat(ottie): add the canvas player shell that runs the director's commands"
+git add site/src/ottie/source.ts site/src/ottie/renderer.ts site/src/ottie/actor.ts site/src/ottie/player.ts site/src/ottie/boot.ts
+git commit -m "feat(ottie): add the canvas player for one or more Otties on a page"
 ```
 
-### Task 12: The Ottie component, the inline still and the lab page
+### Task 13: The Ottie component, the inline still and the lab page
 
 **Files:**
-- Create: `site/src/ottie/still.ts`, `site/src/components/Ottie.astro`, `site/src/lib/lab.ts`, `site/src/pages/lab/ottie/[...slug].astro`
-- Modify: `site/astro.config.mjs` (add `__DINS_LABS__` to `vite.define`), `site/src/env.d.ts` (declare it)
-- Test: `site/tests/unit/lab.test.ts`; the component is checked end to end in Task 13 and by Din.
+- Create: `site/src/ottie/still.ts`, `site/src/ottie/layout.ts`, `site/src/components/Ottie.astro`, `site/src/lib/lab.ts`, `site/src/pages/lab/ottie/[...slug].astro`
+- Modify: `site/astro.config.mjs` (add `__DINS_LABS_OVERRIDE__` to `vite.define`), `site/src/env.d.ts` (declare it)
+- Test: `site/tests/unit/ottie/layout.test.ts`, `site/tests/unit/lab.test.ts`; the component is checked end to end in Task 14 and by Din.
 
 **Interfaces:**
-- Consumes: `geometry`, `MANIFEST` (Task 2), `PageContext` (Task 6), `KEYS` (Task 8, mirrored in the inline script), `boot.ts` (Task 11).
-- Produces: `<Ottie context={PageContext} pointToward?: "left" | "right" lab?: boolean class?: string />`; `STILL = { width: 720, height: 880, scale: 2, ground: [371.94, 823.18] }`; `labEnabled(env: Record<string, string | undefined>): boolean`; lab routes `/lab/ottie`, `/lab/ottie/project`, `/lab/ottie/contact`, `/lab/ottie/devlog`, `/lab/ottie/404`, `/lab/ottie/blank` (no Ottie, the baseline for Task 14's JavaScript cost).
+- Consumes: `geometry`, `MANIFEST` (Task 2), `PageContext` (Task 6), `KEYS` (Task 8, mirrored in the inline script), `boot.ts` (Task 12); from M0: `type Deploy` (`site/src/lib/deploy.ts`), `DEPLOY` (`site/src/lib/deploy-env.ts`), `BaseLayout.astro`.
+- Produces: `<Ottie context={PageContext} pointToward?: "left" | "right" toggle?: boolean lab?: boolean class?: string />` (`toggle={false}` on a page's second Ottie); `STILL = { width: 720, height: 880, scale: 2, ground: [371.94, 823.18] }`; `ottieLayoutCss(m, still): string`; `labEnabled(deploy: Deploy, override?: string): boolean`; lab routes `/lab/ottie` (hero Ottie plus the letter Ottie in `#contact`, like home), `/lab/ottie/project`, `/lab/ottie/contact`, `/lab/ottie/devlog`, `/lab/ottie/404`, `/lab/ottie/blank` (no Ottie, the baseline for Task 15's JavaScript cost).
 
 Layout numbers at size 1 (desktop), from the geometry and the still measurement: the reserved box is 158.5 x 202.5 CSS px (the body box at `display_scale` 0.5, about 28 percent of a 720 px hero); the canvas covers the full stage, 408.4 x 245.5 CSS px, starting at the box's left edge and 43 px above it (run-in travels in from the right, jumps rise above); the still is 180 x 220 CSS px, offset by about (-6.5, -18.8) px so its ground point meets the box's. Phones (up to 639 px wide) use `--ottie-size: 0.75`.
 
@@ -2619,18 +2832,79 @@ rm -rf /tmp/ottie-measure
 
 Expected (measured 2026-10-21): `neutral (166, 89, 572, 849) idle0 (9, 4, 212, 384) scale 2.0`, ground about `371.94 823.18`. If the sheets or the still were re-rendered and the numbers differ, use the new ones in Step 2.
 
-- [ ] **Step 2: Write the still constants**
+- [ ] **Step 2: Write the failing layout test**
+
+The box sizes are build-time numbers, but M5's CSP drops `style="…"` attributes, so they reach the page as one small `<style>` element (Astro's `security.csp` hashes it) instead of a `style` attribute.
+
+```ts
+// site/tests/unit/ottie/layout.test.ts
+import { describe, expect, it } from "vitest";
+import { ottieLayoutCss } from "../../../src/ottie/layout";
+import { MANIFEST } from "../../../src/ottie/manifest-data";
+import { STILL } from "../../../src/ottie/still";
+
+describe("Ottie layout CSS", () => {
+  const css = ottieLayoutCss(MANIFEST, STILL);
+  it("sizes the box, the canvas and the still from the manifest", () => {
+    expect(css).toMatch(/^\.ottie\{[^{}]+\}$/);
+    expect(css).toContain("--ottie-w:158.50px");
+    expect(css).toContain("--ottie-h:202.50px");
+    expect(css).toContain("--ottie-stage-x:0.00px");
+    expect(css).toContain("--ottie-stage-y:-42.97px");
+    expect(css).toContain("--ottie-still-w:180.00px");
+    expect(css).toContain("--ottie-still-x:-6.50px");
+    expect(css).toContain("--ottie-still-y:-18.75px");
+  });
+});
+```
+
+Run: `pnpm --dir site exec vitest run tests/unit/ottie/layout.test.ts`
+Expected: FAIL, "Failed to resolve import ../../../src/ottie/still".
+
+- [ ] **Step 3: Write the still constants and the layout CSS**
 
 ```ts
 // site/src/ottie/still.ts
 // brand/reference/ottie-3d-neutral.webp is idle drawing 0 rendered at 2x the
 // sheet's frame pixels. Measured 2026-10-21 from the alpha bounding boxes
 // (neutral 166,89 to 572,849; idle drawing 0 9,4 to 212,384); re-measure with
-// the script in docs/site/plans/M2-ottie.md (Task 12) if either file changes.
+// the script in docs/site/plans/M2-ottie.md (Task 13) if either file changes.
 export const STILL = { width: 720, height: 880, scale: 2, ground: [371.94, 823.18] } as const;
 ```
 
-- [ ] **Step 3: Write the failing lab gate test**
+```ts
+// site/src/ottie/layout.ts
+// Sizes for components/Ottie.astro, rendered into a <style> element at build time
+// (the CSP forbids style attributes). All hosts share the same numbers.
+import { geometry, type Manifest } from "./manifest";
+
+export interface StillSpec { width: number; height: number; scale: number; ground: readonly [number, number] }
+
+export function ottieLayoutCss(m: Manifest, still: StillSpec): string {
+  const g = geometry(m);
+  const s = m.display_scale;
+  const px = (n: number) => `${(Math.abs(n) < 0.005 ? 0 : n).toFixed(2)}px`;
+  const vars: Record<string, string> = {
+    "--ottie-w": px(g.bodySize[0] * s),
+    "--ottie-h": px(g.bodySize[1] * s),
+    "--ottie-stage-w": px(g.stageSize[0] * s),
+    "--ottie-stage-h": px(g.stageSize[1] * s),
+    "--ottie-stage-x": px((g.body.l - g.stage.l) * s),
+    "--ottie-stage-y": px((g.body.t - g.stage.t) * s),
+    "--ottie-still-w": px((still.width / still.scale) * s),
+    "--ottie-still-x": px((g.body.l - still.ground[0] / still.scale) * s),
+    "--ottie-still-y": px((g.body.t - still.ground[1] / still.scale) * s),
+  };
+  return `.ottie{${Object.entries(vars).map(([k, v]) => `${k}:${v}`).join(";")}}`;
+}
+```
+
+Run: `pnpm --dir site exec vitest run tests/unit/ottie/layout.test.ts`
+Expected: PASS, 1 test.
+
+- [ ] **Step 4: Gate the lab pages on the shared deploy (test first)**
+
+M0 owns the build-time deploy (`site/src/lib/deploy.ts`, `deploy-env.ts` exporting `DEPLOY`, contract "Build-time deploy"). Lab pages are built unless the deploy is `production`; `DINS_LABS=0` or `1` overrides it.
 
 ```ts
 // site/tests/unit/lab.test.ts
@@ -2638,16 +2912,15 @@ import { describe, expect, it } from "vitest";
 import { labEnabled } from "../../src/lib/lab";
 
 describe("lab pages", () => {
-  it("are built locally and on preview branches", () => {
-    expect(labEnabled({})).toBe(true);
-    expect(labEnabled({ WORKERS_CI_BRANCH: "feat/m2-ottie" })).toBe(true);
+  it("are built locally and on previews, never in production", () => {
+    expect(labEnabled("local")).toBe(true);
+    expect(labEnabled("preview")).toBe(true);
+    expect(labEnabled("production")).toBe(false);
   });
-  it("are never built for production from main", () => {
-    expect(labEnabled({ WORKERS_CI_BRANCH: "main" })).toBe(false);
-  });
-  it("can be forced either way", () => {
-    expect(labEnabled({ DINS_LABS: "0" })).toBe(false);
-    expect(labEnabled({ WORKERS_CI_BRANCH: "main", DINS_LABS: "1" })).toBe(true);
+  it("can be forced either way with DINS_LABS", () => {
+    expect(labEnabled("local", "0")).toBe(false);
+    expect(labEnabled("production", "1")).toBe(true);
+    expect(labEnabled("preview", "")).toBe(true);
   });
 });
 ```
@@ -2655,42 +2928,37 @@ describe("lab pages", () => {
 Run: `pnpm --dir site exec vitest run tests/unit/lab.test.ts`
 Expected: FAIL, "Failed to resolve import ../../src/lib/lab".
 
-- [ ] **Step 4: Write the lab gate and wire it into the build**
-
 ```ts
 // site/src/lib/lab.ts
-// Lab pages (/lab/...) are for tests and Din's reviews. Workers Builds sets
-// WORKERS_CI_BRANCH; production deploys build from main and get no lab pages.
-export function labEnabled(env: Record<string, string | undefined>): boolean {
-  if (env.DINS_LABS === "0") return false;
-  if (env.DINS_LABS === "1") return true;
-  return env.WORKERS_CI_BRANCH !== "main";
+// Lab pages (/lab/...) are for tests and Din's reviews, never for production.
+import type { Deploy } from "./deploy";
+
+export function labEnabled(deploy: Deploy, override = ""): boolean {
+  if (override === "0") return false;
+  if (override === "1") return true;
+  return deploy !== "production";
 }
 ```
 
-In `site/astro.config.mjs`, import it and add the define to the existing `vite` block (merge with whatever M0 put there):
+In `site/astro.config.mjs`, add the override next to M0's `__DINS_DEPLOY__` define:
 
 ```js
-import { labEnabled } from "./src/lib/lab.ts";
-
-export default defineConfig({
-  // ...M0's settings unchanged...
-  vite: {
-    define: { __DINS_LABS__: JSON.stringify(labEnabled(process.env)) },
+vite: {
+  define: {
+    // ...M0's __DINS_DEPLOY__ stays as it is...
+    __DINS_LABS_OVERRIDE__: JSON.stringify(process.env.DINS_LABS ?? ""),
   },
-});
+},
 ```
 
 In `site/src/env.d.ts` add:
 
 ```ts
-declare const __DINS_LABS__: boolean;
+declare const __DINS_LABS_OVERRIDE__: string;
 ```
 
 Run: `pnpm --dir site exec vitest run tests/unit/lab.test.ts`
-Expected: PASS, 3 tests.
-
-Check against the Cloudflare docs before relying on it: Workers Builds lists `WORKERS_CI_BRANCH` among its default build variables. If it does not, set `DINS_LABS=0` for production builds instead and note it in the ledger.
+Expected: PASS, 2 tests.
 
 - [ ] **Step 5: Write the component**
 
@@ -2698,53 +2966,44 @@ Check against the Cloudflare docs before relying on it: Workers Builds lists `WO
 ---
 // site/src/components/Ottie.astro
 // Ottie's reserved box with the neutral still (works with JavaScript off),
-// the canvas the player draws on, the bubble and the Quiet Ottie toggle.
+// the canvas the player draws on, the bubble and (once per page) the Quiet Ottie toggle.
+// A page may hold several (home: the hero and the letter); one script runs them all.
 import { Image } from "astro:assets";
 import neutral from "../../../brand/reference/ottie-3d-neutral.webp";
+import { ottieLayoutCss } from "../ottie/layout";
 import type { PageContext } from "../ottie/lines";
-import { geometry } from "../ottie/manifest";
 import { MANIFEST } from "../ottie/manifest-data";
 import { STILL } from "../ottie/still";
 
-interface Props { context: PageContext; pointToward?: "left" | "right"; lab?: boolean; class?: string }
-const { context, pointToward = "right", lab = false, class: className } = Astro.props;
+interface Props { context: PageContext; pointToward?: "left" | "right"; toggle?: boolean; lab?: boolean; class?: string }
+const { context, pointToward = "right", toggle = true, lab = false, class: className } = Astro.props;
 
-const g = geometry(MANIFEST);
-const s = MANIFEST.display_scale;
-const px = (n: number) => `${n.toFixed(2)}px`;
-const vars = {
-  "--ottie-w": px(g.bodySize[0] * s),
-  "--ottie-h": px(g.bodySize[1] * s),
-  "--ottie-stage-w": px(g.stageSize[0] * s),
-  "--ottie-stage-h": px(g.stageSize[1] * s),
-  "--ottie-stage-x": px((g.body.l - g.stage.l) * s),
-  "--ottie-stage-y": px((g.body.t - g.stage.t) * s),
-  "--ottie-still-w": px((STILL.width / STILL.scale) * s),
-  "--ottie-still-x": px((g.body.l - STILL.ground[0] / STILL.scale) * s),
-  "--ottie-still-y": px((g.body.t - STILL.ground[1] / STILL.scale) * s),
-};
-const style = Object.entries(vars).map(([k, v]) => `${k}:${v}`).join(";");
-const greets = context !== "404";
+const layoutCss = ottieLayoutCss(MANIFEST, STILL);
+// home, project and devlog hosts may greet; the letter Ottie and the 404 Ottie never do.
+const greets = context === "home" || context === "project" || context === "devlog";
 ---
+<style is:inline set:html={layoutCss}></style>
 {greets && (
   <script is:inline>
     (() => {
       try {
-        const ls = localStorage, ss = sessionStorage, c = navigator.connection;
+        const d = document.documentElement, ls = localStorage, ss = sessionStorage, c = navigator.connection;
+        if (d.querySelector("[data-ottie-greets]")) return; // only the page's first Ottie greets
         const still = ls.getItem("dins.ottie.quiet") === "1" || (c && c.saveData) || (navigator.deviceMemory && navigator.deviceMemory <= 2);
+        const calm = d.dataset.motion === "calm" || matchMedia("(prefers-reduced-motion: reduce)").matches;
         const first = !ls.getItem("dins.ottie.seen") && !ss.getItem("dins.ottie.session");
-        if (first && !still && !matchMedia("(prefers-reduced-motion: reduce)").matches) document.documentElement.dataset.ottieEnter = "";
+        if (first && !still && !calm) d.dataset.ottieEnter = "";
       } catch {}
     })();
   </script>
 )}
 <div
   class:list={["ottie", className]}
-  style={style}
   aria-hidden="true"
   data-ottie-host
   data-ottie-context={context}
   data-ottie-point={pointToward}
+  data-ottie-greets={greets ? "" : undefined}
   data-ottie-lab={lab ? "" : undefined}
 >
   <Image
@@ -2752,7 +3011,7 @@ const greets = context !== "404";
     alt=""
     widths={[270, 360]}
     sizes="(max-width: 639px) 135px, 180px"
-    loading="eager"
+    loading={context === "home" ? "eager" : "lazy"}
     decoding="async"
     class="ottie__still"
     data-ottie-still
@@ -2760,7 +3019,7 @@ const greets = context !== "404";
   <canvas class="ottie__canvas" data-ottie-canvas></canvas>
   <p class="ottie__bubble" data-ottie-bubble hidden></p>
 </div>
-<button type="button" class="ottie-quiet" data-ottie-quiet aria-pressed="false" hidden>Quiet Ottie</button>
+{toggle && <button type="button" class="ottie-quiet" data-ottie-quiet aria-pressed="false" hidden>Quiet Ottie</button>}
 
 <script>
   import "../ottie/boot";
@@ -2772,6 +3031,7 @@ const greets = context !== "404";
     position: relative;
     inline-size: calc(var(--ottie-w) * var(--ottie-size));
     block-size: calc(var(--ottie-h) * var(--ottie-size));
+    flex: none;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
     user-select: none;
@@ -2804,8 +3064,8 @@ const greets = context !== "404";
   .ottie[data-ottie-mode="reduced"] .ottie__canvas {
     transition: opacity var(--motion-slow) var(--motion-ease);
   }
-  /* First visit: the still waits for run-in, but never longer than 4 s, even if the script fails. */
-  :global(:root[data-ottie-enter]) .ottie:not(.is-live) :global(.ottie__still) {
+  /* First visit: the greeting Ottie's still waits for run-in, but never longer than 4 s, even if the script fails. */
+  :global(:root[data-ottie-enter]) .ottie[data-ottie-greets]:not(.is-live) :global(.ottie__still) {
     animation: ottie-still-reveal 1ms 4s both;
   }
   @keyframes ottie-still-reveal {
@@ -2835,6 +3095,7 @@ const greets = context !== "404";
   @media (prefers-reduced-motion: reduce) {
     .ottie__bubble { transform: none; transition: opacity var(--motion-base) var(--motion-ease); }
   }
+  :global(:root[data-motion="calm"]) .ottie__bubble { transform: none; }
   .ottie-quiet {
     display: block;
     margin-block-start: 4px;
@@ -2851,33 +3112,42 @@ const greets = context !== "404";
 </style>
 ```
 
-Token names (`--color-ink`, `--color-paper`, `--color-muted`, `--color-accent`, `--text-small`, `--text-label`, `--font-sans`, `--font-mono`, `--motion-*`) must match `brand/tokens/tokens.css`; check with `grep -n -- "--color-\|--text-\|--font-\|--motion-" brand/tokens/tokens.css` and rename here if a token is spelled differently. The bubble uses ink on paper colors in both themes because the tokens swap with the theme.
+Notes:
+- No `style` attribute anywhere: build-time sizes come from the `<style>` element, runtime positions (the bubble) from JavaScript.
+- Token names (`--color-ink`, `--color-paper`, `--color-muted`, `--color-accent`, `--text-small`, `--text-label`, `--font-sans`, `--font-mono`, `--motion-*`) must match `brand/tokens/tokens.css`; check with `grep -n -- "--color-\|--text-\|--font-\|--motion-" brand/tokens/tokens.css` and rename here if a token is spelled differently. The bubble uses ink on paper in both themes because the tokens swap with the theme.
+- The still is rendered by the `<Image>` component, so its selectors use `:global(.ottie__still)` inside `.ottie` (Astro's scoped styles do not reach into child components).
+- On a page with two Otties, pass `toggle={false}` to the second one so there is one Quiet Ottie button.
 
 - [ ] **Step 6: Write the lab page**
+
+The default lab page mirrors home: the hero Ottie at the top, and the letter Ottie in a `#contact` section far below, so the two-Ottie rules can be tested. The other slugs have one Ottie each; `/blank` has none.
 
 ```astro
 ---
 // site/src/pages/lab/ottie/[...slug].astro
 // Ottie lab: the e2e tests' fixture and Din's review page. Never built for production.
 import Ottie from "../../../components/Ottie.astro";
-import Base from "../../../layouts/Base.astro";
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import { labEnabled } from "../../../lib/lab";
+import { DEPLOY } from "../../../lib/deploy-env";
 import type { PageContext } from "../../../ottie/lines";
 
 export function getStaticPaths() {
-  if (!__DINS_LABS__) return [];
+  if (!labEnabled(DEPLOY, __DINS_LABS_OVERRIDE__)) return [];
   return [undefined, "project", "contact", "devlog", "404", "blank"].map((slug) => ({ params: { slug } }));
 }
 
 const slug = Astro.params.slug;
 const context: PageContext = slug === "project" || slug === "contact" || slug === "devlog" || slug === "404" ? slug : "home";
+const twoOtties = slug === undefined;
 const cues: Array<[string, number?]> = [
   ["ask:submit"], ["ask:stream"], ["ask:answer", 2], ["ask:answer", 0], ["ask:unknown"], ["ask:resting"],
   ["ask:error"], ["ask:reset"], ["letter:open"], ["letter:ready"], ["letter:sent"],
 ];
 ---
-<Base title={`Ottie lab (${context})`} description="Ottie lab" noindex>
+<BaseLayout title={`Ottie lab (${context})`} description="Ottie lab" card={null} noindex>
   <main class="lab">
-    <section class="lab__hero">
+    <section class="lab__hero" id="top">
       <div class="lab__ask">
         <label for="lab-q">Ask Ottie about Din</label>
         <input id="lab-q" type="text" data-ottie-avoid />
@@ -2894,6 +3164,13 @@ const cues: Array<[string, number?]> = [
       <p>Modes: <a href="?ottie-mode=full">full</a>, <a href="?ottie-mode=reduced">reduced</a>, <a href="?ottie-mode=still">still</a></p>
     </section>
     <div class="lab__spacer"></div>
+    {twoOtties && (
+      <section class="lab__letter" id="contact">
+        <div class="lab__sheet" data-ottie-avoid>Dear Din,</div>
+        <Ottie context="contact" pointToward="left" toggle={false} lab />
+      </section>
+    )}
+    <div class="lab__spacer"></div>
   </main>
   <script is:inline>
     const send = (type, sources) =>
@@ -2909,55 +3186,57 @@ const cues: Array<[string, number?]> = [
       sessionStorage.clear();
       location.reload();
     });
-    document.getElementById("lab-overlay").addEventListener("change", (e) =>
-      document.querySelector("[data-ottie-host]")?.classList.toggle("is-overlay", e.target.checked));
+    document.getElementById("lab-overlay").addEventListener("change", (e) => {
+      for (const h of document.querySelectorAll("[data-ottie-host]")) h.classList.toggle("is-overlay", e.target.checked);
+    });
   </script>
-</Base>
+</BaseLayout>
 
 <style>
-  .lab { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
-  .lab__hero { position: relative; display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 24px; min-height: 720px; }
+  .lab { max-width: 1200px; margin: 0 auto; padding: 24px 16px; overflow-x: clip; }
+  .lab__hero { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 24px; min-height: 720px; }
   .lab__ask { display: grid; gap: 12px; align-self: center; max-width: 640px; }
   .lab__ask input { font: inherit; padding: 12px 16px; border-radius: 14px; border: 1px solid var(--color-hairline); }
-  .lab__answer { min-height: 120px; padding: 16px; border-radius: 14px; background: var(--color-surface); }
+  .lab__answer, .lab__sheet { min-height: 120px; padding: 16px; border-radius: 14px; background: var(--color-surface); }
   .lab__controls { display: flex; flex-wrap: wrap; gap: 8px; margin-block: 24px; }
-  .lab__spacer { height: 200vh; }
+  .lab__letter { display: grid; grid-template-columns: minmax(0, 36rem) auto; align-items: end; gap: 24px; min-height: 600px; }
+  .lab__spacer { height: 150vh; }
   @media (max-width: 639px) {
-    .lab__hero { grid-template-columns: 1fr; min-height: auto; }
+    .lab__hero, .lab__letter { grid-template-columns: 1fr; min-height: auto; }
   }
 </style>
 ```
 
-The still is rendered by the `<Image>` component, so its selectors use `:global(.ottie__still)` inside `.ottie` (Astro's scoped styles do not reach into child components). The lab's controls use an inline script on purpose, so the lab adds no bundled JavaScript and the `/blank` page is a fair baseline.
+The lab's controls use an inline script on purpose, so the lab adds no bundled JavaScript and the `/blank` page is a fair baseline. `BaseLayout`'s props follow M1's `SeoProps` (`card: null` means no social card).
 
 - [ ] **Step 7: Run the dev server and look**
 
 Run: `pnpm --dir site dev`, open `http://localhost:4321/lab/ottie`.
-Expected: Ottie runs in from the right on the first load, waves with "Hi, I’m Ottie.", then idles; the Quiet Ottie button toggles; "Still overlay" shows the still over the canvas at half opacity with no visible offset; the browser console has no errors. Stop the server.
+Expected: Ottie runs in from the right on the first load, waves with "Hi, I’m Ottie.", then idles; scrolling down to the letter section, the hero Ottie shows its still and the letter Ottie starts moving (idle), and the Network panel shows `point.webp` only then; the Quiet Ottie button (one on the page) toggles both; "Still overlay" shows the still over the canvas at half opacity with no visible offset; the browser console has no errors. Stop the server.
 
 - [ ] **Step 8: Check that production builds have no lab**
 
-Run: `WORKERS_CI_BRANCH=main pnpm --dir site build && find site/dist -path '*lab*' -name '*.html'`
+Run: `WORKERS_CI=1 WORKERS_CI_BRANCH=main pnpm --dir site build && find site/dist -path '*lab*' -name '*.html'`
 Expected: the build succeeds and `find` prints nothing.
 
 - [ ] **Step 9: Commit**
 
 ```bash
-git add site/src/ottie/still.ts site/src/components/Ottie.astro site/src/lib/lab.ts "site/src/pages/lab/ottie/[...slug].astro" site/astro.config.mjs site/src/env.d.ts site/tests/unit/lab.test.ts
+git add site/src/ottie/still.ts site/src/ottie/layout.ts site/src/components/Ottie.astro site/src/lib/lab.ts "site/src/pages/lab/ottie/[...slug].astro" site/astro.config.mjs site/src/env.d.ts site/tests/unit/ottie/layout.test.ts site/tests/unit/lab.test.ts
 git commit -m "feat(ottie): add the Ottie component with an inline still, and the Ottie lab page"
 ```
 
-### Task 13: End-to-end behaviour, loading order, accessibility and resilience
+### Task 14: End-to-end behaviour, loading order, accessibility and resilience
 
 **Files:**
 - Create: `site/tests/e2e/ottie.spec.ts`
 - Test: this file is the test.
 
 **Interfaces:**
-- Consumes: the lab routes and DOM contract from Tasks 11 and 12; `ottie:state` events (Task 1).
+- Consumes: the lab routes and DOM contract from Tasks 12 and 13; `ottie:state` events (Task 1).
 - Produces: nothing new.
 
-These run in M0's Playwright setup (Chromium at least; WebKit too if M0 configures it, since Safari decodes differently). They need a server with lab pages (`astro dev`, or a built preview without `WORKERS_CI_BRANCH=main`).
+These run in M0's Playwright setup: the web server is `pnpm build && pnpm serve` (wrangler dev), a `local` deploy, so lab pages are built; the specs land in the default `chromium` project (contract, "Tests").
 
 - [ ] **Step 1: Write the tests**
 
@@ -2981,14 +3260,21 @@ function trackSheets(page: Page) {
 }
 async function trackStates(page: Page) {
   await page.addInitScript(() => {
-    const w = window as unknown as { __ottie: string[] };
+    const w = window as unknown as { __ottie: { state: string; context: string }[] };
     w.__ottie = [];
-    addEventListener("ottie:state", (e) => w.__ottie.push((e as CustomEvent<{ state: string }>).detail.state));
+    addEventListener("ottie:state", (e) => w.__ottie.push((e as CustomEvent<{ state: string; context: string }>).detail));
   });
 }
-const states = (page: Page) => page.evaluate(() => (window as unknown as { __ottie: string[] }).__ottie);
+// States entered by the Otties of one context (the lab's home page has "home" and "contact").
+const states = (page: Page, context = "home") => page.evaluate(
+  (ctx) => (window as unknown as { __ottie: { state: string; context: string }[] }).__ottie.filter((e) => e.context === ctx).map((e) => e.state),
+  context,
+);
 const seedReturning = (page: Page) => page.addInitScript(() => localStorage.setItem("dins.ottie.seen", "1"));
-const host = (page: Page) => page.locator("[data-ottie-host]");
+const host = (page: Page) => page.locator("[data-ottie-host]").first();
+const letterHost = (page: Page) => page.locator('[data-ottie-host][data-ottie-context="contact"]');
+const cue = (page: Page, type: string) =>
+  page.evaluate((t) => dispatchEvent(new CustomEvent("ottie:cue", { detail: { type: t } })), type);
 const live = (page: Page) => expect(host(page)).toHaveClass(/is-live/, { timeout: 15_000 });
 // With a fake clock, frames only run when the clock moves; sheets still arrive in real time.
 async function liveWithClock(page: Page) {
@@ -3239,6 +3525,59 @@ test.describe("bubbles, pausing and timers", () => {
     });
   });
 });
+
+test.describe("two Otties on one page", () => {
+  test("only the Ottie most in view animates; the other shows its still", async ({ page }) => {
+    await seedReturning(page);
+    await page.goto(LAB);
+    await live(page);
+    await expect(host(page)).toHaveAttribute("data-ottie-running", "true");
+    await expect(letterHost(page)).toHaveAttribute("data-ottie-running", "false");
+    await expect(letterHost(page)).not.toHaveClass(/is-live/);
+    await letterHost(page).scrollIntoViewIfNeeded();
+    await expect(letterHost(page)).toHaveAttribute("data-ottie-running", "true");
+    await expect(letterHost(page)).toHaveClass(/is-live/, { timeout: 15_000 });
+    await expect(host(page)).toHaveAttribute("data-ottie-running", "false");
+    await expect(host(page)).not.toHaveClass(/is-live/);
+  });
+
+  test("only the hero greets; the letter Ottie starts in idle and loads point when reached", async ({ page }) => {
+    const sheets = trackSheets(page);
+    await trackStates(page);
+    await page.goto(LAB);
+    await expect.poll(() => states(page), { timeout: 15_000 }).toEqual(["run-in", "wave", "idle"]);
+    expect(sheets.names).not.toContain("point");
+    await letterHost(page).scrollIntoViewIfNeeded();
+    await expect.poll(() => sheets.names, { timeout: 10_000 }).toContain("point");
+    await page.waitForTimeout(2000);
+    expect(await states(page, "contact")).toEqual([]);
+    expect(new Set(sheets.names).size).toBe(sheets.names.length); // one shared loader: nothing fetched twice
+  });
+
+  test("ask cues move the hero and letter cues move the letter Ottie", async ({ page }) => {
+    await seedReturning(page);
+    await trackStates(page);
+    await page.goto(LAB);
+    await live(page);
+    await cue(page, "ask:submit");
+    await expect.poll(() => states(page)).toContain("think");
+    await letterHost(page).scrollIntoViewIfNeeded();
+    await cue(page, "letter:open");
+    await expect.poll(() => states(page, "contact"), { timeout: 10_000 }).toContain("point");
+    await cue(page, "letter:sent");
+    await expect.poll(() => states(page, "contact"), { timeout: 10_000 }).toEqual(expect.arrayContaining(["point", "jump"]));
+    expect(await states(page)).not.toContain("point");
+    expect(await states(page, "contact")).not.toContain("think");
+  });
+
+  test("one Quiet Ottie button quiets both", async ({ page }) => {
+    await seedReturning(page);
+    await page.goto(LAB);
+    await expect(page.getByRole("button", { name: "Quiet Ottie" })).toHaveCount(1);
+    await page.getByRole("button", { name: "Quiet Ottie" }).click();
+    await expect(page.locator('[data-ottie-host][data-ottie-mode="still"]')).toHaveCount(2);
+  });
+});
 ```
 
 Note on the clock tests: `page.clock.install()` fakes timers, `requestAnimationFrame` and `requestIdleCallback`, but sheet fetches still take real time, which is why `liveWithClock` alternates fake and real time.
@@ -3246,23 +3585,23 @@ Note on the clock tests: `page.clock.install()` fakes timers, `requestAnimationF
 - [ ] **Step 2: Run them**
 
 Run: `pnpm --dir site test:e2e -- tests/e2e/ottie.spec.ts`
-Expected: all pass. Typical first failures and what they mean: a wrong network order means a `prefetch` or `ensure` call moved in `player.ts`; a horizontal scrollbar at 375 px means the hero container needs `overflow-x: clip` (see "Assumes", M1); axe failures about contrast on the bubble mean the token names in Task 12 do not match `tokens.css`.
+Expected: all pass. Typical first failures and what they mean: a wrong network order means a `prefetch` or `ensure` call moved in `player.ts`; a horizontal scrollbar at 375 px means the hero container needs `overflow-x: clip` (see "Assumes", M1); axe failures about contrast on the bubble mean the token names in Task 13 do not match `tokens.css`.
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add site/tests/e2e/ottie.spec.ts
-git commit -m "test(ottie): cover loading order, modes, resilience, layout and timers end to end"
+git commit -m "test(ottie): cover loading order, modes, two Otties, resilience, layout and timers end to end"
 ```
 
-### Task 14: Performance trace, JavaScript cost and long-term caching
+### Task 15: Performance trace, JavaScript cost and long-term caching
 
 **Files:**
 - Create: `site/tests/e2e/ottie-perf.spec.ts`, `site/public/_headers` (or add a block to it if M0 or M5 already created it)
 - Test: this spec, plus curl against the preview.
 
 **Interfaces:**
-- Consumes: the lab routes (Task 12), the `ottie:boot` performance mark (Task 11).
+- Consumes: the lab routes (Task 13), the `ottie:boot` performance mark (Task 12).
 - Produces: a saved Chromium trace for Din, and the caching rule for `/ottie/*`.
 
 - [ ] **Step 1: Write the performance and cost tests**
@@ -3338,7 +3677,7 @@ Expected: PASS. The trace is saved under `site/test-results/` and attached to th
   Cache-Control: public, max-age=31536000, immutable
 ```
 
-If M5's header generator (`site/src/lib/security/headers.ts`) already exists, add this rule there instead and regenerate.
+M5's build-time headers integration merges `site/public/_headers` into the final file and keeps this rule (contract, "Security headers and CSP"), so it stays here even after M5 lands.
 
 - [ ] **Step 4: Commit**
 
@@ -3352,93 +3691,156 @@ git commit -m "test(ottie): check long tasks, layout shift and script cost; cach
 Run: `curl -sI "<preview-url>/ottie/idle.webp?v=check" | grep -i cache-control`
 Expected: `cache-control: public, max-age=31536000, immutable`. (Any `v` value works for the header check; the real version is in the page's requests.) Record the result in the ledger.
 
-### Task 15: Put Ottie on the site's pages (needs M1 merged)
+### Task 16: Put Ottie on the site's pages (needs M1 merged)
 
 **Files:**
-- Modify: M1's home page hero, case study layout, contact page, 404 page and writing post layout. Find them with `grep -rln "data-hero\|404\|case study\|kind" site/src/pages site/src/layouts site/src/components`.
+- Modify (M1's files, which use M1's placeholder `OttieSlot.astro` today): `site/src/pages/index.astro` (hero, and the `#contact` section), `site/src/pages/work/[id].astro`, `site/src/pages/writing/[id].astro`, `site/src/pages/contact/index.astro`, `site/src/pages/404.astro`; M1's specs that look for `.ottie-slot`: `site/tests/e2e/home.spec.ts`, `case-study.spec.ts`, `writing.spec.ts`, `misc.spec.ts`.
+- Delete: `site/src/components/OttieSlot.astro` (contract, "Pages and markup").
 - Create: `site/tests/e2e/ottie-routes.spec.ts`
 
 **Interfaces:**
-- Consumes: `<Ottie>` (Task 12); M1's routes and the `writing` collection's `kind` field.
-- Produces: Ottie on exactly the routes in PRD section 4.
+- Consumes: `<Ottie>` (Task 13); M1's markup hooks: `#top` (`data-setpiece="lens"`), `#contact` (`data-setpiece="letter"`), `article.project-card`, the sample posts `/writing/sample-devlog/` and `/writing/sample-note/` (built with M1's `DINS_SHOW_DRAFTS=1` in the e2e server), `DRAFTS_SHOWN` from M1's `site/tests/e2e/helpers.ts`.
+- Produces: Ottie on exactly the routes in PRD section 4, plus the letter Ottie on home (Din, 2026-10-21, M4 decision 4).
 
-Placement rules (PRD section 4): home, in the hero corner, about 25 to 30 percent of the hero's height, below the questions on phones; project pages, beside the project Ask bar (M3 fills the bar; leave the slot next to it); contact, beside the letter, pointing toward it; the 404 page; devlog posts only (`kind: devlog`). Not on About, the writing list or formal pages (`/privacy`, `/work`).
+Placement (PRD section 4 and the contract):
+
+| Where | Replace | With |
+|---|---|---|
+| Home hero (`#top`) | `<OttieSlot placement="hero" />` | `<Ottie context="home" pointToward="left" class="hero__ottie" />` |
+| Home `#contact` section | nothing yet | `<Ottie context="contact" pointToward="left" toggle={false} />` beside `<ContactForm />` |
+| Case study (`work/[id].astro`) | `<OttieSlot placement="project" />` | `<Ottie context="project" pointToward="left" />` |
+| Devlog posts (`writing/[id].astro`) | `{isDevlog && <OttieSlot placement="devlog" />}` | `{isDevlog && <Ottie context="devlog" />}` |
+| `/contact` | `<OttieSlot placement="contact" />` | `<Ottie context="contact" pointToward="left" />` (the only Ottie there, so it keeps the toggle) |
+| 404 | `<OttieSlot placement="404" state="shrug" />` | `<Ottie context="404" />` (the director opens with a shrug) |
+
+Not on About, the writing list or formal pages. M4 builds the folding letter around the home `#contact` form later and does not mount another Ottie (contract, M4 amendments).
 
 - [ ] **Step 1: Write the failing route test**
 
 ```ts
 // site/tests/e2e/ottie-routes.spec.ts
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+import { DRAFTS_SHOWN } from "./helpers";
 
-const has = async (page: import("@playwright/test").Page, path: string) => {
-  await page.goto(path);
-  return (await page.locator("[data-ottie-host]").count()) === 1;
-};
+const otties = (page: Page) => page.locator("[data-ottie-host]");
 
-test("Ottie appears only where the PRD says", async ({ page }) => {
-  await page.goto("/work");
-  const project = await page.locator('a[href^="/work/"]').first().getAttribute("href");
-  await page.goto("/writing");
-  const devlog = await page.locator('[data-kind="devlog"] a[href^="/writing/"]').first().getAttribute("href");
-  const note = await page.locator('[data-kind="note"] a[href^="/writing/"], [data-kind="case study"] a[href^="/writing/"]').first().getAttribute("href");
-  for (const path of ["/", project!, "/contact", "/no-such-page", devlog!]) expect(await has(page, path), path).toBe(true);
-  for (const path of ["/about", "/writing", "/work", "/privacy", note!]) expect(await has(page, path), path).toBe(false);
+test("home has the hero Ottie and the letter Ottie, with one Quiet Ottie button", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator('#top [data-ottie-host][data-ottie-context="home"]')).toHaveCount(1);
+  await expect(page.locator('#contact [data-ottie-host][data-ottie-context="contact"]')).toHaveCount(1);
+  await expect(otties(page)).toHaveCount(2);
+  await expect(page.getByRole("button", { name: "Quiet Ottie" })).toHaveCount(1);
 });
 
-test("the home hero keeps Ottie at about a quarter of its height, clear of the questions", async ({ page }) => {
+test("contact, 404 and case studies have one Ottie each", async ({ page }) => {
+  await page.goto("/contact/");
+  await expect(page.locator('[data-ottie-host][data-ottie-context="contact"]')).toHaveCount(1);
+  await expect(otties(page)).toHaveCount(1);
+  await page.goto("/no-such-page/");
+  await expect(page.locator('[data-ottie-host][data-ottie-context="404"]')).toHaveCount(1);
+  await page.goto("/work/");
+  const project = await page.locator("article.project-card a").first().getAttribute("href");
+  test.skip(!project, "needs a project");
+  await page.goto(project!);
+  await expect(page.locator('[data-ottie-host][data-ottie-context="project"]')).toHaveCount(1);
+});
+
+test("devlog posts get Ottie, other posts and formal pages do not", async ({ page }) => {
+  test.skip(!DRAFTS_SHOWN, "needs the sample posts");
+  await page.goto("/writing/sample-devlog/");
+  await expect(page.locator('[data-ottie-host][data-ottie-context="devlog"]')).toHaveCount(1);
+  for (const path of ["/writing/sample-note/", "/writing/", "/about/", "/work/", "/privacy/"]) {
+    await page.goto(path);
+    await expect(otties(page), path).toHaveCount(0);
+  }
+});
+
+test("the hero Ottie is about a quarter of the hero's height and clear of the questions", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/");
-  const ratio = await page.evaluate(() => {
-    const o = document.querySelector("[data-ottie-host]")!;
-    const hero = o.closest("[data-hero], section")!;
-    return o.getBoundingClientRect().height / hero.getBoundingClientRect().height;
+  const { ratio, overlaps } = await page.evaluate(() => {
+    const o = document.querySelector('#top [data-ottie-host]')!.getBoundingClientRect();
+    const hero = document.querySelector("#top")!.getBoundingClientRect();
+    const ask = document.querySelector("#top .ask-slot")!.getBoundingClientRect();
+    return {
+      ratio: o.height / hero.height,
+      overlaps: o.left < ask.right && ask.left < o.right && o.top < ask.bottom && ask.top < o.bottom,
+    };
   });
   expect(ratio).toBeGreaterThanOrEqual(0.2);
   expect(ratio).toBeLessThanOrEqual(0.32);
+  expect(overlaps).toBe(false);
+});
+
+test("on phones the hero Ottie sits below the questions", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  await page.goto("/");
+  const below = await page.evaluate(() => {
+    const o = document.querySelector('#top [data-ottie-host]')!.getBoundingClientRect();
+    const ask = document.querySelector("#top .ask-slot")!.getBoundingClientRect();
+    return o.top >= ask.bottom;
+  });
+  expect(below).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 });
 ```
 
-(The `data-kind` hooks and `data-hero` are assumptions about M1's markup; adjust the selectors to what M1 ships and keep the route lists as they are.)
-
 Run: `pnpm --dir site test:e2e -- tests/e2e/ottie-routes.spec.ts`
-Expected: FAIL, Ottie is on no route yet.
+Expected: FAIL, no `[data-ottie-host]` on any route yet.
 
-- [ ] **Step 2: Place the component**
+- [ ] **Step 2: Swap the placeholders and update M1's specs**
 
-Use these calls in M1's files:
+Make the replacements in the table (each file imports `Ottie from "../components/Ottie.astro"` at the right depth instead of `OttieSlot`). In the home `#contact` section, wrap the form and the letter Ottie so they sit side by side on wide screens and stack on phones:
 
 ```astro
-<!-- home hero, after the Ask area; on phones CSS moves it below the questions -->
-<Ottie context="home" pointToward="left" class="hero__ottie" />
-
-<!-- case study layout, beside the slot for M3's project Ask bar -->
-<Ottie context="project" pointToward="left" />
-
-<!-- contact page, beside the letter -->
-<Ottie context="contact" pointToward="left" />
-
-<!-- 404 page -->
-<Ottie context="404" />
-
-<!-- writing post layout -->
-{post.data.kind === "devlog" && <Ottie context="devlog" />}
+<section class="section wrap" id="contact" data-setpiece="letter" aria-labelledby="contact-h">
+  <span class="t-label eyebrow">Contact</span>
+  <h2 id="contact-h" class="t-h1">Write to me.</h2>
+  <p class="t-lead">Roles, admissions questions, or just a hello. It lands in my inbox.</p>
+  <div class="letter-row">
+    <ContactForm />
+    <Ottie context="contact" pointToward="left" toggle={false} />
+  </div>
+</section>
 ```
 
-For the home hero on phones, in the hero's own styles: `@media (max-width: 639px) { .hero__ottie { order: 2; margin-inline: auto; } }` (with the questions at `order: 1`), and make sure the hero or the page clips horizontal overflow (`overflow-x: clip`) so run-in can start off screen without a scrollbar. Set `pointToward` to the side the answer and sources sit on; it only matters once Din approves mirroring.
+and in `index.astro`'s `<style>`:
+
+```css
+.letter-row { display: flex; gap: var(--space-7); align-items: flex-end; flex-wrap: wrap; }
+.letter-row > :first-child { flex: 1 1 32rem; min-width: 0; }
+.hero { overflow-x: clip; } /* run-in starts off to the right */
+@media (max-width: 639px) {
+  .hero-text { order: 1; }
+  .hero :global(.hero__ottie) { order: 2; margin-inline: auto; }
+}
+```
+
+Then `git rm site/src/components/OttieSlot.astro` and update M1's specs (same intent, new hooks):
+
+| Spec | Old | New |
+|---|---|---|
+| `home.spec.ts` | `.ottie-slot[data-ottie-placement="hero"]` has `aria-hidden` | `#top [data-ottie-host][data-ottie-context="home"]` has `aria-hidden="true"` |
+| `case-study.spec.ts` | `.ottie-slot[data-ottie-placement="project"]` count 1 | `[data-ottie-host][data-ottie-context="project"]` count 1 |
+| `writing.spec.ts` | `.ottie-slot[data-ottie-placement="devlog"]` count 1, `.ottie-slot` count 0 | `[data-ottie-host][data-ottie-context="devlog"]` count 1, `[data-ottie-host]` count 0 |
+| `misc.spec.ts` | `.ottie-slot[data-ottie-placement="404"]` has `data-ottie-state="shrug"` | `[data-ottie-host][data-ottie-context="404"]` count 1 |
+
+Run: `grep -rn "OttieSlot\|ottie-slot\|data-ottie-placement" site/`
+Expected: no output.
 
 - [ ] **Step 3: Run the route tests and the whole e2e suite**
 
 Run: `pnpm --dir site test:e2e`
-Expected: all pass, including M1's own route and axe tests.
+Expected: all pass, including M1's route, axe and no-JS specs (the still is in the HTML, so the no-JS pages still show Ottie).
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add site/src site/tests/e2e/ottie-routes.spec.ts
-git commit -m "feat(ottie): place Ottie on home, project, contact, 404 and devlog pages"
+git add site/src site/tests/e2e
+git commit -m "feat(ottie): replace the Ottie placeholders with the player on home, letter, project, contact, 404 and devlog"
 ```
 
-### Task 16 (Din): Review Ottie's lines
+### Task 17 (Din): Review Ottie's lines
 
 **Files:** `site/src/ottie/lines.json` (reviewed in the branch's PR or in a preview).
 
@@ -3456,25 +3858,27 @@ Ottie's lines are copy, and the PRD requires a reviewed file. The drafts in Task
 - [ ] Din decides whether French lines ship in v1 (PRD section 9). If yes, the lines file grows a `fr` block and the director picks by `document.documentElement.lang`; that is a follow-up task, not in this plan.
 - [ ] Claude records "Lines reviewed (Din, date)" in the ledger.
 
-### Task 17 (Din): Approve Ottie in the preview
+### Task 18 (Din): Approve Ottie in the preview
 
 Needs Din's go to push the branch so Workers Builds makes a preview link.
 
-Checklist for Din, on the preview's `/lab/ottie` pages and (after Task 15) the real pages, on the 2020 laptop and a mid-range phone:
+Checklist for Din, on the preview's `/lab/ottie` pages and (after Task 16) the real pages, on the 2020 laptop and a mid-range phone:
 
 - [ ] First visit (use "Reset visit"): Ottie runs in, waves with "Hi, I’m Ottie.", settles into idle. No duplicate Ottie, no jump when the still hands over to the canvas. Why: the first impression on the hero.
 - [ ] Reload: just a wave. New page in the same tab: just idle. Why: Ottie should not repeat the greeting.
 - [ ] Focus the box, send, stream, answer: think, then nod and point; "don't know": shrug. Why: the answer flow M3 drives.
 - [ ] Click Ottie: a hop and a line; clicking again within 20 s: hop only. Why: speaking sparingly.
 - [ ] Wait 20 s: one tip; wait a minute more: nap; click something: wake. On a phone: neither. Why: the idle behaviours and their thresholds (tune in `director.ts` if they feel wrong).
-- [ ] Quiet Ottie: still and silent, remembered after a reload; the label and its spot under Ottie feel right.
+- [ ] Two Otties on home: scroll from the hero to the letter; only the Ottie in view moves, the other holds its still; the letter Ottie points when the letter comes into view and jumps when it is sent. Why: Din's M4 decision 4.
+- [ ] Quiet Ottie: still and silent (both Otties), remembered after a reload; the label and its spot under the hero Ottie feel right.
+- [ ] `?calm` (M4's review switch): Ottie uses the reduced-motion poses.
 - [ ] Reduced motion (system setting, or `?ottie-mode=reduced`): poses with gentle crossfades; pick the key pose for each state (wave, think, nod, point, shrug, jump, nap) and tell Claude the drawing numbers to put in `poses.ts`.
 - [ ] Still overlay: the still and the canvas line up.
 - [ ] Point direction: on the home hero Ottie points toward screen right; decide whether to mirror it toward the answer (Open questions, item 3).
 - [ ] Chrome DevTools, Performance panel, 4x CPU slowdown, record 10 s on the home page: no red long tasks from Ottie, no layout shift. Network panel: sheets in the order run-in, wave, idle on a first visit; each later sheet only when its trigger is near.
 - [ ] Claude records Din's approval (or the changes asked for) in the ledger; Din sets task 2.12 to Accepted.
 
-### Task 18: Close the milestone in the docs
+### Task 19: Close the milestone in the docs
 
 **Files:**
 - Modify: `docs/TASKS.md` (2.12 status and verification), `docs/WORK_LEDGER.md` (decisions, test results, trace and network evidence, Din's approval), `docs/site/PLAN.md` (M2 section: the lab page and any threshold changes), `brand/ottie/README.md` (one line: the site's player is `site/src/ottie/`, and the preview stays the reference).
@@ -3500,17 +3904,16 @@ git commit -m "docs: record M2 Ottie on the site results"
 What this plan relies on from the other milestones. If one turns out differently, adapt at merge and note it in the ledger.
 
 **M0 (Foundation)**
-- `site/` is the Astro 7.4 app with TypeScript 6.0 (`resolveJsonModule` on, strict), the Cloudflare adapter, and `astro:assets` able to resize images at build time (the adapter's default compile-time image service with sharp).
+- `site/` is the Astro 7.4 app (Worker `dins-site`) with TypeScript 6.0 (`resolveJsonModule` on, strict), the Cloudflare adapter, and `astro:assets` able to resize images at build time (the adapter's default compile-time image service with sharp).
 - `/ottie/<file>.webp` serves `brand/ottie/dist/` in dev, preview and production (copy or alias), and Vite may import files from the repo root (`brand/...`), which the pnpm workspace root normally allows.
 - Vitest 4.1 picks up `site/tests/unit/**/*.test.ts` in a Node environment (Node 24 has `EventTarget`, `CustomEvent`, `Blob` and `structuredClone`); `pnpm --dir site test`, `test:e2e`, `check` and `./check.sh` exist. M3's note says `@cloudflare/vitest-pool-workers` is deprecated in favour of `@cloudflare/vitest-plugin`; nothing here depends on that choice.
-- Playwright 1.64 with `@axe-core/playwright` is set up with a web server that serves lab pages and a `baseURL`; at least Chromium. Task 14's script-size test needs a built preview (it skips when `E2E_DEV=1`).
-- `site/src/layouts/Base.astro` takes `title`, `description` and `noindex`, loads `brand/tokens/tokens.css` and the fonts. If the name or props differ, change the lab page's import.
-- `site/astro.config.mjs` has a `vite` block that Task 12 can add a `define` to, and `site/src/env.d.ts` exists.
-- Workers Builds sets `WORKERS_CI_BRANCH` (checked against Cloudflare's docs in Task 12; `DINS_LABS=0` is the fallback). If M0 or M1 already has a way to keep dev-only pages out of production, use that instead of `lib/lab.ts`.
+- Playwright 1.64 with `@axe-core/playwright`: M0's web server (`pnpm build && pnpm serve`, wrangler dev, waiting on `/api/health`) is a `local` deploy, so lab pages exist and scripts are bundled; M2's specs run in the default `chromium` project.
+- `site/src/layouts/BaseLayout.astro` (M0 creates it, M1 fills it) takes M1's `SeoProps` (`title`, `description`, `card`, `noindex`) and loads `brand/tokens/tokens.css` and the fonts.
+- The shared build-time deploy (contract, "Build-time deploy"): `site/src/lib/deploy.ts` (`type Deploy`, `deployFromEnv`), `site/src/lib/deploy-env.ts` (`DEPLOY`), the `__DINS_DEPLOY__` define in `site/astro.config.mjs` and its declaration in `site/src/env.d.ts`. Task 13 adds `__DINS_LABS_OVERRIDE__` beside it.
 
 **M1 (Pages and content)**
-- The routes in PRD section 2 exist, with a home hero, a case study layout with room beside the project Ask bar, a contact page, a 404 page and a writing post layout that knows `kind`. Task 15 waits for them.
-- The hero, or the page, clips horizontal overflow (`overflow-x: clip`), so the run-in canvas can start off screen without a scrollbar. Task 13 tests this on the lab page and Task 15 on the home page.
+- The routes in PRD section 2 exist with M1's hooks: `#top` (`data-setpiece="lens"`) holding `.ask-slot` and `<OttieSlot placement="hero">`, `#contact` (`data-setpiece="letter"`) holding `<ContactForm />`, `article.project-card`, `<OttieSlot>` on the case study, `/contact`, 404 and devlog posts, the sample posts `/writing/sample-devlog/` and `/writing/sample-note/`, and `DRAFTS_SHOWN` in `site/tests/e2e/helpers.ts`. Task 16 swaps every `OttieSlot` and deletes it.
+- Task 16 adds `overflow-x: clip` to the hero so run-in can start off screen without a scrollbar; M1 or M4 should keep it if they restyle the hero.
 
 **M3 (Ask Ottie)**
 - The Ask island calls `cueOttie` as in "The public interface": `ask:focus` on focus, `ask:typing` on input, `ask:submit` on send, `ask:stream` on the first token, `ask:answer` with the number of sources when the answer is complete, `ask:unknown`, `ask:resting` and `ask:error` for those paths, `ask:reset` when cleared.
@@ -3518,25 +3921,27 @@ What this plan relies on from the other milestones. If one turns out differently
 
 **M4 (Set pieces)**
 - The letter calls `letter:open` when it comes into view, `letter:ready` when the form is filled in and `letter:sent` after sending; the letter carries `data-ottie-avoid`.
-- The "Ottie carries it off" moment moves `[data-ottie-host]` with `transform` only, after `onOttieState` reports `idle` following `jump`.
-- The lens intro and the set pieces leave Ottie's box where Task 15 puts it (no layout changes after load).
+- M4 does not mount an Ottie; Task 16 places `<Ottie context="contact">` in the home `#contact` section and on `/contact`. The envelope flies off after `onOttieState` reports `idle` following `jump` for `context === "contact"` (the hero Ottie's states carry `context: "home"`). If M4 moves the letter Ottie, it does so with `transform` only.
+- M4's `MotionHead.astro` sets `<html data-motion="full|calm">` before first paint; Ottie reads it (calm means reduced).
+- The lens intro and the set pieces leave Ottie's box where Task 16 puts it (no layout changes after load).
 
 **M5 (Hardening and launch)**
-- The production CSP allows the Ottie component's inline pre-paint script by hash (Astro's `security.csp` hashes inline scripts it renders; M5's CSP sweep will show if it does not) and `connect-src 'self'` for the sheet fetches. No `blob:` source is needed.
-- M5's `_headers` generator keeps the `/ottie/*` caching rule from Task 14.
+- The production CSP allows the Ottie component's inline pre-paint `<script>` and its layout `<style>` element by hash (Astro's `security.csp`, per the contract; M5's CSP sweep shows it if not) and `connect-src 'self'` for the sheet fetches. Ottie renders no `style` attribute; the bubble's position is set from JavaScript (CSSOM), which the CSP allows. No `blob:` source is needed.
+- M5's headers integration keeps the `/ottie/*` caching rule from `site/public/_headers` (Task 15) when it merges.
 - The VoiceOver pass and the real-phone check cover Ottie's pages (Ottie should be silent to VoiceOver; the Quiet Ottie toggle should be announced as a toggle button).
 
 ## Open questions for Din
 
-None of these block Tasks 1 to 14; the plan builds the default shown and makes each a constant or a small switch.
+None of these block Tasks 1 to 15; the plan builds the default shown and makes each a constant or a small switch.
 
 1. **First-visit load order.** The PRD says idle loads first, then wave. On a first visit nothing moves until run-in arrives, so this plan loads run-in, wave, then idle (868 KB, inside the 0.6 to 0.9 MB target). Returning visits follow the PRD (idle, then wave, 610 KB). OK to note this in PRD section 4?
 2. **What counts as a visit.** The plan greets once per browser session: run-in, wave and "Hi, I’m Ottie." the first time ever, just the wave on the first Ottie page of later sessions, and nothing on other pages of the same session. The PRD does not say how often a returning visitor gets the wave.
 3. **Point direction.** Point is drawn toward screen right only. On the home hero Ottie sits at the right with the answer and sources to its left, so it would point away from them. Options: mirror point when the target is on the left (built, behind `MIRROR_POINT_APPROVED`; the glasses and lighting flip too), place Ottie to the left of what it points at, or render a left-pointing state in the private `dins-ottie` repo.
 4. **"Lots of background clicking" sends Ottie to nap.** The plan reads it as 6 clicks on non-interactive areas within 4 seconds, and background clicks alone do not wake Ottie. Is that the behaviour you meant?
 5. **Talk while streaming.** M3's planning note suggested talk while an answer streams. The PRD keeps talk for speech bubbles and silence while streaming, so this plan keeps think until the answer lands. Confirm.
-6. **Quiet Ottie toggle.** Placed as a small mono "Quiet Ottie" button under Ottie, visible only with JavaScript. Quiet means the still pose with no state changes at all (not even reduced-motion poses). Is that spot and meaning right, or should it live in the footer?
+6. **Quiet Ottie toggle.** Placed as a small mono "Quiet Ottie" button under the page's first Ottie (one per page; it quiets both Otties on home), visible only with JavaScript. Quiet means the still pose with no state changes at all (not even reduced-motion poses). Is that spot and meaning right, or should it live in the footer?
 7. **French lines** (PRD section 9): English only in v1 unless you say otherwise.
+8. **Landing on `/contact` first.** Per the contract the letter Ottie never greets, so a first visit that lands on `/contact` gets no run-in or "Hi, I’m Ottie.", and the visit is still marked, so the home page later just waves. Fine, or should the greeting wait for the first page that has a greeting Ottie?
 
 ## Doc updates to apply on merge
 
@@ -3544,5 +3949,6 @@ For whoever merges this plan (not done here, per the planning rules):
 
 - `docs/TASKS.md`, row 2.12: link this plan (`docs/site/plans/M2-ottie.md`) and add rows 2.12a "Review Ottie's lines (Din)" and 2.12b "Approve Ottie in the preview (Din)", both Planned.
 - `docs/WORK_LEDGER.md`: an entry "M2 plan written (Claude, 2026-10-21)" listing the decisions in "Decisions made in this plan" as Proposed, the public cue interface, and the open questions above.
-- `docs/site/PLAN.md`, M2 section: mention the lab page (`/lab/ottie`, never built for production), the cue interface file (`site/src/ottie/events.ts`) that M3 and M4 use, and that M2's Task 15 waits for M1's pages.
+- `docs/site/PLAN.md`, M2 section: mention the lab page (`/lab/ottie`, never built for production), the cue interface file (`site/src/ottie/events.ts`) that M3 and M4 use, the second (letter) Ottie on home, and that M2's Task 16 waits for M1's pages.
+- `docs/site/plans/README.md`: mark the M2 amendments as applied, and add `detail.context` on `ottie:state` to the "Ottie (owner M2)" section.
 - `docs/site/PRD.md` section 4: only after Din answers open questions 1, 2 and 4 (load order on a first visit, how often the greeting plays, the background-click rule).
