@@ -51,8 +51,13 @@ Status vocabulary: Proposed, Planned, In progress, Implemented, Verified, Accept
 | 2.1 | Write the site PRD and build plan (earlier concepts in `~/Develop/dins.dev-concepts` are reference only) | In progress |
 | 2.1a | Lock routes, content model and the home page skeleton (sketch in `docs/design/sketches/`) | Accepted (Din, 2026-10-19) |
 | 2.2 | Lock the Ottie puppet route (Blender, mesh deformation, sprite sheets, live eyes; `docs/design/ottie/BRIEF.md`) | Accepted (Din, 2026-10-19) |
-| 2.3 | Build Ottie milestone 1: idle and wave, approved by Din in the preview page | Planned (separate session, branch `feat/ottie-puppet`) |
-| 2.4 | Build Ottie milestone 2: the remaining states | Planned |
+| 2.3 | Build Ottie milestone 1: idle and wave, approved by Din in the preview page | Superseded: the 2D idle and wave were Accepted (Din, 2026-10-19), then Din moved Ottie to a 3D look; the 2D work is in the private `dins-ottie` repo |
+| 2.3a | 3D Ottie model from Tripo (Smart Mesh P2.0, multi-view), then cleanup, eyes, glasses, fur and rig in Blender | Accepted (Din, 2026-10-20: base, look and rig) |
+| 2.3b | 3D idle and wave, rendered, packed and approved in the preview | Accepted (Din, 2026-10-20: "idle approved, wave approved"; idle 243 KB, wave 367 KB) |
+| 2.4 | Build Ottie milestone 2: the remaining states (run-in, think, nod, point, shrug, poke, jump, nap, wake, talk; celebrate not built) | Accepted (Din, 2026-10-21: "All approved"; total 2,404 KB at q45) |
+| 2.4a | Talk mouth: shape keys on the Tripo mouth cavity (Din chose option A) | Accepted (Din, 2026-10-21) |
+| 2.4b | Lock the 3D look in `docs/BRAND.md`; keep only the sheets, manifest and preview in this repo and move the 3D source to the private `~/Develop/dins-ottie` | Implemented (2026-10-21) |
+| 2.4c | A private GitHub remote for `dins-ottie` (Git LFS for the model, `.blend` files and textures) | Implemented (Din's go, 2026-10-21): `dinsdev/dins-ottie` |
 
 ## Phase 3: Games pipeline
 

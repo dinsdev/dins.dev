@@ -2,7 +2,160 @@
 
 Decisions and why, work done, verification results, approvals, blockers, handoff status. Newest entries first.
 
+## 2026-10-21
+
+### Ottie: 3D look locked, 3D source made private (Din, Claude, 2026-10-21)
+
+- **Decided (Din):** the 3D Ottie is the final look for now: "The way Ottie is right now is the final decision for now. We went thru every stage of testing and this was the best looking one." `docs/BRAND.md` now names the 3D render as the full Ottie, with `brand/reference/ottie-3d-neutral.webp` (idle drawing 0 at full render size) as the reference. The 2D art stays as the character reference and the source of the seal. `BRIEF.md` gets a status note instead of a rewrite.
+- **Decided (Din):** "I don't think we should push the 3d modelling. We only need what's enough to be able to animate Ottie on the website. Anything we need can also use git lfs."
+- **Done:** the full branch history (37 commits) plus the untracked `.blend` files and rendered frames went into a new local repo, `~/Develop/dins-ottie` (cloned from `feat/ottie-puppet`, checked file for file against the worktree). `feat/ottie-puppet` was then rebuilt from `docs/site-prd` with only the sheets, manifest, preview player, a public README and these docs. Removed from this repo: the Tripo export, the cleaned model and textures, the Codex inputs and views, the Blender and packing tools, `RESEARCH.md` and the look and rig review renders. `.gitignore` now blocks those paths and `*.blend`, `*.fbx` and `*.glb`. Paths to `tools3d/`, `source/` and `docs/design/ottie/*.jpg` in the entries below now point into `dins-ottie`.
+- **Why:** the old branch added about 248 MB of files to history, mostly dead TRELLIS meshes and four versions of a 40 MB `.blend`. A squash merge would not help, because pushing the branch uploads every object. A public 3D model would also let anyone lift Ottie, while the site only needs the sheets (2.4 MB, small enough that Git LFS is not needed here).
+- **Private remote (Din's go):** created `dinsdev/dins-ottie` (private) and pushed it. Its history was converted to Git LFS for `*.blend`, `*.glb`, `*.fbx`, `*.png`, `*.jpg` and `*.webp` first (commit messages unchanged), and the look and rig `.blend` files and the full rendered frames are now tracked too, because the frames take hours to render again. Only the quick test renders stay untracked. The free plan includes 10 GiB of LFS storage and 10 GiB of bandwidth a month; this uses about 0.5 GB. The repo has its own README, AGENTS.md and CLAUDE.md.
+- **Open:** the brief's crop and from-scratch rebuild checks were not recorded during the build and remain unverified.
+
+### Ottie milestone 2 accepted (Din, 2026-10-21)
+
+- **Accepted (Din):** "All approved: run-in, think, nod, point, shrug, poke, jump, nap, wake and talk", after reviewing the preview at commit `7f5737c` (all at q45, total 2,404.4 KB). Tasks 2.4 and 2.4a are Accepted. Celebrate (optional) was not built.
+
+## 2026-10-20
+
+### Ottie milestone 2: the mouth, talk, and the remaining states (Claude, 2026-10-20)
+
+- **Decided (Din):** talk uses option A, an opening mouth built into the look ("Go with A: cut the mouth open along the lip crease in build_look.py, add a mouth interior and shape keys, rebuild look and rig, and check idle and wave for drift"), over a separate mouth piece (B) or a jaw-only mumble (C).
+- **Found:** no cut was needed. Tripo modelled a real mouth cavity behind the closed lips (it runs back to y -0.17); the lips only meet inside the cavity and at the corners. So the mouth opens by moving existing vertices, which keeps every face, the fur layout and `hair_uv` exactly as accepted.
+- **Done (`build_look.py`, `build_mouth()`):** three shape keys on the skin: `jaw` (the lower lip, chin and cavity floor swing 20 degrees about a hinge behind the mouth, fading to the corners and down the chin), `round` (oh: corners in and forward) and `wide` (ee: corners out and up). The lower jaw is found by growing from the chin through the mesh, stopped by the cavity's upper half and the corners (a height threshold pulled the upper lip down over the teeth). Inside the mouth: vertices hidden at rest (every frontal ray hits the skin or the teeth, eroded by one ring) darken with depth and get a tongue on the floor; the lips, which Tripo painted cream like the teeth, tint toward a lip colour through a driver on the jaw key, so they change only while the mouth is open. 2,885 fur strands rooted on hidden cavity skin are dropped after every random draw, so the other 170,289 strands are the same strands as before. `OTTIE_MOUTH=0` builds the look without the mouth.
+- **Lesson:** in Blender 5.2 a new shape key starts at value 1. The first rebuild rendered the rest pose with the mouth open until the keys were set to 0.
+- **Drift check:** re-rendered idle drawings 0 and 10 and wave drawing 8 on the new rig against the accepted frames: mean difference 0.026, 0.318 and 0.403 (of 255). The old rig re-rendered against its own frames gives the same numbers (0.026 and 0.403), so the difference is render noise in posed fur, and idle, wave and the states already rendered did not need re-rendering.
+- **Done (`build_anim.py`):** `pose(mouth=(jaw, round, wide))`, keyed on the skin's shape keys per state. New states: **point** (2 s, eyes lead, arm out to screen right with an overshoot, an "over there" nod, settle), **shrug** (1.5 s, shoulders and open paws up, head tilt, half-lowered lids), **poke** (0.8 s, blink, squash, small hop, squashy landing), **jump** (1.5 s, crouch, launch, paws up in a V, squashed landing), **nap** (dozes off once, then a slow sleeping breath on a loop; leaves through wake), **wake** (1.5 s from the sleeping pose: ear twitch, startled hop, a look each way, blink, settle), **talk** (2 s loop: syllables ah, ee, closed, oh with head bobs, a small open-palm paw gesture and a blink). Hops and the jump use travel, so their sheets stay compact. Celebrate (optional) is not built: the budget has 96 KB left.
+- **Verified:** `pack.py`, all twelve states at q45 except wave (q80, accepted): idle 243.1, wave 367.4, run-in 258.2, think 271.0, nod 111.8, point 198.9, shrug 144.6, poke 91.3, jump 172.1, nap 221.9, wake 113.8, talk 210.2 KB; total 2,404.4 KB of 2,500 KB, each state under 400 KB. The preview plays every state on paper and charcoal with no console errors; asking for another state during nap plays wake first; the chain runs run-in 2.3 s, wave 2.0 s, idle 4.0 s, think 4.0 s, nod 1.0 s and back to idle.
+- **Changed since batch 1:** sharing the budget with nine more states moved run-in, think and nod from q55 to q45 (idle's accepted quality).
+- **Open:** none of the milestone 2 states is accepted by Din yet. The point is drawn toward screen right only. Pupils are rendered, so states cannot look at the cursor.
+
+### Ottie milestone 2, batch 1: run-in, think, nod (Claude, 2026-10-20)
+
+- **Done (`build_anim.py`):** new posing tools beside the accepted idle and wave (whose output is unchanged): `pose()` now also takes root and bone moves, `plant` (moves the root so the lower foot stays on the floor in crouches), `glasses` (tilts the glasses empty about the ear line, a push-up), `eyes` (turns both eyeballs for glances), `travel` (a whole-body offset the player applies, so runs and jumps do not widen the sheets) and `reach` (a two-bone reach that puts a paw on a point of the head). The glasses and eyes get their own actions per state. Timing can vary inside a state (twos for fast moves, fours to eights for holds). `--keys` renders each key pose small and quick for contact sheets.
+  - *Run-in (2.3 s):* four scurrying steps turned three-quarters toward the stage (arms pumping, tail streaming, a bounce), a brake with a lean back while the arms and tail fly forward, a turn to the front with an overshoot, a blink and a settle.
+  - *Think (4 s loop):* the paw comes up and pushes the glasses up by the bottom of the rim (the head dips to meet it, since the arm is 25 cm long), drops under the chin, glances up and aside, two chin taps, a blink, a glance the other way, then home while the glasses slide back down.
+  - *Nod (1 s):* a small chin lift, two nods (the second smaller) with a half-blink, ears and tail late.
+- **Packing (`pack.py`):** idle and wave keep their accepted budgets and encodings. The other states share what is left of 2.5 MB at one common quality (the highest that fits), each capped at 400 KB, with reserves for states not rendered yet. Why: per-state guesses starved think (q20 at its first budget, visibly smeared fur at 2x). New manifest fields: per-drawing `shift`, and per-state `loop_start`, `exit_via`, `enter_from` (for nap and wake).
+- **Preview:** applies `shift` (the stage grows to hold the run-in's entry), loops from `loop_start`, leaves through `exit_via`, skips the crossfade for an entrance from off stage, and in the chain demo lets each loop play one full pass (before, idle and think were cut at once by the crossfade).
+- **Verified:** run-in 25 drawings q55 281.7 KB, think 28 drawings q55 298.2 KB, nod 12 drawings q55 123.2 KB; total 1313.6 KB with 1150 KB reserved. The preview plays all five states and the chain (run-in, wave, idle, think, nod, back to idle) on paper and charcoal with no console errors.
+- **Open:** not yet reviewed by Din. Talk needs an open mouth (proposal to Din). Point, shrug, poke, jump, nap and wake are keyed and rendering.
+
+### Ottie: 3D idle and wave accepted (Din, 2026-10-20)
+
+- **Accepted (Din):** "idle approved, wave approved", after watching the preview with the hands-at-sides pose and the bright studio lighting (commit `ebfef67`; idle 243.1 KB, wave 367.4 KB). Task 2.3b is Accepted. Milestone 2 (task 2.4) can start when Din says so.
+
+
+### Ottie: hands at the sides and brighter lighting (Din, 2026-10-20)
+
+- **Asked (Din):** "Hands down on the side would look nicer" for the idle pose, and brighter lighting like the bright reference (`brand/ottie/source/views/front.png`).
+- **Done:**
+  - *Pose:* the neutral pose hangs the arms about 30 degrees out from vertical so they clear the belly, with the paws turned a little forward (candidate B of three test renders). The idle gains an arm sway trailing the weight shift. The wave's anticipation and settle keys are re-keyed around the hanging arms: the arm drops with the forearm trailing, swings slightly past rest and settles. `pose()` now applies aims before turns, so a turn sways an aimed arm.
+  - *Light (`build_look.py`):* a bright neutral studio world, a big soft key from the front and above, a broad fill, a bounce from below and softer warm rims. The key and fill are hidden from glossy rays (they fogged the wrapped lenses), and a small catch light above the camera gives the eyes their highlight.
+  - *Grade:* exposure -0.75, gamma 1.3 (separates the brown sides from the cream belly), saturation 0.92, gain 1.0/0.94/0.86 to take out Tripo's pink. A new paw mask tints the hands and feet dark brown on both the skin and the fur.
+- **Verified:** `pack.py`: idle 243.1 KB (q45), wave 367.4 KB (q80), total 610.6 KB, all within budget. The preview plays both on paper and charcoal with no console errors.
+- **Open:** the reference's darker eye mask and crown come from its painting; Tripo's texture spreads colour differently. The `look-tripo-v1` and `rig-tripo-v1` renders in `docs/design/ottie/` show the earlier lighting.
+
+
+### Ottie: 3D idle and wave rendered and packed (Din's go, Claude, 2026-10-20)
+
+- **Accepted (Din, 2026-10-20):** the cleaned base ("Base looks good"), the look ("The look is good") and the rig ("The rig passes").
+- **Done:** `brand/ottie/tools3d/build_anim.py` keys and renders the states from `ottie_rig.blend`, and `tools/pack.py` packs them into `brand/ottie/dist/`.
+  - *Neutral pose:* paws held in front of the belly, like the reference. Every state starts and ends on it.
+  - *Idle:* a 4 s loop with two breaths (chest swell), a weight shift with the spine and head following late, a tail sway trailing the hips, an ear twitch and one blink.
+  - *Wave:* a 2 s one-shot. Anticipation (tuck and dip), an overshooting raise, three waves that shrink while the paw trails the forearm, a blink as the arm drops past neutral, then a settle. The head tilts toward the paw and the tail flicks a beat late.
+  - *Method:* poses are built on the neutral pose (world-axis turns through bone heads, arm aims, chest scale, lid roll) and keyed as quaternions kept on one hemisphere, with auto-clamped Bezier curves. The idle loops through a Cycles modifier.
+- **Rig fixes found while animating:** Smart UV Project had left overlapping faces in `hair_uv` on the right arm, so 924 strands stayed behind when the arm moved. `hair_uv` now uses lightmap packing, and 0 strands are left off the skin. The lids lost their orientation when parented to the head, so `build_rig.py` adds `lid.L`/`lid.R` bones at the eye centres and a blink is a 140-degree roll. The fill light no longer shows in glossy reflections, because it fogged the lens nearest the camera.
+- **Render and pack:** Cycles at 96 samples with a fixed seed, transparent, 720 by 880, about 23 s a drawing. Idle is drawn on fours (6 drawings a second) to fit its budget, as the approved 2D idle was; wave is drawn on twos.
+- **Verified:** `pack.py`: idle 24 drawings, 219 by 390, q45, 242.0 KB (budget 250 KB); wave 24 drawings, 234 by 389, q80, 369.3 KB (budget 400 KB); total 611.3 KB. Exits: idle at drawing 0 (the player crossfades when more than 12 ticks away), wave at 0 and 23. The preview plays both on paper and charcoal with no console errors, and switching from idle to wave works.
+- **Open:** only one clean idle exit, so switching mid-loop uses the crossfade. Look and motion not yet accepted by Din.
+
+
+### Ottie: rig and wave test pose (Din's go, Claude, 2026-10-20)
+
+- **Done:** `brand/ottie/tools3d/build_rig.py` rigs `ottie_look.blend` in about 15 seconds.
+  - *Armature:* 25 bones (root, hips, spine, chest, neck, head, two ears, upper arm, forearm and hand per side, thigh, shin and foot per side, five tail bones), with joints read off calibrated front and side views of the A-pose.
+  - *Weights:* Blender's automatic (bone heat) weights, which now work because the body is one closed skin. This replaces the hand-rolled inverse-distance weights behind the earlier deformation problems. The head is then blended to fully rigid between z 0.70 and 0.76, with the ear weights kept, so the face never distorts.
+  - *Attachments:* the eyes, lids, teeth, glasses and whiskers ride the head bone, and the fur rides the skin through Deform Curves on Surface on `hair_uv`.
+  - *Glasses:* the temples now stop just in front of the ear roots (`TEMPLE_END` in `build_look.py`) instead of poking into the ears.
+- **Verified (renders, `docs/design/ottie/rig-tripo-v1-*.jpg`):** in the wave, the arm stays attached with a smooth armpit and even thickness. The torso and belly do not move with the arm. The head tilts as one piece with everything on it, and the fur follows the skin. Every vertex received weights.
+- **Not tracked:** `ottie_rig.blend` (13 MB, a build output).
+- **Open:** a bone-heat-only rig has no controls or IK yet (fine for keyed animation from scripts). The lids are not yet furred. No animation is keyed yet (idle and wave are next, task 2.3b). Not yet accepted by Din.
+
+
+### Ottie: look development on the Tripo base (Din's go, Claude, 2026-10-20)
+
+- **Done:** `brand/ottie/tools3d/build_look.py` builds the look on `ottie_base.blend` in about 30 seconds (plus about 30 seconds of Cycles renders on the Mac's GPU). It reuses the shaders and the fur approach from the TRELLIS build (history up to `6df5e51`), refitted to the Tripo model:
+  - *Eyes:* Tripo's eyeballs were rounded boxes (radius 0.047 to 0.077), so they are replaced by spheres (r 0.0615) at the same centres. The procedural iris reads from each eye's forward axis, so the eyes can turn. The upper lids rest hidden under the brow and close for a blink (checked in a render).
+  - *Nose:* a soft mask on the skin makes dark, glossy leather with fine bumps; the teeth get an enamel material.
+  - *Glasses:* each rim's plane is fitted to the face around the eye (wrap and tilt capped at 16 and 12 degrees), moved forward to clear the skin, with a bridge over the nose and temples running straight back to the ears. The lens faces are forced to point forward, since a backward-facing lens mirrors everything through the Fresnel term.
+  - *Fur and whiskers:* 173,174 strands coloured from the texture under each root (patches use their own colour), short on the face and paws, bare on the nose, mouth and eye openings. They are attached through a fresh non-overlapping UV map (`hair_uv`) for the rig, plus 12 whiskers.
+  - *Grade and light:* the same grade on the skin and fur (gamma 1.2, saturation 0.82, gain 0.86/0.88/0.86), because Tripo's texture reads lighter and pinker than the reference. Standard view at -1.1 exposure, a warm key placed so the wrapped lenses do not mirror it, a fill and two warm rims.
+- **Renders:** `docs/design/ottie/look-tripo-v1-{portrait,three_quarter,full,eyes,blink}.jpg`.
+- **Not tracked:** `ottie_look.blend` (12 MB) is a build output, rebuilt by the script.
+- **Open:** the lids are plain brown shells (no fur yet); the fur has no clumping or grooming passes beyond combing; the glasses are separate objects, not yet rigged. Look not yet accepted by Din.
+
+
+### Ottie: Tripo model cleaned in Blender (Din's go, Claude, 2026-10-20)
+
+- **Found:** the export is two nearly coincident skins crossing each other (about 5,600 faces each, 0 to 3 mm apart), not one surface with a few faults. The inner skin is smooth and almost closed; the outer one carries the crown spikes, most of the holes and the doubled edges. The paw "overlaps" were the same doubling. Separate parts: two eyeballs, the teeth, 12 whisker strips and one closed part hidden inside the muzzle.
+- **Done:** `brand/ottie/tools3d/clean_model.py` rebuilds `brand/ottie/source/3d/ottie_base.blend` from the export in about 15 seconds. It keeps the inner skin, relaxes a fold under the chin, trims rims that touch themselves, fills the 13 holes (crown, chin, muzzle, finger tips, soles) with concentric quad rings faired by a bi-Laplacian solve (the rim and one ring outside held fixed), and colours each patch by harmonic interpolation of the texture around its rim (outlier rim colours replaced by the patch median, converted to linear). Tripo's UVs and texture are kept (scaled to 4K, 3.7 MB); its stale custom normals are dropped. The eyeballs and teeth are their own objects; whisker strips and the hidden part are removed.
+- **Tried and dropped:** peeling hidden faces by ray visibility (tore the mouth and feet), baking from the doubled original (smeared the face), grid fill (one-strip patches with no inner vertices, so streaks).
+- **Verified:** body 4,291 vertices and 4,700 faces with no open edges and no edges shared by more than two faces; eyeballs closed; teeth closed (5 doubled edges, invisible). Renders from the front, side, back, crown, face, chin and paws show no holes or spikes.
+- **Open:** the nose bridge is now muzzle brown, not dark leather (the nose gets its own material in look dev); the crown and chin patches have flat colour (covered by the groom); hair attachment should use a fresh UV map, since patch faces reuse nearby UVs. Not yet accepted by Din.
+
+
+### Ottie: Tripo base model in hand (Din, Claude, 2026-10-20)
+
+- **Done (Din):** subscribed to Tripo Studio Max and generated Smart Mesh P2.0, quad, multi-view from `brand/ottie/source/views/` (four polycounts, private), texture with Remove Lighting at 8K. Exported the 12,454-face result as FBX to `brand/ottie/source/ottie-3d-model/` (Tripo named it "meerkat"). The Tripo CLI is also installed and signed in to the API account (separate pay-as-you-go billing, 0 credits); Studio is what we use.
+- **Checked in Blender (Claude):** 1.0 m tall, feet at the origin, facing -Y, one 8K base colour texture. 70 percent quads with real edge loops around the eyes, nose and mouth, a clean body grid, arms apart in A-pose, closed smile. Eyeballs, nose and teeth are separate closed parts, so the eyes can take our own shader.
+- **Faults to fix:** two holes with dark texture patches under the chin; a fringe of loose spike cards and small holes across the top of the head; thin whisker strips (12 loose pieces); overlapping geometry at the paws (most of the 1,427 edges shared by more than two faces). The texture is 16 MB (8K JPEG); a 4K copy is enough for rendering.
+
+
+### Ottie: Tripo researched as the base-model service (Claude, 2026-10-20)
+
+- **Done:** Din asked about Tripo (tripo3d.ai) and its free tier. Findings, credit costs and a workflow are in `docs/design/ottie/RESEARCH.md` (Tripo section). Added `brand/ottie/tools/split_views.py`, which cuts the turnaround into front, left, back and mirrored right views (`brand/ottie/source/views/`) for multi-view to 3D.
+- **Key facts:** the free tier (200 credits) is public and non-commercial and has no multi-view to 3D, so it is for testing only; the shipped model needs a paid plan (Pro, $20 a month). Smart Mesh P2.0 gives quad topology, which addresses the TRELLIS.2 rigging problems.
+- **Free test (Din):** a Tripo free-tier turntable generated from the 3D reference holds the face (eyes, glasses, open smile, teeth, whiskers) and a consistent body and tail from every side. It is not a usable rig base as is: the open mouth, glasses and probably the eyes are fused into one mesh and texture, the paws rest on the belly instead of an A-pose, the fur in the video may be the viewer's effect rather than exported geometry, and free output is public and non-commercial. Plan: Din subscribes to Pro, then the hero model is regenerated from the A-pose views in `brand/ottie/source/views/` (no glasses, closed mouth), with the turntable as the look target.
+- **Proposed:** run the free test on Tripo, then pay for one month of whichever of Tripo or Meshy keeps the face and deforms cleanly. Din's call.
+
+### Ottie: modelling cleared for a fresh start with Meshy (Din, 2026-10-20)
+
+- **Decided (Din):** remove everything no longer needed for modelling and start fresh tomorrow with a Meshy model. Removed: the 2D puppet (painted parts, Codex sheets and masters, 2D sheets in `dist/`, its tools and `.blend`) including the accepted 2D idle and wave, the TRELLIS.2 meshes, texture, `.blend` and Blender build script (`tools3d/`), the look-test images, and the stopped milestone 2 session's uncommitted edits. All of it stays in git history on `feat/ottie-puppet` up to `6df5e51`.
+- **Kept:** the brief, `RESEARCH.md`, the 3D reference, the Codex mesh input and turnaround (the Meshy inputs), `tools/pack.py` (now independent of the 2D parts: no contact-shadow pass, no lid colour or live-eye fields; optional ground, look, mouth and head fields pass through) and the preview player (rewritten without live pupils, which Din dropped for rendered 3D eyes; keeps ground anchoring, clean exits with a crossfade fallback, the chain demo and the reduced-motion still).
+- **Verified:** packed two synthetic states with `pack.py` and played them in the preview (state switching works, no console errors); the test output was deleted.
+
+### Ottie 3D route: first model, paused for Meshy (2026-10-20)
+
+- **Done:** Codex mesh input and turnaround (approved by Din); TRELLIS.2 on a rented Vast.ai RTX A6000 (about $0.60): six meshes, the 1536 seed 4 kept for shape and the 1024 seed 3 for colour (`brand/ottie/source/3d/`). DINOv3 is gated with manual approval, so it was rebuilt from the ungated timm copy and verified identical (max difference 2.8e-6); RMBG-2.0 (non-commercial licence) was never used. In Blender (`brand/ottie/tools3d/ottie3d_build.py`, rebuilds the scene in seconds): colour matched, the painted TRELLIS eyes repainted out of the texture, modelled eyes with rendered pupils (Din's call), lids, procedural glasses, a 15 percent bigger head and rounder belly, darker limb markings, about 150,000 groomed fur strands bound to the skin, and a 24-bone rig with computed weights. Look tests in `docs/design/ottie/` (look-test-3d-*, rig-test-3d-*).
+- **Lessons:** TRELLIS.2 meshes collapse under Decimate and shred under voxel remesh (not a closed shell); keep full density and smooth instead. Its painted eyes must be removed when modelling real ones.
+- **Decided (Din):** pause here; Din will get a Meshy membership so the base model can come from Meshy (stylised characters, auto-rigging, Blender plugin). This is a paid third-party service for modelling, which Din has chosen; the animation stays in-house. The Codex mesh input and turnaround are ready as Meshy inputs, and the eyes, glasses, fur, markings and rig tooling should carry over to a Meshy mesh.
+- **Open:** whether to keep committing `ottie3d.blend` (40.6 MB, near the brief's 50 MB line; the script rebuilds it); the open mouth for talk (the mesh has a closed mouth); the stopped milestone 2 session's uncommitted 2D edits are still in the worktree, untouched.
+
 ## 2026-10-19
+
+### Ottie restart: route A, real 3D (Din)
+
+- **Decided (Din):** after milestone 1 Din shared a new reference (`docs/design/ottie/reference-3d-2026-10-19.jpg`, a Pixar-style 3D render) and chose route A from `docs/design/ottie/RESEARCH.md`: a real 3D Ottie in Blender. Base mesh from a free open model (TRELLIS.2 first) on a GPU Din rents on Vast.ai, from a Codex mesh-input image and turnaround (both approved by Din). Glasses, eyes and teeth are modelled in Blender; fur by Geometry Nodes hair; Rigify rig; the animation, packing and preview tooling carry over.
+- **Still open:** live pupils versus rendered eyes, and whether the new reference replaces the storybook style in BRAND.md (both Din's call). The 2D milestone 1 stays in history as the fallback. This changes the route locked in the brief; the brief is updated once the 3D pipeline is proven.
+
+### Ottie puppet, milestone 1 (branch feat/ottie-puppet)
+
+- **Accepted (Din, 2026-10-19):** "idle approved, wave approved", after reviewing the live preview.
+
+- **Art route changed twice, both with Din's go:** a first Codex parts sheet drifted off model (orange, mouse ears, tube body). A master pose (A) plus a matching parts sheet (B) fixed the face, but separately painted parts never met at the neck and shoulders; Din saw a floating head and detached hands. Final route: a front-facing master (C) with the head, arms and tail cut straight from it, and a Codex edit of C (D) that paints the body hidden underneath. The rest pose is C (mean difference 0.6/255). Five Codex images in total, each approved by Din.
+- **Pipeline:** `brand/ottie/tools/` (see `brand/ottie/README.md`): layers, Blender rig with computed smooth weights and procedural eyes, Bezier key poses with per-joint overlap, a spring pass for secondary motion, contact shadows from extra alpha masks, WebP packing to budget, manifest with per-drawing eye anchors, openness, head angle and measured exit drawings.
+- **Budget:** a 2x drawing costs about 10 to 16 KB in WebP, so idle is timed on fours (6 drawings a second) with 24 drawings; wave is on twos. Idle 241 KB (q30), wave 388 KB (q70).
+- **Verified:** preview loads with no console errors and draws light and dark at real size and 2x with live pupils.
+- **Second pass (Din: keep going):** idle now comes home to neutral at 2 s (clean exits at drawings 0, 13, 23) and the preview switches at once with a 3-tick crossfade when a clean exit is more than 0.5 s away; all states share one stage anchored at the rest ground point (the trimmed sheets differ in size, which would have made Ottie jump). Seam fixes found with 2x joint crops: the right arm's region overlapped the tail tip, the arm feather showed D's narrower torso outline, and D's keyed edge carried a grey fringe. Sheets now encode with cwebp (sharp YUV); idle still lands at q30 because 24 drawings fill 250 KB.
+- **Verified:** clean-state rebuild (`brand/ottie/tools/build.sh` after deleting parts, layout, .blend, build and dist) ran end to end in about 2 minutes; idle 244 KB, wave 386 KB, total 630 KB; seam crops of shoulders, elbows, neck and tail on paper and charcoal show no seams; preview has no console errors.
+- **Wave arm reattached (Din, after approving):** in the wave the raised arm read as detached from the body. The body's shoulders are now weighted up to 65 percent to the upper arms (fading over 130 px), so a raised arm pulls the shoulder fur into a continuous armpit, and the arm's cut edge (its underside when raised) is crisper with a darker band like the painted outline. Clean rebuild re-run.
+- **Wave body and arm proportions (Din):** the shoulder pull bulged the torso side and the raised upper arm read thinner than the forearm. The pull now stops 45 px below the shoulder joint (cap only, 60 percent over 120 px), the chest holds only the very top of each arm, the wave no longer stretches the upper arm lengthwise, and the raised upper arm thickens 14 percent with forearms set not to inherit that scale. Wave sheet 399 KB (q70).
+- **Wave elbow and waist (Din):** the 14 percent upper-arm thickening made the bent elbow bulge, and D's painted waist under the arms showed the torso curving in. The thickening is gone; the raised forearm and paw slim to 88 percent instead (C paints them hanging toward the viewer). `layers.py` straightens each torso side between rows 720 and 1040 by pushing only the outer fur (beyond 165 px from the centre line), which the arms cover at rest.
+- **Wave arm as one arc (Din):** the arm still folded into an L at the elbow (60 to 70 degrees), which read as uneven. The raise is re-aimed with the upper arm on a diagonal and at most about 40 degrees at the elbow, the arms' joint weights blend over 46 px instead of 26, and the body layer gets fur under the arm tops and the chin (hidden at rest) so the overshoot no longer shows a notch at the shoulder.
+- **Wave re-approved (Din, 2026-10-19):** "wave approved" after the arm fixes above. Milestone 1 stands Accepted with this version (commit 2934302).
+- **Open:** idle q30 is slightly soft at 4x zoom (fewer idle drawings would buy quality); milestone 2.
 
 ### Ottie puppet route (Din)
 

@@ -2,6 +2,8 @@
 
 Status: route locked by Din on 2026-10-19. This brief is the spec for building Ottie, the animated mascot on dins.dev. Read `docs/BRAND.md` (Ottie section) and `docs/WORK_LEDGER.md` first.
 
+**Update (2026-10-21): built, with a different route.** Ottie was built and both milestones were accepted by Din, but not as the layered 2D puppet below. Din moved Ottie to a real 3D character: a Tripo base model, then eyes, glasses, fur, rig, animation and rendering in Blender. The pupils are rendered into the frames, so there are no live eyes and the manifest has no eye anchors. Still true from this brief: the states (celebrate not built), the size budgets, the WebP sheets with a manifest, every state starting and ending on the neutral pose, and the approval gate. The 3D source and tools are private (`~/Develop/dins-ottie`); `brand/ottie/README.md` describes what this repo holds. The ledger has the full history. The route section below is kept as the original plan.
+
 ## Why this exists
 
 Ottie greets visitors on the home page, reacts while Ask Ottie answers, naps, shrugs and celebrates. An earlier spike (`~/Develop/dins.dev-concepts/spikes/puppet/`, reference only, do not copy code from it) proved the idea but looked cheap for two reasons:

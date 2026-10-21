@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ottie preview</title>
+<style>
+  :root { --paper: #F4F1EA; --charcoal: #1F1E1C; --ink: #12181C; --muted: #4A555C; --teal: #0F6B6B; --line: #D9D3C7; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #E9E5DC; color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header, .controls, .notes { max-width: 1200px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 20px; margin: 8px 0 4px; }
+  p { margin: 4px 0; color: var(--muted); }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  button { font: inherit; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: #fff; color: var(--ink); cursor: pointer; }
+  button[aria-pressed="true"] { background: var(--teal); border-color: var(--teal); color: #fff; }
+  button small { color: inherit; opacity: 0.7; margin-left: 4px; }
+  label { display: inline-flex; gap: 6px; align-items: center; margin-left: 8px; color: var(--muted); }
+  .stage { max-width: 1200px; margin: 0 auto; padding: 0 16px 16px; display: grid; grid-template-columns: 1fr; gap: 12px; }
+  .panel { border-radius: 14px; padding: 16px; display: flex; flex-wrap: wrap; gap: 48px; align-items: flex-end; justify-content: center; overflow-x: auto; }
+  .panel.light { background: var(--paper); }
+  .panel.dark { background: var(--charcoal); }
+  .panel figure { margin: 0; text-align: center; }
+  .panel figcaption { font: 12px/1.4 ui-monospace, "JetBrains Mono", monospace; color: #8A867E; margin-top: 6px; }
+  canvas { display: block; }
+  .status { font: 13px/1.4 ui-monospace, "JetBrains Mono", monospace; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Ottie preview</h1>
+  <p>Plays the packed sprite sheets in <code>../dist/</code> (built in the private <code>dins-ottie</code> repo): every state on a button, light and dark side by side, real size and 2x.</p>
+</header>
+<div class="controls" id="controls"></div>
+<div class="controls">
+  <button id="chain">Play chain</button>
+  <label><input type="checkbox" id="still"> Reduced-motion still pose</label>
+  <span class="status" id="status"></span>
+</div>
+<div class="stage">
+  <div class="panel light"><figure><canvas data-scale="1"></canvas><figcaption>real size</figcaption></figure><figure><canvas data-scale="2"></canvas><figcaption>2x</figcaption></figure></div>
+  <div class="panel dark"><figure><canvas data-scale="1"></canvas><figcaption>real size</figcaption></figure><figure><canvas data-scale="2"></canvas><figcaption>2x</figcaption></figure></div>
+</div>
+<div class="notes"><p class="status" id="sizes"></p></div>
+<script src="../dist/manifest.js"></script>
+<script>
+"use strict";
+const M = window.OTTIE_MANIFEST;
+const statusEl = document.getElementById("status");
+if (!M || !M.states || !Object.keys(M.states).length) {
+  statusEl.textContent = "No sprite sheets found in ../dist/.";
+  throw new Error("no manifest");
+}
+const states = M.states;
+const rest = states.idle ? "idle" : Object.keys(states)[0];
+const sheets = {};
+const canvases = [...document.querySelectorAll("canvas")];
+const reduceQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+const stillBox = document.getElementById("still");
+stillBox.checked = reduceQuery.matches;
+
+// One stage for every state: each sheet is trimmed to its own box, so frames
+// are placed by their rest ground point (or bottom centre), never by their corner.
+// A drawing's "shift" (a run's travel, a jump's height) moves it on the stage,
+// so the stage is made big enough to hold every shifted drawing.
+const anchor = {}, stage = { l: 0, r: 0, t: 0, b: 0 };
+const shiftOf = (s, i) => s.frames[i].shift || [0, 0];
+for (const [name, s] of Object.entries(states)) {
+  const g = s.frames[0].ground || [s.frame[0] / 2, s.frame[1]];
+  anchor[name] = g;
+  for (let i = 0; i < s.count; i++) {
+    const [dx, dy] = shiftOf(s, i);
+    stage.l = Math.max(stage.l, g[0] - dx); stage.r = Math.max(stage.r, s.frame[0] - g[0] + dx);
+    stage.t = Math.max(stage.t, g[1] - dy); stage.b = Math.max(stage.b, s.frame[1] - g[1] + dy);
+  }
+  const img = new Image();
+  img.src = "../dist/" + s.file;
+  sheets[name] = img;
+}
+const stageW = stage.l + stage.r, stageH = stage.t + stage.b;
+const offset = (name) => [stage.l - anchor[name][0], stage.t - anchor[name][1]];
+
+const controls = document.getElementById("controls");
+for (const [name, s] of Object.entries(states)) {
+  const b = document.createElement("button");
+  b.dataset.state = name;
+  b.innerHTML = `${name}<small>${(s.bytes / 1000).toFixed(0)} KB</small>`;
+  b.onclick = () => play(name);
+  controls.appendChild(b);
+}
+document.getElementById("sizes").textContent =
+  Object.entries(states).map(([n, s]) => `${n}: ${s.count} drawings, ${s.frame[0]}x${s.frame[1]}, ${(s.bytes / 1000).toFixed(1)} KB, q${s.quality}`).join("  ·  ") +
+  `  ·  total ${(M.total_bytes / 1000).toFixed(1)} KB`;
+const chainOrder = ["run-in", "wave", "idle", "think", "nod"].filter((n) => states[n]);
+// The chain demo lets each loop play one full pass before moving on.
+let chaining = false, wrapped = false;
+document.getElementById("chain").onclick = () => { chaining = true; wrapped = true; queue = chainOrder.slice(); requestExit(); };
+
+// Leaving a loop: wait for a drawing that matches the neutral pose
+// (manifest "exits", measured on the pixels) when one is near; if the next
+// is more than half a second away, switch now with a short crossfade.
+const MAX_WAIT = 12, FADE = 3;  // ticks at 24 per second
+let current = rest, drawing = 0, tickInDrawing = 0, queue = [], exitRequested = false, fade = null;
+let lastTime = 0, acc = 0;
+
+// A loop may start partway ("loop_start": nap dozes off once, then sleeps),
+// and may leave through another state ("exit_via": nap wakes up first).
+const loopStart = (s) => s.loop_start || 0;
+const nextIndex = (s, i) => (i + 1 < s.count ? i + 1 : loopStart(s));
+function play(name) {
+  if (name === current && states[name].loop) return;
+  chaining = false;
+  queue = [name];
+  requestExit();
+}
+function ticksToExit() {
+  const s = states[current];
+  let t = s.frames[drawing].d - tickInDrawing, i = nextIndex(s, drawing);
+  while (!s.exits.includes(i)) { t += s.frames[i].d; i = nextIndex(s, i); }
+  return t;
+}
+function requestExit() {
+  if (!queue.length) return;
+  const via = states[current].exit_via;
+  if (via && states[via] && queue[0] !== via) queue.unshift(via);
+  if (!states[current].loop || ticksToExit() <= MAX_WAIT || (chaining && !wrapped)) { exitRequested = true; return; }
+  const next = states[queue[0]];
+  if (!next.frames[0].shift) fade = { state: current, idx: drawing, left: FADE };  // an entrance from off stage needs no crossfade
+  switchTo(queue.shift());
+}
+function switchTo(name) {
+  current = name; drawing = 0; tickInDrawing = 0; exitRequested = false; wrapped = false;
+  for (const b of controls.querySelectorAll("button")) b.setAttribute("aria-pressed", b.dataset.state === name);
+}
+switchTo(rest);
+
+function advance() {
+  const s = states[current];
+  if (fade && --fade.left <= 0) fade = null;
+  if (++tickInDrawing < s.frames[drawing].d) return;
+  tickInDrawing = 0;
+  drawing++;
+  if (drawing >= s.count) {
+    if (!s.loop) {
+      switchTo(queue.length ? queue.shift() : rest);
+      if (queue.length) requestExit(); else chaining = false;
+      return;
+    }
+    drawing = loopStart(s);
+    wrapped = true;
+  }
+  if (s.loop && exitRequested && queue.length && s.exits.includes(drawing) && !(chaining && !wrapped)) {
+    switchTo(queue.shift());
+    if (queue.length) exitRequested = true;
+  }
+}
+
+function render() {
+  const still = stillBox.checked;
+  const name = still ? rest : current, idx = still ? 0 : drawing;
+  const st = states[name], sheet = sheets[name];
+  if (!sheet.complete) return;
+  for (const cv of canvases) {
+    const scale = +cv.dataset.scale;
+    const w = stageW * M.display_scale * scale, h = stageH * M.display_scale * scale;
+    const dpr = window.devicePixelRatio || 1;
+    if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); cv.style.width = w + "px"; cv.style.height = h + "px"; }
+    const ctx = cv.getContext("2d");
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    const k = cv.width / stageW;
+    const [ox0, oy0] = offset(name), [dx, dy] = shiftOf(st, idx), ox = ox0 + dx, oy = oy0 + dy;
+    ctx.setTransform(k, 0, 0, k, ox * k, oy * k);
+    ctx.imageSmoothingQuality = "high";
+    const sx = (idx % st.cols) * st.frame[0], sy = Math.floor(idx / st.cols) * st.frame[1];
+    ctx.drawImage(sheet, sx, sy, st.frame[0], st.frame[1], 0, 0, st.frame[0], st.frame[1]);
+    if (fade && !still) {  // the drawing we cut away from, fading out
+      const fs = states[fade.state], [fx0, fy0] = offset(fade.state), [fdx, fdy] = shiftOf(fs, fade.idx);
+      const fx = fx0 + fdx, fy = fy0 + fdy;
+      ctx.globalAlpha = fade.left / (FADE + 1);
+      ctx.drawImage(sheets[fade.state], (fade.idx % fs.cols) * fs.frame[0], Math.floor(fade.idx / fs.cols) * fs.frame[1],
+        fs.frame[0], fs.frame[1], fx - ox, fy - oy, fs.frame[0], fs.frame[1]);
+      ctx.globalAlpha = 1;
+    }
+  }
+  statusEl.textContent = still ? "still pose (reduced motion)" : `${current} · drawing ${drawing + 1}/${st.count}`;
+}
+
+function frame(t) {
+  const dt = Math.min((t - lastTime) / 1000, 0.1); lastTime = t;
+  if (!stillBox.checked) {
+    acc += dt;
+    const tick = 1 / states[current].tickrate;
+    while (acc >= tick) { acc -= tick; advance(); }
+  }
+  render();
+  requestAnimationFrame(frame);
+}
+stillBox.onchange = render;
+reduceQuery.addEventListener("change", () => { stillBox.checked = reduceQuery.matches; });
+requestAnimationFrame((t) => { lastTime = t; requestAnimationFrame(frame); });
+</script>
+</body>
+</html>

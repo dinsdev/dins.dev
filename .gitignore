@@ -8,3 +8,16 @@ dist/
 .wrangler/
 .venv/
 __pycache__/
+
+# Ottie: the 3D model, Blender files, build tools and rendered frames are
+# private and live in ~/Develop/dins-ottie. Only the packed sheets, the
+# manifest and the preview player are public.
+brand/ottie/source/
+brand/ottie/build/
+brand/ottie/tools/
+brand/ottie/tools3d/
+*.blend
+*.blend1
+*.fbx
+*.glb
+!brand/ottie/dist/
