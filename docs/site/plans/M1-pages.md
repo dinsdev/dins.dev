@@ -154,7 +154,7 @@ From M0 (Foundation), merged before M1 starts:
 From M2, M3, M4 and M5:
 
 - M2's Task 16 replaces `OttieSlot.astro` with `<Ottie context=…>` and deletes it; M3 mounts the Ask island inside `AskSlot.astro` and fills `suggested.yaml` with reviewed answers; M4 implements `/api/contact` on M1's `contact.ts`, Turnstile and the set pieces on the hooks above, and adjusts M1's contact landing pages; M5 owns the CSP and security headers, the release scan and the `security.txt` expiry test (M1 owns the file).
-- M3 asked for these schema details (shared notes, 2026-10-21) and M1 adopts them: library `topic`, `audience`, `sources`, `language` (`en` or `fr`), `approved_on` (date or null) and `sample` (boolean); suggested `question`, `answer`, `sources`, `language`, `generated_on`. `status: published` is the "reviewed by Din" flag for projects, writing and suggested answers (contract), so suggested entries have no `reviewed_by_din` field. Library entries use `approved_on` instead (only Din sets it, and the build fails without it), with `sample: true` for development samples.
+- M3 asked for these schema details (shared notes, 2026-10-21) and M1 adopts them: library `topic`, `audience`, `sources`, `language` (`en` or `fr`), `approved_on` (date or null), `sample` (boolean) and an optional `project` slug that must name an existing project (M3's question 8, decided yes); suggested `question`, `answer`, `sources`, `language`, `generated_on`. `status: published` is the "reviewed by Din" flag for projects, writing and suggested answers (contract), so suggested entries have no `reviewed_by_din` field. Library entries use `approved_on` instead (only Din sets it, and the build fails without it), with `sample: true` for development samples.
 
 ## Din tasks (copy and facts only Din can provide)
 
@@ -435,6 +435,10 @@ describe("writing", () => {
   it("accepts an optional linked project", () => {
     expect(writingSchema.safeParse({ ...post, project: "passfx" }).success).toBe(true);
   });
+  it("has no devlog flag: card C follows kind", () => {
+    const r = writingSchema.safeParse({ ...post, devlog: true });
+    expect(r.success && "devlog" in r.data).toBe(false);
+  });
 });
 
 describe("library", () => {
@@ -458,6 +462,10 @@ describe("library", () => {
   });
   it("rejects a language other than en or fr", () => {
     expect(librarySchema.safeParse({ ...entry, language: "de" }).success).toBe(false);
+  });
+  it("accepts an optional project slug and rejects one that is not a slug", () => {
+    expect(librarySchema.safeParse({ ...entry, project: "passfx" }).success).toBe(true);
+    expect(librarySchema.safeParse({ ...entry, project: "Pass FX" }).success).toBe(false);
   });
 });
 
@@ -537,8 +545,7 @@ export function makeWritingSchema<R extends z.ZodType>(projectRef: R) {
     summary: z.string().min(1).max(240),
     motif: z.enum(MOTIFS),
     project: projectRef.optional(),
-    // PRD lists a devlog flag (social card C). Left out, it follows kind === "devlog".
-    devlog: z.boolean().optional(),
+    // No devlog flag: kind "devlog" is the only way to say it, and social card C follows the kind (Din, 2026-10-21).
     status: statusSchema,
   });
 }
@@ -551,6 +558,9 @@ export const librarySchema = z
     language: z.enum(LANGUAGES).default("en"),
     approved_on: z.coerce.date().nullable().default(null),
     sample: z.boolean().default(false),
+    // The project this entry is about (a project file name). M3's project-filtered Ask bar reads it.
+    // That the id exists is checked at build by validateLibraryProjects (content.ts).
+    project: z.string().regex(/^[a-z0-9-]+$/).optional(),
   })
   .refine((d) => d.sample || d.approved_on !== null, {
     message: "approved_on is required; only Din sets it",
@@ -855,7 +865,7 @@ git commit -m "feat(site): sample projects, posts and suggested answers, all dra
 
 **Interfaces:**
 - Consumes: `isVisible`, `Status` (Task 1); `PROJECT_KINDS`, `ProjectKind` (Task 2).
-- Produces (pure, `content.ts`): `visible<T>(entries, showDrafts)`, `sortProjects`, `featuredProjects(projects, max = 4)`, `kindsWithProjects(projects): ProjectKind[]`, `sortPosts`, `latestPosts(posts, n = 3)`, `linkedProject(post, projects)`, `postsForProject(posts, projectId)`, `readingMinutes(body: string): number`, `assertStageRatio(size, id)`, `validateProjects(projects)`, `RESERVED_PROJECT_IDS = ["kind"]`. (Astro, `collections.ts`): `getVisibleProjects()`, `getVisiblePosts()`, `getVisibleSuggested()`, each `Promise<CollectionEntry<...>[]>`, sorted.
+- Produces (pure, `content.ts`): `visible<T>(entries, showDrafts)`, `validateLibraryProjects(entries, projectIds)`, `sortProjects`, `featuredProjects(projects, max = 4)`, `kindsWithProjects(projects): ProjectKind[]`, `sortPosts`, `latestPosts(posts, n = 3)`, `linkedProject(post, projects)`, `postsForProject(posts, projectId)`, `readingMinutes(body: string): number`, `assertStageRatio(size, id)`, `validateProjects(projects)`, `RESERVED_PROJECT_IDS = ["kind"]`. (Astro, `collections.ts`): `getVisibleProjects()`, `getVisiblePosts()`, `getVisibleSuggested()`, each `Promise<CollectionEntry<...>[]>`, sorted.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -872,6 +882,7 @@ import {
   readingMinutes,
   sortPosts,
   sortProjects,
+  validateLibraryProjects,
   validateProjects,
   visible,
 } from "../../src/lib/content";
@@ -923,6 +934,16 @@ describe("projects", () => {
   });
   it("rejects the reserved id kind", () => {
     expect(() => validateProjects([proj("kind")])).toThrow(/reserved/);
+  });
+});
+
+describe("library projects", () => {
+  const lib = (id: string, project?: string) => ({ id, data: { project } });
+  it("accepts entries without a project or with an existing project id (drafts count)", () => {
+    expect(() => validateLibraryProjects([lib("a"), lib("b", "passfx")], ["passfx", "claudehome"])).not.toThrow();
+  });
+  it("fails the build on a project id that does not exist", () => {
+    expect(() => validateLibraryProjects([lib("about-x", "pasfx")], ["passfx"])).toThrow(/about-x: project "pasfx" does not exist/);
   });
 });
 
@@ -1025,6 +1046,13 @@ export function assertStageRatio(size: { width: number; height: number }, id: st
   }
 }
 
+export function validateLibraryProjects(entries: Entry<{ project?: string }>[], projectIds: string[]): void {
+  for (const e of entries) {
+    const p = e.data.project;
+    if (p !== undefined && !projectIds.includes(p)) throw new Error(`${e.id}: project "${p}" does not exist`);
+  }
+}
+
 export function validateProjects(
   projects: Entry<{ featured?: number; capture: { width: number; height: number } }>[],
 ): void {
@@ -1046,11 +1074,13 @@ export function validateProjects(
 // The only module that calls getCollection. Everything it returns is visible and sorted.
 import { getCollection } from "astro:content";
 import { SHOW_DRAFTS } from "./build";
-import { sortPosts, sortProjects, validateProjects, visible } from "./content";
+import { sortPosts, sortProjects, validateLibraryProjects, validateProjects, visible } from "./content";
 
 export async function getVisibleProjects() {
   const all = await getCollection("projects");
   validateProjects(all); // drafts too, so a bad capture fails before it is published
+  // The library is never a page, but every build passes here, so its project links are checked here too.
+  validateLibraryProjects(await getCollection("library"), all.map((p) => p.id));
   return sortProjects(visible(all, SHOW_DRAFTS));
 }
 
@@ -3232,7 +3262,7 @@ export async function getStaticPaths() {
 const { post, project } = Astro.props;
 const { Content } = await render(post);
 const { title, summary, kind, date, motif, status } = post.data;
-const isDevlog = post.data.devlog ?? kind === "devlog";
+const isDevlog = kind === "devlog"; // card C and Ottie follow the kind
 const label = WRITING_KIND_LABELS[kind];
 ---
 <BaseLayout
@@ -4724,21 +4754,24 @@ Ask Din before pushing `feat/m1-pages` (pushing and PRs need Din's go). Once pus
 
 - **Contact without JavaScript versus Turnstile.** Decided (Din, 2026-10-21, through M4's decision 1). The question: PRD 6 says the contact form still submits with JavaScript off, but Turnstile (PRD 5) needs JavaScript. The first version of this plan recommended accepting token-less posts behind the honeypot and a stricter rate limit. Din chose instead: without JavaScript there is no Turnstile token, so the post is never accepted. It lands on `/contact/not-sent/` with a `mailto:din@dins.dev` link, and the form shows a `<noscript>` note pointing to the same address. The honeypot stays as a cheap filter for scripted posts that do run JavaScript, and the "Or email din@dins.dev" line under the button stays for everyone. PRD 6's "the contact form still submits" needs the matching edit (see Doc updates).
 
+- **Previews show drafts.** Decided (Din, 2026-10-21: "Go with your recommendations"). The question: PRD 2 only says drafts never render in production; should preview deploys show them? Yes: previews show drafts with the "Draft, hidden on dins.dev" badge and are `noindex`; production never shows them, and a build that tries is refused.
+- **Work filters as static pages.** Decided (Din, 2026-10-21: "Go with your recommendations"). The question: PRD 2 says "filterable" without saying how. Yes to static `/work/kind/<kind>/` pages (crawlable, no JavaScript, `aria-current`), shown only for kinds with projects, over one page with a small script.
+- **The `devlog` field.** Decided (Din, 2026-10-21: "Go with your recommendations"). The question: PRD 2 lists both `kind: devlog` and a `devlog` flag for card C; the first version of this plan kept the flag, defaulting to the kind. The flag goes: `kind: devlog` is the only way to say it, and card C (and Ottie on the post) follows the kind. Removed from the schema, the post template and the doc update; a test checks the flag is gone.
+- **Name in structured data.** Decided (Din, 2026-10-21: "Go with your recommendations"). The question: "Din" or the full name with "Din" as `alternateName`, and a photo or not. It stays Din's task D5 and a launch blocker until Din fills in `legalName`; until then the Person data says "Din". No `image` in the Person data (the seal and avatar are Ottie, not Din).
+- **Theme toggle.** Decided (Din, 2026-10-21: "Go with your recommendations"). The question: the sketch has a toggle, the PRD does not mention one. Keep it as planned: system theme by default, the choice saved in `localStorage` and listed on `/privacy`.
+- **Library samples.** Decided (Din, 2026-10-21: "Go with your recommendations"). The question: M3 asked for `sample: true` entries without `approved_on`. Yes: `approved_on` is required for every non-sample entry, so the build fails on an unapproved one (PRD 2's CI rule), and samples never reach the production index.
+- **Library entries name their project.** Decided (Din, 2026-10-21, M3's question 8: yes). An optional `project` slug on library entries, for M3's project-filtered Ask bar. It must name an existing project id; `validateLibraryProjects` fails the build otherwise (Task 4).
+
 ### Open
 
-1. **Previews show drafts.** The plan shows drafts (with a "Draft, hidden on dins.dev" badge) on Workers Builds preview deploys and marks those pages `noindex`, so Din can review sample and unpublished content before it ships. Production (`main`) never shows them, and a build that tries is refused. PRD 2 only says "never in production". Recommendation: keep previews showing drafts; the repo is public anyway, so a preview reveals nothing new.
-2. **Work filters as static pages.** Filters are links to `/work/kind/<kind>/` pages (crawlable, no JavaScript, `aria-current`), shown only for kinds with projects. PRD 2 says "filterable" without saying how. This adds a route family to PRD 2. Alternative: one page with a small script. Recommendation: static pages.
-3. **The `devlog` field.** PRD 2 lists both `kind: devlog` and a `devlog` flag (card C). The plan keeps the flag optional and defaults it to `kind === "devlog"`. Should the flag go, so there is one way to say it?
-4. **Name in structured data.** "Din" or the full name (with "Din" as `alternateName`)? Ranking for Din's name depends on it (ledger, SEO and analytics). And should Person data carry a photo? The plan leaves out `image`, since the seal and avatar are Ottie, not Din.
-5. **Theme toggle.** The sketch has one; the PRD does not mention it. The plan keeps a small one (system theme by default, choice saved in `localStorage` and listed on `/privacy`). Keep it for v1?
-6. **Library samples.** M3 asked for `sample: true` entries without `approved_on`. The schema makes `approved_on` required for every non-sample entry, so the build fails on an unapproved entry (PRD 2's CI rule), and samples never reach the production index (M3). Is that the rule Din wants?
+None. Din's copy and facts are tracked as Din tasks D1 to D9, not as questions.
 
 ## Doc updates to apply on merge
 
 - `docs/TASKS.md` row 2.11: status to Implemented when the build lands, Verified after the checks pass, with a link to this plan; add Din tasks D1 to D8 as rows (Done (Din) when each lands).
-- `docs/site/PRD.md` section 2, routes: add `/work/kind/<kind>/` (if open question 2 is accepted), `/contact/sent/` and `/contact/not-sent/` (noindex, never in the sitemap; `/contact/not-sent/` carries a `mailto:din@dins.dev` link, because a post without JavaScript has no Turnstile token and is never accepted, Din 2026-10-21), and state that previews show drafts with `noindex` (if open question 1 is accepted). `sitemap.xml` is written by the site itself.
+- `docs/site/PRD.md` section 2, routes: add `/work/kind/<kind>/` (decided 2026-10-21), `/contact/sent/` and `/contact/not-sent/` (noindex, never in the sitemap; `/contact/not-sent/` carries a `mailto:din@dins.dev` link, because a post without JavaScript has no Turnstile token and is never accepted, Din 2026-10-21), and state that previews show drafts with `noindex` (decided 2026-10-21). `sitemap.xml` is written by the site itself.
 - `docs/site/PRD.md` section 6, failure modes: replace "the contact form still submits" with "without JavaScript the contact form points to email (a post has no Turnstile token and is not accepted)" (Din, 2026-10-21).
-- `docs/site/PRD.md` section 2, content model: record the exact fields M1 added or pinned down: projects `capture` (16:10, checked at build), `captureAlt`, `demo` as `{ type, src }` with `src` a site path, `featured` 1 to 4 and unique, `repo` https only, and the reserved id `kind`; writing `motif` (`nodes`, `bars`, `lens`) and `devlog` defaulting from `kind`; library `audience` values (`admissions`, `recruiters`, `visitors`), `approved_on` nullable only with `sample: true`; suggested `order`, `generated_on`, `language`, `sources` as `{ label, href }`; contact message limit 4000 characters.
+- `docs/site/PRD.md` section 2, content model: record the exact fields M1 added or pinned down: projects `capture` (16:10, checked at build), `captureAlt`, `demo` as `{ type, src }` with `src` a site path, `featured` 1 to 4 and unique, `repo` https only, and the reserved id `kind`; writing `motif` (`nodes`, `bars`, `lens`) and no separate `devlog` flag (card C follows `kind: devlog`, Din 2026-10-21); library `audience` values (`admissions`, `recruiters`, `visitors`), `approved_on` nullable only with `sample: true`, optional `project` (an existing project id); suggested `order`, `generated_on`, `language`, `sources` as `{ label, href }`; contact message limit 4000 characters.
 - `docs/site/PLAN.md` M1: note the drafts flags (M0's shared deploy plus `DINS_SHOW_DRAFTS`), the `check:drafts` step in `check.sh`, and `pnpm --dir site launch:blockers` (M5 can make it a launch gate).
 - `docs/site/PLAN.md` M5: Lighthouse against production needs real case study and post paths in `site/lighthouserc.cjs` instead of the samples; M5's release scan can reuse `findDraftLeaks`.
 - `docs/WORK_LEDGER.md`: an entry for the M1 decisions (previews show drafts, static filter pages, own sitemap instead of `@astrojs/sitemap`, social cards via satori with static font instances in `brand/fonts/cards/`, the contact contract with the sent and not-sent pages), with the verification results and Din's preview verdict.
