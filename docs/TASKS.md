@@ -57,7 +57,7 @@ Status vocabulary: Proposed, Planned, In progress, Implemented, Verified, Accept
 | 2.4 | Build Ottie milestone 2: the remaining states (run-in, think, nod, point, shrug, poke, jump, nap, wake, talk; celebrate not built) | Accepted (Din, 2026-10-21: "All approved"; total 2,404 KB at q45) |
 | 2.4a | Talk mouth: shape keys on the Tripo mouth cavity (Din chose option A) | Accepted (Din, 2026-10-21) |
 | 2.4b | Lock the 3D look in `docs/BRAND.md`; keep only the sheets, manifest and preview in this repo and move the 3D source to the private `~/Develop/dins-ottie` | Implemented (2026-10-21) |
-| 2.4c | A private GitHub remote for `dins-ottie` (Git LFS for the model, `.blend` files and textures) | Proposed |
+| 2.4c | A private GitHub remote for `dins-ottie` (Git LFS for the model, `.blend` files and textures) | Implemented (Din's go, 2026-10-21): `dinsdev/dins-ottie` |
 
 ## Phase 3: Games pipeline
 
