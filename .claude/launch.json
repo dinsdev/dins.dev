@@ -4,8 +4,30 @@
     {
       "name": "ottie-preview",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8765", "--bind", "127.0.0.1", "--directory", "brand/ottie"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8765",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "brand/ottie"
+      ],
       "port": 8765
+    },
+    {
+      "name": "holding",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8766",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "holding/public"
+      ],
+      "port": 8766
     }
   ]
 }

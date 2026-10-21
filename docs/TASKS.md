@@ -59,6 +59,8 @@ Status vocabulary: Proposed, Planned, In progress, Implemented, Verified, Accept
 | 2.4a | Talk mouth: shape keys on the Tripo mouth cavity (Din chose option A) | Accepted (Din, 2026-10-21) |
 | 2.4b | Lock the 3D look in `docs/BRAND.md`; keep only the sheets, manifest and preview in this repo and move the 3D source to the private `~/Develop/dins-ottie` | Implemented (2026-10-21) |
 | 2.4c | A private GitHub remote for `dins-ottie` (Git LFS for the model, `.blend` files and textures) | Implemented (Din's go, 2026-10-21): `dinsdev/dins-ottie` |
+| 2.9 | Holding page at `dins.dev` ("Under construction.") until launch: `holding/` | Verified (2026-10-21): built and checked in the preview (light, dark, phone, short screen); copy and deploy route waiting on Din |
+| 2.9a | Deploy the holding page to `dins.dev` | Proposed (needs Din's go) |
 | 2.10 | M0 Foundation: `site/` and `rag/` set up, checks, CI, Renovate, Workers Builds previews. Plan: `docs/site/plans/M0-foundation.md` | Planned (Oct 22 to 26); plan written, Din's answers to its 7 questions recorded |
 | 2.10a | Connect Workers Builds to the repo in the Cloudflare dashboard | Planned (Din, M0) |
 | 2.10b | Install the Renovate app on `dinsdev/dins.dev` | Planned (Din, M0) |

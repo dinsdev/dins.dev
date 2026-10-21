@@ -4,6 +4,16 @@ Decisions and why, work done, verification results, approvals, blockers, handoff
 
 ## 2026-10-21
 
+### Holding page for dins.dev (Claude, 2026-10-21)
+
+- **Asked (Din):** a simple, calm, professional page that says the site is under construction and will be live soon, built from the brand tokens; preview first, pushing discussed after.
+- **Built:** `holding/` (task 2.9). One static page: the lockup, "Under construction." in the Display step, one lead sentence in Din's voice, a footer with GitHub, and Ottie's idle loop standing on the footer rule. `holding/build.py` copies the tokens, lockups, icons and idle sheet from `brand/` and writes WOFF2 subsets (Fraunces 30.7 KB at weight 500, SOFT 50, WONK 0, optical size kept; Instrument Sans 24.8 KB at weights 400 to 600). No JavaScript.
+- **Why this shape:** kept apart from M0's `site/` so it never touches the Astro app and can be deleted at launch. Ottie is the one playful detail, small (about a quarter of the viewport height) and never the headline (BRAND.md). The design skill bans Fraunces and warm paper by default; both are locked brand choices, so the brand wins.
+- **Choices to confirm with Din:** the copy; `noindex` so the holding page never appears in search results; no email address yet because Email Routing (0.8) is not set up; no social card image yet (the cards exist only as an HTML template).
+- **Font download:** Instrument Sans (`InstrumentSans[wdth,wght].ttf`, 194,336 bytes, matches M0's table) and its OFL from github.com/google/fonts, vendored at the M0 Task 4 names (`brand/fonts/InstrumentSans-VF.ttf`, `brand/fonts/OFL-InstrumentSans.txt`). M0 Task 4 Step 1 still needs JetBrains Mono and `brand/fonts/README.md`.
+- **Verification:** served locally (`holding` in `.claude/launch.json`) and checked in the browser pane: both fonts load, no console errors, no horizontal scroll at 375 px, light and dark lockups switch, Ottie's sprite steps through all 24 frames (background positions sampled), Ottie's feet sit on the rule, the text clears Ottie at 375 x 812 and 900 x 480 (the short screen scrolls 48 px instead of overlapping). Reduced motion was not emulated; the CSS only animates under `prefers-reduced-motion: no-preference`, so Ottie shows the first frame still.
+- **Not done:** deploying (needs Din's go).
+
 ### Din's decisions on the plans' open questions (Din, 2026-10-21)
 
 - **Decided (Din):** "Go with your recommendations, then push and open the PR", covering all 35 open questions across M1, M2, M3 and M5. Each plan's "Open questions for Din" section records its answers. Where a question had no recommendation, the plan's default stands: the structured-data name stays Din's task D5 and no photo is used; the theme toggle stays; Quiet Ottie sits under the first Ottie; and a 4x CPU slowdown stands in for a mid-range phone if Din's phone is a flagship.

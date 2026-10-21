@@ -15,7 +15,8 @@ This repo is home to dins, my studio for data and AI work, client websites and s
 |---|---|
 | `brand/logo/` | Final logo files: wordmark, lens, lockup, app icon, favicon, Ottie seal (light, dark, mono) |
 | `brand/tools/` | Scripts that generate those files from the Fraunces font and the traced Ottie art |
-| `brand/fonts/` | Fraunces, vendored under the SIL Open Font License |
+| `brand/fonts/` | Fraunces and Instrument Sans, vendored under the SIL Open Font License |
+| `holding/` | The "under construction" page shown at dins.dev until the site launches |
 | `brand/logo/icons/` | Favicons, app icons, avatar PNGs and the web manifest |
 | `brand/tokens/` | Design tokens: `tokens.json` (source) and generated `tokens.css` |
 | `brand/specimen/` | Type, scale and color specimens used to make brand decisions |
@@ -39,4 +40,4 @@ The icons step needs Homebrew's `cairo`. The last command rebuilds `brand/logo/l
 
 ## License
 
-The Fraunces font is under the SIL Open Font License (`brand/fonts/OFL.txt`). The dins name, logos and the Ottie character are not licensed for reuse.
+Fraunces and Instrument Sans are under the SIL Open Font License (`brand/fonts/OFL.txt`, `brand/fonts/OFL-InstrumentSans.txt`). The dins name, logos and the Ottie character are not licensed for reuse.
